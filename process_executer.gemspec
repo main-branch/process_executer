@@ -8,17 +8,17 @@ Gem::Specification.new do |spec|
   spec.authors = ['James Couball']
   spec.email = ['jcouball@yahoo.com']
 
-  spec.summary = 'An API for executing processes'
-  spec.description = 'An API for executing processes'
-  spec.homepage = 'https://github.com/main_branch/process_executor'
+  spec.summary = 'An API for executing commands in a subprocess'
+  spec.description = 'An API for executing commands in a subprocess'
+  spec.homepage = 'https://github.com/main_branch/process_executer'
   spec.license = 'MIT'
   spec.required_ruby_version = '>= 2.7.0'
 
   spec.metadata['allowed_push_host'] = 'https://rubygems.org'
 
   spec.metadata['homepage_uri'] = spec.homepage
-  spec.metadata['source_code_uri'] = 'https://github.com/main_branch/process_executor'
-  spec.metadata['changelog_uri'] = 'https://github.com/main_branch/process_executor'
+  spec.metadata['source_code_uri'] = 'https://github.com/main_branch/process_executer'
+  spec.metadata['changelog_uri'] = 'https://github.com/main_branch/process_executer'
 
   # Specify which files should be added to the gem when it is released.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
