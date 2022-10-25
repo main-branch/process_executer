@@ -1,27 +1,24 @@
-# ProcessExecuter
+# The ProcessExecuter Gem
 
-**THIS PROJECT IS A WORK IN PROGRESS AND IS NOT USEFUL IN ITS CURRENT STATE**
-
-Welcome to your new gem! In this directory, you'll find the files you need to be
-able to package up your Ruby library into a gem. Put your Ruby code in the file
-`lib/process_executer`. To experiment with that code, run `bin/console` for an
-interactive prompt.
-
-TODO: Delete this and the text above, and describe your gem
+An API for executing commands in a subprocess
 
 ## Installation
 
 Install the gem and add to the application's Gemfile by executing:
 
-    bundle add process_executer
+```shell
+bundle add process_executer
+```
 
 If bundler is not being used to manage dependencies, install the gem by executing:
 
-    gem install process_executer
+```shell
+gem install process_executer
+```
 
 ## Usage
 
-TODO: Write usage instructions here
+See the examples in the project's YARD documentation.
 
 ## Development
 
@@ -38,7 +35,28 @@ commits and the created tag, and push the `.gem` file to
 ## Contributing
 
 Bug reports and pull requests are welcome on our
-[GitHub issue tracker](https://github.com/[USERNAME]/process_executer)
+[GitHub issue tracker](https://github.com/main-branch/process_executer)
+
+## Feature Checklist
+
+Here is the 1.0 feature checklist:
+
+* [x] Run a command
+* [x] Collect the command's stdout/stderr to a string
+* [x] Passthru the command's stdout/stderr to this process's stdout/stderr
+* [ ] Command execution timeout
+* [ ] Redirect stdout/stderr to a named file
+* [ ] Redirect stdout/stderr to a named file with open mode
+* [ ] Redirect stdout/stderr to a named file with open mode and permissions
+* [ ] Redirect stdout/stderr to an open File object
+* [ ] Merge stdout & stderr
+* [ ] Redirect a file to stdin
+* [ ] Redirect from a butter to stdin
+* [ ] Binary vs. text mode for stdin/stdout/stderr
+* [ ] Environment isolation like Process.spawn
+* [ ] Pass options to Process.spawn (chdir, umask, pgroup, etc.)
+* [ ] Don't allow optionis to Process.spawn that would break the functionality
+    (:in, :out, :err, integer, #fileno, :close_others)
 
 ## License
 
