@@ -9,7 +9,7 @@ MD013: { line_length: 90, tables: false, code_blocks: false }
 # Heading duplication is allowed for non-sibling headings
 MD024: { siblings_only: true }
 
-# Do not allow the specified trailig punctuation in a header
+# Do not allow the specified trailing punctuation in a header
 MD026: { punctuation: '.,;:' }
 
 # Order list items must have a prefix that increases in numerical order
