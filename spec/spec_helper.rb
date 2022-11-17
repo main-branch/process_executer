@@ -15,8 +15,9 @@ end
 # Setup simplecov
 
 require 'simplecov'
+require 'simplecov-lcov'
 
-SimpleCov.formatters = [SimpleCov::Formatter::HTMLFormatter]
+SimpleCov.formatters = [SimpleCov::Formatter::HTMLFormatter, SimpleCov::Formatter::LcovFormatter]
 
 # Fail the rspec run if code coverage falls below the configured threshold
 #
