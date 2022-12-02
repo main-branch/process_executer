@@ -291,13 +291,7 @@ module ProcessExecuter
     # @return [String] the status type, pid, and exit status as a string
     #
     def to_s
-      if signaled?
-        signaled_to_s
-      elsif exited?
-        exited_to_s
-      elsif stopped?
-        stopped_to_s
-      end.tap { |s| s << ' (core dumped)' if coredump? }
+      type_to_s + (coredump? ? ' (core dumped)' : '')
     end
 
     # Show the status type, pid, and exit status as a string
@@ -313,6 +307,19 @@ module ProcessExecuter
     end
 
     private
+
+    # The string representation of a status based on how it was terminated
+    # @return [String] the string representation
+    # @api private
+    def type_to_s
+      if signaled?
+        signaled_to_s
+      elsif exited?
+        exited_to_s
+      elsif stopped?
+        stopped_to_s
+      end
+    end
 
     # The string representation of a signaled process
     # @return [String] the string representation of a signaled process
