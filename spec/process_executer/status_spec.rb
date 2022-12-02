@@ -377,7 +377,7 @@ RSpec.describe ProcessExecuter::Status do
 
     context 'when process has stopped with signal 17' do
       let(:status) { status_stopped_signal17 }
-      it { is_expected.to eq('pid 999 stopped SIGSTOP (signal 17)') }
+      it { is_expected.to eq("pid 999 stopped SIG#{Signal.signame(17)} (signal 17)") }
     end
   end
 
@@ -405,7 +405,7 @@ RSpec.describe ProcessExecuter::Status do
 
     context 'when process has stopped with signal 17' do
       let(:status) { status_stopped_signal17 }
-      it { is_expected.to eq('#<ProcessExecuter::Status pid 999 stopped SIGSTOP (signal 17)>') }
+      it { is_expected.to eq("#<ProcessExecuter::Status pid 999 stopped SIG#{Signal.signame(17)} (signal 17)>") }
     end
   end
 end
