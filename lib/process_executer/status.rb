@@ -325,7 +325,7 @@ module ProcessExecuter
     # @return [String] the string representation of a signaled process
     # @api private
     def signaled_to_s
-      "pid #{pid} SIG#{Signal.signame(termsig)} (signal #{termsig})"
+      "pid #{pid} SIG#{signame(termsig)} (signal #{termsig})"
     end
 
     # The string representation of an exited process
@@ -339,7 +339,27 @@ module ProcessExecuter
     # @return [String] the string representation of a stopped process
     # @api private
     def stopped_to_s
-      "pid #{pid} stopped SIG#{Signal.signame(stopsig)} (signal #{stopsig})"
+      "pid #{pid} stopped SIG#{signame(stopsig)} (signal #{stopsig})"
+    end
+
+    # The name of the signal or 'UNKNOWN' if the signal is not known
+    #
+    # On MRI on Mac, `Signal.signame` returns `nil` for unknown signals.
+    #
+    # On JRuby on Windows, `Signal.signame` raises an ArgumentError for unknown signals.
+    #
+    # @param [Integer] signal the signal number
+    #
+    # @return [String] the name of the signal or 'UNKNOWN'
+    #
+    # @api private
+    #
+    def signame(sig)
+      raise ArgumentError if Signal.signame(sig).nil?
+
+      Signal.signame(sig)
+    rescue ArgumentError
+      'UNKNOWN'
     end
   end
 end

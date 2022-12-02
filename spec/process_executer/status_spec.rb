@@ -379,6 +379,11 @@ RSpec.describe ProcessExecuter::Status do
       let(:status) { status_stopped_signal17 }
       it { is_expected.to eq("pid 999 stopped SIG#{Signal.signame(17)} (signal 17)") }
     end
+
+    context 'when process has stoped with an unknown signal 101' do
+      let(:status) { described_class.new(expected_pid, 25_983) }
+      it { is_expected.to eq('pid 999 stopped SIGUNKNOWN (signal 101)') }
+    end
   end
 
   describe '#inspect' do
