@@ -10,6 +10,8 @@ RSpec.describe ProcessExecuter::Options do
   let(:options) { ProcessExecuter::Options.new(**options_hash) }
 
   let(:all_options_hash) do
+    # :nocov:
+    # JRuby does not count the following as covered even though it is
     {
       in: double('in'),
       out: double('out'),
@@ -23,6 +25,7 @@ RSpec.describe ProcessExecuter::Options do
       chdir: double('chdir'),
       timeout: double('timeout')
     }
+    # :nocov:
   end
 
   describe '#initialize' do
@@ -30,16 +33,14 @@ RSpec.describe ProcessExecuter::Options do
 
     context 'with no options' do
       let(:options_hash) { {} }
-      it 'should set the default options' do
-        expect(options).to have_attributes(ProcessExecuter::Options::DEFAULTS)
-      end
+      it { is_expected.to have_attributes(ProcessExecuter::Options::DEFAULTS) }
     end
 
     context 'with an option that is an Integer' do
       let(:options_hash) { { 1 => $stdout, 2 => $stderr } }
 
-      it 'should not raise an ArgumentError' do
-        expect { subject }.not_to raise_error(ArgumentError)
+      it 'should not raise an Exception' do
+        expect { subject }.not_to raise_error
       end
     end
 

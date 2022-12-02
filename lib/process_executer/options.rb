@@ -13,6 +13,10 @@ module ProcessExecuter
   # @api public
   #
   class Options
+    # :nocov:
+    # SimpleCov on JRuby seems to hav a bug that causes hashes declared on multiple lines
+    # to not be counted as covered.
+
     # These options should be passed to `Process.spawn`
     #
     # Additionally, any options whose key is an Integer or an IO object will
@@ -48,6 +52,8 @@ module ProcessExecuter
       chdir: NOT_SET,
       timeout: nil
     }.freeze
+
+    # :nocov:
 
     # All options allowed by this class
     #

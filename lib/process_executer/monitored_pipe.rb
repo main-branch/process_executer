@@ -75,7 +75,7 @@ module ProcessExecuter
       thread.kill
       thread.join
       pipe_writer.close
-      read_pipe_output if pipe_reader.wait_readable(0)
+      read_pipe_output if pipe_reader.wait_readable(0.05)
       pipe_reader.close
     end
 
