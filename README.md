@@ -5,7 +5,63 @@
 [![Maintainability](https://api.codeclimate.com/v1/badges/0b5c67e5c2a773009cd0/maintainability)](https://codeclimate.com/github/main-branch/process_executer/maintainability)
 [![Test Coverage](https://api.codeclimate.com/v1/badges/0b5c67e5c2a773009cd0/test_coverage)](https://codeclimate.com/github/main-branch/process_executer/test_coverage)
 
-An API for executing commands in a subprocess
+## Features
+
+This gem contains the following features:
+
+### ProcessExecuter::MonitoredPipe
+
+`ProcessExecuter::MonitoredPipe` streams data sent through a pipe to one or more writers.
+
+When a new `MonitoredPipe` is created, an pipe is created (via IO.pipe) and
+a thread is created which reads data as it is written written to the pipe.
+
+Data that is read from the pipe is written one or more writers passed to
+`MonitoredPipe#initialize`.
+
+This is useful for streaming process output (stdout and/or stderr) to anything that has a
+`#write` method: a string buffer, a file, or stdout/stderr as seen in the following example:
+
+```ruby
+require 'stringio'
+require 'process_executer'
+
+output_buffer = StringIO.new
+out_pipe = ProcessExecuter::MonitoredPipe.new(output_buffer)
+pid, status = Process.wait2(Process.spawn('echo "Hello World"', out: out_pipe))
+output_buffer.string #=> "Hello World\n"
+```
+
+`MonitoredPipe#initialize` can take more than one writer so that pipe output can be
+streamed (or `tee`d) to multiple writers at the same time:
+
+```ruby
+require 'stringio'
+require 'process_executer'
+
+output_buffer = StringIO.new
+output_file = File.open('process.out', 'w')
+out_pipe = ProcessExecuter::MonitoredPipe.new(output_buffer, output_file)
+pid, status = Process.wait2(Process.spawn('echo "Hello World"', out: out_pipe))
+output_file.close
+output_buffer.string #=> "Hello World\n"
+File.read('process.out') #=> "Hello World\n"
+```
+
+Since the data is streamed, any object that implements `#write` can be used. For insance,
+you can use it to parse process output as a stream which might be useful for long XML
+or JSON output.
+
+### ProcessExecuter.spawn
+
+`ProcessExecuter.spawn` has the same interface as `Process.spawn` but has two
+important behaviorial differences:
+
+1. It blocks until the subprocess finishes
+2. A timeout can be specified using the `:timeout` option
+
+If the command does not terminate before the timeout, the process is killed by
+sending it the SIGKILL signal.
 
 ## Installation
 
@@ -41,27 +97,6 @@ commits and the created tag, and push the `.gem` file to
 
 Bug reports and pull requests are welcome on our
 [GitHub issue tracker](https://github.com/main-branch/process_executer)
-
-## Feature Checklist
-
-Here is the 1.0 feature checklist:
-
-* [x] Run a command
-* [x] Collect the command's stdout/stderr to a string
-* [x] Passthru the command's stdout/stderr to this process's stdout/stderr
-* [ ] Command execution timeout
-* [ ] Redirect stdout/stderr to a named file
-* [ ] Redirect stdout/stderr to a named file with open mode
-* [ ] Redirect stdout/stderr to a named file with open mode and permissions
-* [ ] Redirect stdout/stderr to an open File object
-* [ ] Merge stdout & stderr
-* [ ] Redirect a file to stdin
-* [ ] Redirect from a butter to stdin
-* [ ] Binary vs. text mode for stdin/stdout/stderr
-* [ ] Environment isolation like Process.spawn
-* [ ] Pass options to Process.spawn (chdir, umask, pgroup, etc.)
-* [ ] Don't allow optionis to Process.spawn that would break the functionality
-    (:in, :out, :err, integer, #fileno, :close_others)
 
 ## License
 
