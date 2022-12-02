@@ -27,6 +27,15 @@ SimpleCov.at_exit do
     SimpleCov.result.format!
     if SimpleCov.result.covered_percent < test_coverage_threshold
       warn "FAIL: RSpec Test coverage fell below #{test_coverage_threshold}%"
+
+      warn "\nThe following lines were not covered by tests:\n"
+      SimpleCov.result.files.each do |source_file| # SimpleCov::SourceFile
+        source_file.missed_lines.each do |line| # SimpleCov::SourceFile::Line
+          puts "  #{source_file.project_filename}:#{line.number}"
+        end
+      end
+      warn "\n"
+
       exit 1
     end
   end

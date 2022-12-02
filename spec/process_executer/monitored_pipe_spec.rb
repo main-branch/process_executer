@@ -9,7 +9,9 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     after { monitored_pipe.close }
 
     it 'should create a new monitored pipe' do
-      expect(monitored_pipe).to have_attributes(thread: Thread, writers: writers, chunk_size: 1000)
+      expect(monitored_pipe).to have_attributes(
+        thread: Thread, writers: writers, pipe_reader: IO, pipe_writer: IO, chunk_size: 1000
+      )
     end
 
     it 'should start a thread to monitor the pipe' do
