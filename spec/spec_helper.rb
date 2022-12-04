@@ -16,16 +16,32 @@ end
 
 require 'simplecov'
 require 'simplecov-lcov'
+require 'json'
 
 SimpleCov.formatters = [SimpleCov::Formatter::HTMLFormatter, SimpleCov::Formatter::LcovFormatter]
 
 # Fail the rspec run if code coverage falls below the configured threshold
 #
+# Skip this check if the NOCOV environment variable is set to TRUE
+#
+# ```Shell
+# NOCOV=TRUE rspec
+# ```
+#
+# Example of running the tests in an infinite loop writing failures to `fail.txt`:
+#
+# ```Shell
+# while true; do
+#   NOCOV=TRUE rspec spec/process_executer/monitored_pipe_spec.rb | sed -n '/^Failures:$/, /^Finished /p' >> fail.txt
+# done
+# ````
+#
 test_coverage_threshold = 100
 SimpleCov.at_exit do
   unless RSpec.configuration.dry_run?
     SimpleCov.result.format!
-    if SimpleCov.result.covered_percent < test_coverage_threshold
+
+    if ENV['NOCOV'] != 'TRUE' && SimpleCov.result.covered_percent < test_coverage_threshold
       warn "FAIL: RSpec Test coverage fell below #{test_coverage_threshold}%"
 
       warn "\nThe following lines were not covered by tests:\n"
