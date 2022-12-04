@@ -9,7 +9,7 @@ module ProcessExecuter
   # When a new MonitoredPipe is created, a pipe is created (via IO.pipe) and
   # a thread is created to read data written to the pipe.
   #
-  # Data that is read from the pipe is written one or more writers passed to
+  # Data that is read from that pipe is written one or more writers passed to
   # `#initialize`.
   #
   # `#close` must be called to ensure that (1) the pipe is closed, (2) all data is
@@ -53,30 +53,31 @@ module ProcessExecuter
     # @param chunk_size [Integer] the size of the chunks to read from the pipe
     #
     def initialize(*writers, chunk_size: 1000)
-      @pipe_reader, @pipe_writer = IO.pipe
-      @chunk_size = chunk_size
       @writers = writers
-      @thread = Thread.new { monitor_pipe }
+      @chunk_size = chunk_size
+      @pipe_reader, @pipe_writer = IO.pipe
+      @state = :open
+      @thread = Thread.new { monitor }
     end
 
-    # Kill the monitoring thread, read remaining data, and close the pipe
+    # Set the state to `:closing` and wait for the state to be set to `:closed`
+    #
+    # The monitoring thread will see that the state has changed and will close the pipe.
     #
     # @example
-    #   require 'stringio'
     #   data_collector = StringIO.new
     #   pipe = ProcessExecuter::MonitoredPipe.new(data_collector)
+    #   pipe.state #=> :open
     #   pipe.write('Hello World')
     #   pipe.close
+    #   pipe.state #=> :closed
     #   data_collector.string #=> "Hello World"
     #
     # @return [void]
     #
     def close
-      thread.kill
-      thread.join
-      pipe_writer.close
-      read_pipe_output if pipe_reader.wait_readable(0.05)
-      pipe_reader.close
+      @state = :closing
+      sleep 0.01 until state == :closed
     end
 
     # Return the write end of the pipe so that data can be written to it
@@ -212,26 +213,70 @@ module ProcessExecuter
     # @return [IO] the write end of the pipe
     attr_reader :pipe_writer
 
+    # @!attribute [r]
+    #
+    # The state of the pipe
+    #
+    # Must be either `:open`, `:closing`, or `:closed`
+    #
+    # * `:open` - the pipe is open and data can be written to it
+    # * `:closing` - the pipe is being closed and data can no longer be written to it
+    # * `:closed` - the pipe is closed and data can no longer be written to it
+    #
+    # @example
+    #   pipe = ProcessExecuter::MonitoredPipe.new($stdout)
+    #   pipe.state #=> :open
+    #   pipe.close
+    #   pipe.state #=> :closed
+    #
+    # @return [Symbol] the state of the pipe
+    #
+    attr_reader :state
+
     private
 
-    # Reads data from the pipe forever until the monitoring thread is killed
+    # Read data from the pipe until `#state` is changed to `:closing`
+    #
+    # The state is changed to `:closed` by calling `#close`.
+    #
+    # Before this method returns, state is set to `:closed`
+    #
+    # @return [void]
+    # @api private
+    def monitor
+      monitor_pipe until state == :closing
+      close_pipe
+      @state = :closed
+    end
+
+    # Read data from the pipe until `#state` is changed to `:closing`
+    #
+    # Data read from the pipe is written to the writers given to the constructor.
+    #
     # @return [void]
     # @api private
     def monitor_pipe
-      loop do
-        read_pipe_output if pipe_reader.wait_readable
-      end
+      new_data = pipe_reader.read_nonblock(chunk_size)
+    rescue IO::WaitReadable
+      pipe_reader.wait_readable(0.01)
+    else
+      writers.each { |w| w.write(new_data) }
     end
 
-    # Read a chunk of data from the pipe and write it to the writers
+    # Read any remaining data from the pipe and close it
+    #
     # @return [void]
     # @api private
-    def read_pipe_output
-      new_data = pipe_reader.read_nonblock(chunk_size)
-      # puts "Received new data: #{new_data.inspect} from #{pipe_reader.inspect}"
-      writers.each { |w| w.write(new_data) }
-    rescue EOFError, IO::EAGAINWaitReadable
-      # No output to read at this time
+    def close_pipe
+      # Close the write end of the pipe so no more data can be written to it
+      pipe_writer.close
+      # Read remaining data from pipe_reader (if any)
+      if pipe_reader.wait_readable(0.01)
+        new_data = pipe_reader.read(chunk_size)
+        writers.each { |w| w.write(new_data) }
+      end
+      # Close the read end of the pipe
+      pipe_reader.close
     end
   end
 end
