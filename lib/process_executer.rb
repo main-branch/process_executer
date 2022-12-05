@@ -2,8 +2,6 @@
 
 require 'process_executer/monitored_pipe'
 require 'process_executer/options'
-require 'process_executer/process'
-require 'process_executer/status'
 
 require 'timeout'
 
