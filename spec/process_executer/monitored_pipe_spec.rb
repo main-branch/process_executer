@@ -9,9 +9,12 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     after { monitored_pipe.close }
 
     it 'should create a new monitored pipe' do
+      # SimpleCov in JRuby reports the following line as not covered even though it is
+      # :nocov:
       expect(monitored_pipe).to have_attributes(
         thread: Thread, writers: writers, pipe_reader: IO, pipe_writer: IO, chunk_size: 1000
       )
+      # :nocov:
     end
 
     it 'should start a thread to monitor the pipe' do
