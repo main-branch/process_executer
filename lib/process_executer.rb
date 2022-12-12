@@ -10,15 +10,17 @@ require 'timeout'
 # @api public
 #
 module ProcessExecuter
-  # Execute the specified command and return the exit status
+  # Execute the specified command as a subprocess and return the exit status
   #
-  # This method blocks until the command has terminated or the timeout has been reached.
+  # This method blocks until the command has terminated.
+  #
+  # The command will be send the SIGKILL signal if it does not terminate within
+  # the specified timeout.
   #
   # @example
   #   status = ProcessExecuter.spawn('echo hello')
   #   status.exited? # => true
   #   status.success? # => true
-  #   stdout.string # => "hello\n"
   #
   # @example with a timeout
   #   status = ProcessExecuter.spawn('sleep 10', timeout: 0.01)
@@ -27,6 +29,11 @@ module ProcessExecuter
   #   status.signaled? # => true
   #   status.termsig # => 9
   #
+  # @example capturing stdout to a string
+  #   stdout = StringIO.new
+  #   status = ProcessExecuter.spawn('echo hello', out: stdout)
+  #   stdout.string # => "hello"
+  #
   # @see https://ruby-doc.org/core-3.1.2/Kernel.html#method-i-spawn Kernel.spawn
   #   documentation for valid command and options
   #
@@ -34,13 +41,13 @@ module ProcessExecuter
   #   for additional options that may be specified
   #
   # @param command [Array<String>] the command to execute
-  # @param options_hash [Hash] the options to use for this execution context
+  # @param options_hash [Hash] the options to use when exectuting the command
   #
-  # @return [ProcessExecuter::ExecutionContext] the execution context that can run commands
+  # @return [Process::Status] the exit status of the proceess
   #
   def self.spawn(*command, **options_hash)
     options = ProcessExecuter::Options.new(**options_hash)
-    pid = ::Process.spawn(*command, **options.spawn_options)
+    pid = Process.spawn(*command, **options.spawn_options)
     wait_for_process(pid, options)
   end
 
@@ -51,16 +58,16 @@ module ProcessExecuter
   # @param pid [Integer] the process id
   # @param options [ProcessExecuter::Options] the options used
   #
-  # @return [ProcessExecuter::Status] the status of the process
+  # @return [Process::Status] the status of the process
   #
   # @api private
   #
   private_class_method def self.wait_for_process(pid, options)
     Timeout.timeout(options.timeout) do
-      ::Process.wait2(pid).last
+      Process.wait2(pid).last
     end
   rescue Timeout::Error
-    ::Process.kill('KILL', pid)
-    ::Process.wait2(pid).last
+    Process.kill('KILL', pid)
+    Process.wait2(pid).last
   end
 end
