@@ -12,7 +12,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       # SimpleCov in JRuby reports the following line as not covered even though it is
       # :nocov:
       expect(monitored_pipe).to have_attributes(
-        thread: Thread, writers: writers, pipe_reader: IO, pipe_writer: IO, chunk_size: 1000
+        thread: Thread, writers: writers, pipe_reader: IO, pipe_writer: IO, chunk_size: 100_000
       )
       # :nocov:
     end
@@ -106,6 +106,15 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         sleep 0.2
         monitored_pipe.close
         expect(output.string).to eq('hello world')
+      end
+    end
+
+    context 'with a large amount of data' do
+      it 'should write all the data to the writer' do
+        data = 'h' * 50_000_000
+        monitored_pipe.write(data)
+        monitored_pipe.close
+        expect(output.string.size).to eq(data.size)
       end
     end
   end

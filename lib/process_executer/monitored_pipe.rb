@@ -52,7 +52,7 @@ module ProcessExecuter
     # @param writers [Array<#write>] as data is read from the pipe, it is written to these writers
     # @param chunk_size [Integer] the size of the chunks to read from the pipe
     #
-    def initialize(*writers, chunk_size: 1000)
+    def initialize(*writers, chunk_size: 100_000)
       @writers = writers
       @chunk_size = chunk_size
       @pipe_reader, @pipe_writer = IO.pipe
