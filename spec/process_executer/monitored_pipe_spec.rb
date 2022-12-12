@@ -20,12 +20,26 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     it 'should start a thread to monitor the pipe' do
       expect(monitored_pipe.thread.alive?).to eq(true)
     end
+
+    it 'should set the state to :open' do
+      expect(monitored_pipe.state).to eq(:open)
+    end
   end
 
   describe '#close' do
     it 'should kill the thread' do
       monitored_pipe.close
       expect(monitored_pipe.thread.alive?).to eq(false)
+    end
+
+    it 'should set the state to closed' do
+      monitored_pipe.close
+      expect(monitored_pipe.state).to eq(:closed)
+    end
+
+    it 'should be ok to call two or more times' do
+      monitored_pipe.close
+      expect { monitored_pipe.close }.not_to raise_error
     end
   end
 
@@ -115,6 +129,41 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         monitored_pipe.write(data)
         monitored_pipe.close
         expect(output.string.size).to eq(data.size)
+      end
+    end
+
+    context 'when a writer raises an exception' do
+      let(:output) { double('output') }
+      before do
+        expect(output).to receive(:write).with(String).and_raise(
+          Encoding::UndefinedConversionError, 'UTF-8 conversion error'
+        )
+      end
+      let(:writers) { [output] }
+
+      it 'should kill the monitoring thread' do
+        monitored_pipe.write('hello')
+        sleep(0.01)
+        expect(monitored_pipe.thread.alive?).to eq(false)
+      end
+
+      it 'should set the state to :closed' do
+        monitored_pipe.write('hello')
+        sleep(0.01)
+        expect(monitored_pipe.state).to eq(:closed)
+      end
+
+      it 'should save the exception raised to #exception' do
+        monitored_pipe.write('hello')
+        sleep(0.01)
+        expect(monitored_pipe.exception).to be_a(Encoding::UndefinedConversionError)
+        expect(monitored_pipe.exception.message).to eq('UTF-8 conversion error')
+      end
+
+      it 'should raise an exception if #write is called after the pipe is closed' do
+        monitored_pipe.write('hello')
+        sleep(0.01)
+        expect { monitored_pipe.write('world') }.to raise_error(IOError, 'closed stream')
       end
     end
   end

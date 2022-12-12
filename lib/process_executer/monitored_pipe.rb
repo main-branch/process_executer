@@ -12,6 +12,9 @@ module ProcessExecuter
   # Data that is read from that pipe is written one or more writers passed to
   # `#initialize`.
   #
+  # If any of the writers raise an exception, the monitoring thread will exit, the
+  # pipe will be closed, and the exception will be saved in `#exception`.
+  #
   # `#close` must be called to ensure that (1) the pipe is closed, (2) all data is
   # read from the pipe and written to the writers, and (3) the monitoring thread is
   # killed.
@@ -57,7 +60,11 @@ module ProcessExecuter
       @chunk_size = chunk_size
       @pipe_reader, @pipe_writer = IO.pipe
       @state = :open
-      @thread = Thread.new { monitor }
+      @thread = Thread.new do
+        Thread.current.report_on_exception = false
+        Thread.current.abort_on_exception = false
+        monitor
+      end
     end
 
     # Set the state to `:closing` and wait for the state to be set to `:closed`
@@ -76,6 +83,8 @@ module ProcessExecuter
     # @return [void]
     #
     def close
+      return unless state == :open
+
       @state = :closing
       sleep 0.01 until state == :closed
     end
@@ -233,6 +242,19 @@ module ProcessExecuter
     #
     attr_reader :state
 
+    # @!attribute [r]
+    #
+    # The exception raised by a writer
+    #
+    # If an exception is raised by a writer, it is stored here. Otherwise, it is `nil`.
+    #
+    # @example
+    #   pipe.exception #=> nil
+    #
+    # @return [Exception, nil] the exception raised by a writer or `nil` if no exception was raised
+    #
+    attr_reader :exception
+
     private
 
     # Read data from the pipe until `#state` is changed to `:closing`
@@ -257,10 +279,14 @@ module ProcessExecuter
     # @api private
     def monitor_pipe
       new_data = pipe_reader.read_nonblock(chunk_size)
+      begin
+        writers.each { |w| w.write(new_data) }
+      rescue StandardError => e
+        @exception = e
+        @state = :closing
+      end
     rescue IO::WaitReadable
       pipe_reader.wait_readable(0.01)
-    else
-      writers.each { |w| w.write(new_data) }
     end
 
     # Read any remaining data from the pipe and close it
@@ -271,7 +297,8 @@ module ProcessExecuter
       # Close the write end of the pipe so no more data can be written to it
       pipe_writer.close
       # Read remaining data from pipe_reader (if any)
-      if pipe_reader.wait_readable(0.01)
+      # If an exception was already raised by the last call to #write, then don't try to read remaining data
+      if exception.nil? && pipe_reader.wait_readable(0.01)
         new_data = pipe_reader.read(chunk_size)
         writers.each { |w| w.write(new_data) }
       end
