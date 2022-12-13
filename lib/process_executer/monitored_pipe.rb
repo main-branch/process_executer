@@ -279,7 +279,10 @@ module ProcessExecuter
     # @api private
     def monitor_pipe
       new_data = pipe_reader.read_nonblock(chunk_size)
+      # SimpleCov under JRuby reports the begin statement as not covered, but it is
+      # :nocov:
       begin
+        # :nocov:
         writers.each { |w| w.write(new_data) }
       rescue StandardError => e
         @exception = e
