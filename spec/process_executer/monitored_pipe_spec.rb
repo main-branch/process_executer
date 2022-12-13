@@ -143,26 +143,26 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
 
       it 'should kill the monitoring thread' do
         monitored_pipe.write('hello')
-        sleep(0.01)
+        sleep(0.02)
         expect(monitored_pipe.thread.alive?).to eq(false)
       end
 
       it 'should set the state to :closed' do
         monitored_pipe.write('hello')
-        sleep(0.01)
+        sleep(0.02)
         expect(monitored_pipe.state).to eq(:closed)
       end
 
       it 'should save the exception raised to #exception' do
         monitored_pipe.write('hello')
-        sleep(0.01)
+        sleep(0.02)
         expect(monitored_pipe.exception).to be_a(Encoding::UndefinedConversionError)
         expect(monitored_pipe.exception.message).to eq('UTF-8 conversion error')
       end
 
       it 'should raise an exception if #write is called after the pipe is closed' do
         monitored_pipe.write('hello')
-        sleep(0.01)
+        sleep(0.02)
         expect { monitored_pipe.write('world') }.to raise_error(IOError, 'closed stream')
       end
     end
