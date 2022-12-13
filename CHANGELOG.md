@@ -5,6 +5,17 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.5.0 (2022-12-12)
+
+[Full Changelog](https://github.com/main-branch/process_executer/compare/v0.4.0...v0.5.0)
+
+* c6d8de9 Workaround a problem with SimpleCov / JRuby
+* c480b5f Increase time to wait for results from a writer throwing an exception
+* 1934563 Handle exceptions from writers within MonitoredPipe
+* e948ada Increase default chunk_size to 100_000 bytes
+* 5eb2c24 Update documentation for ProcessExecuter#spawn
+* a3a4217 Release v0.4.0
+
 ## v0.4.0 (2022-12-06)
 
 [Full Changelog](https://github.com/main-branch/process_executer/compare/v0.3.0...v0.4.0)
