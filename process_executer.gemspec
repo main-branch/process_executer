@@ -35,7 +35,7 @@ Gem::Specification.new do |spec|
   # spec.add_dependency "example-gem", "~> 1.0"
   spec.add_development_dependency 'bump', '~> 0.10'
   spec.add_development_dependency 'bundler-audit', '~> 0.9'
-  spec.add_development_dependency 'create_github_release', '~> 0.2'
+  spec.add_development_dependency 'create_github_release', '~> 1.0'
   spec.add_development_dependency 'rake', '~> 13.0'
   spec.add_development_dependency 'rspec', '~> 3.10'
   spec.add_development_dependency 'rubocop', '~> 1.36'
