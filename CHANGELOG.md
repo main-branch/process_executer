@@ -5,6 +5,18 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.6.0 (2023-02-12)
+
+[Full Changelog](https://github.com/main-branch/process_executer/compare/v0.5.0..v0.6.0)
+
+Changes since v0.5.0:
+
+* 2a22dbd Fix intermittent test failures (#21)
+* e3afaa3 Add build for MRI Ruby 3.2 on unbuntu-latest (#20)
+* 17522ac Use latest create_release_version gem (#19)
+* ba1fb2d Read remaining data from pipe_reader when closing a MonitoredPipe (#17)
+* 8422aa9 Release v0.5.0
+
 ## v0.5.0 (2022-12-12)
 
 [Full Changelog](https://github.com/main-branch/process_executer/compare/v0.4.0...v0.5.0)
