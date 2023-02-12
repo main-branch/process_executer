@@ -135,7 +135,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     context 'when a writer raises an exception' do
       let(:output) { double('output') }
       before do
-        expect(output).to receive(:write).with(String).and_raise(
+        expect(output).to receive(:write).with('hello').and_raise(
           Encoding::UndefinedConversionError, 'UTF-8 conversion error'
         )
       end
