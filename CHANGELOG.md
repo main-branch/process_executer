@@ -5,6 +5,14 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v0.6.1 (2023-02-12)
+
+[Full Changelog](https://github.com/main-branch/process_executer/compare/v0.6.0..v0.6.1)
+
+Changes since v0.6.0:
+
+* 34b28a0 Documentation cleanup (#23)
+
 ## v0.6.0 (2023-02-12)
 
 [Full Changelog](https://github.com/main-branch/process_executer/compare/v0.5.0..v0.6.0)
