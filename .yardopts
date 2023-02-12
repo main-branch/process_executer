@@ -2,4 +2,5 @@
 --hide-void-return
 --markup-provider=redcarpet
 --markup markdown
+- CHANGELOG.md
 - LICENSE.md
