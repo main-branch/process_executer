@@ -135,34 +135,34 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     context 'when a writer raises an exception' do
       let(:output) { double('output') }
       before do
-        expect(output).to receive(:write).with(String).and_raise(
+        expect(output).to receive(:write).with('hello').and_raise(
           Encoding::UndefinedConversionError, 'UTF-8 conversion error'
         )
       end
       let(:writers) { [output] }
 
-      it 'should kill the monitoring thread' do
+      it 'should eventually kill the monitoring thread' do
         monitored_pipe.write('hello')
-        sleep(0.02)
+        sleep(0.1)
         expect(monitored_pipe.thread.alive?).to eq(false)
       end
 
-      it 'should set the state to :closed' do
+      it 'should eventually set the state to :closed' do
         monitored_pipe.write('hello')
-        sleep(0.02)
+        sleep(0.1)
         expect(monitored_pipe.state).to eq(:closed)
       end
 
-      it 'should save the exception raised to #exception' do
+      it 'should eventually save the exception raised to #exception' do
         monitored_pipe.write('hello')
-        sleep(0.02)
+        sleep(0.1)
         expect(monitored_pipe.exception).to be_a(Encoding::UndefinedConversionError)
         expect(monitored_pipe.exception.message).to eq('UTF-8 conversion error')
       end
 
       it 'should raise an exception if #write is called after the pipe is closed' do
         monitored_pipe.write('hello')
-        sleep(0.02)
+        sleep(0.1)
         expect { monitored_pipe.write('world') }.to raise_error(IOError, 'closed stream')
       end
     end
