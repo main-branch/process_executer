@@ -1,6 +1,7 @@
 # The ProcessExecuter Gem
 
 [![Gem Version](https://badge.fury.io/rb/process_executer.svg)](https://badge.fury.io/rb/process_executer)
+[![Documentation](https://img.shields.io/badge/Documentation-Latest-green)](https://rubydoc.info/gems/process_executer/)
 [![Change Log](https://img.shields.io/badge/CHANGELOG-Latest-green)](https://rubydoc.info/gems/process_executer/file/CHANGELOG.md)
 [![Build Status](https://github.com/main-branch/process_executer/workflows/Ruby/badge.svg?branch=main)](https://github.com/main-branch/process_executer/actions?query=workflow%3ARuby)
 [![Maintainability](https://api.codeclimate.com/v1/badges/0b5c67e5c2a773009cd0/maintainability)](https://codeclimate.com/github/main-branch/process_executer/maintainability)
