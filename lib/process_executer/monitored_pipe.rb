@@ -299,12 +299,11 @@ module ProcessExecuter
     def close_pipe
       # Close the write end of the pipe so no more data can be written to it
       pipe_writer.close
+
       # Read remaining data from pipe_reader (if any)
       # If an exception was already raised by the last call to #write, then don't try to read remaining data
-      if exception.nil? && pipe_reader.wait_readable(0.01)
-        new_data = pipe_reader.read(chunk_size)
-        writers.each { |w| w.write(new_data) }
-      end
+      monitor_pipe while exception.nil? && !pipe_reader.eof?
+
       # Close the read end of the pipe
       pipe_reader.close
     end
