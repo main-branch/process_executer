@@ -86,7 +86,7 @@ module ProcessExecuter
       return unless state == :open
 
       @state = :closing
-      sleep 0.01 until state == :closed
+      sleep 0.001 until state == :closed
     end
 
     # Return the write end of the pipe so that data can be written to it
@@ -149,6 +149,8 @@ module ProcessExecuter
     # @api private
     #
     def write(data)
+      raise IOError, 'closed stream' unless state == :open
+
       pipe_writer.write(data)
     end
 
@@ -289,7 +291,7 @@ module ProcessExecuter
         @state = :closing
       end
     rescue IO::WaitReadable
-      pipe_reader.wait_readable(0.01)
+      pipe_reader.wait_readable(0.001)
     end
 
     # Read any remaining data from the pipe and close it

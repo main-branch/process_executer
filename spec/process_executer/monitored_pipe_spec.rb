@@ -166,5 +166,12 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         expect { monitored_pipe.write('world') }.to raise_error(IOError, 'closed stream')
       end
     end
+
+    context 'after the pipe is closed' do
+      it 'should raise an exception' do
+        monitored_pipe.close
+        expect { monitored_pipe.write('hello') }.to raise_error(IOError, 'closed stream')
+      end
+    end
   end
 end
