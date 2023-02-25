@@ -5,7 +5,7 @@ RSpec.describe ProcessExecuter do
     subject { ProcessExecuter.spawn(*command, **options) }
 
     context 'for a command that does not time out' do
-      let(:command) { ['exit 1'] }
+      let(:command) { %w[false] }
       let(:options) { {} }
       it { is_expected.to be_a(Process::Status) }
       it { is_expected.to have_attributes(exitstatus: 1) }
