@@ -14,10 +14,12 @@ jobs:
 
     strategy:
       matrix:
-        ruby: ['2.7', '3.0', '3.1', '3.2', 'head', 'jruby-head', 'truffleruby-head']
+        ruby: ['3.0', '3.1', '3.2', '3.3', 'head', 'jruby-head', 'truffleruby-head']
         operating-system: [ubuntu-latest]
         include:
-          - ruby: 3.1
+          - ruby: 3.0
+            operating-system: windows-latest
+          - ruby: 3.3
             operating-system: windows-latest
           # - ruby: jruby-head
           #   operating-system: windows-latest
@@ -55,7 +57,7 @@ jobs:
       - name: Initialize Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.1
+          ruby-version: 3.3
           bundler-cache: true
 
       - name: Run tests

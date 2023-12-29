@@ -7,7 +7,7 @@ AllCops:
   SuggestExtensions: false
   # RuboCop enforces rules depending on the oldest version of Ruby which
   # your project supports:
-  TargetRubyVersion: 2.7
+  TargetRubyVersion: 3.0
 
 Gemspec/DevelopmentDependencies:
   EnforcedStyle: gemspec
