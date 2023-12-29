@@ -20,41 +20,61 @@ require 'json'
 
 SimpleCov.formatters = [SimpleCov::Formatter::HTMLFormatter, SimpleCov::Formatter::LcovFormatter]
 
-# Fail the rspec run if code coverage falls below the configured threshold
+# Report if the test coverage was below the configured threshold
 #
-# Skip this check if the NOCOV environment variable is set to TRUE
+# The threshold is configured by setting the `test_coverage_threshold` variable
+# in this file.
+#
+# Example:
+#
+# ```Ruby
+# test_coverage_threshold = 100
+# ```
+#
+# Coverage below the threshold will cause the rspec run to fail unless the
+# `COV_NO_FAIL` environment variable is set to TRUE.
 #
 # ```Shell
-# NOCOV=TRUE rspec
+# COV_NO_FAIL=TRUE rspec
 # ```
 #
 # Example of running the tests in an infinite loop writing failures to `fail.txt`:
 #
 # ```Shell
-# while true; do
-#   NOCOV=TRUE rspec spec/process_executer/monitored_pipe_spec.rb | sed -n '/^Failures:$/, /^Finished /p' >> fail.txt
-# done
+# while true; do COV_NO_FAIL=TRUE rspec >> fail.txt; done
 # ````
 #
+# The lines missing coverage will be displayed if the `COV_SHOW_UNCOVERED`
+# environment variable is set to TRUE.
+#
+# ```Shell
+# COV_SHOW_UNCOVERED=TRUE rspec
+# ```
+#
 test_coverage_threshold = 100
+
 SimpleCov.at_exit do
-  unless RSpec.configuration.dry_run?
-    SimpleCov.result.format!
+  SimpleCov.result.format!
+  # rubocop:disable Style/StderrPuts
+  if SimpleCov.result.covered_percent < test_coverage_threshold
+    $stderr.puts
+    $stderr.print 'FAIL: ' if fail_on_low_coverage?
+    $stderr.puts "RSpec Test coverage fell below #{test_coverage_threshold}%"
 
-    if ENV['NOCOV'] != 'TRUE' && SimpleCov.result.covered_percent < test_coverage_threshold
-      warn "FAIL: RSpec Test coverage fell below #{test_coverage_threshold}%"
-
-      warn "\nThe following lines were not covered by tests:\n"
+    if show_lines_not_covered?
+      $stderr.puts "\nThe following lines were not covered by tests:\n"
       SimpleCov.result.files.each do |source_file| # SimpleCov::SourceFile
         source_file.missed_lines.each do |line| # SimpleCov::SourceFile::Line
-          puts "  #{source_file.project_filename}:#{line.number}"
+          $stderr.puts "  .#{source_file.project_filename}:#{line.number}"
         end
       end
-      warn "\n"
-
-      exit 1
     end
+
+    $stderr.puts
+
+    exit 1 if fail_on_low_coverage?
   end
+  # rubocop:enable Style/StderrPuts
 end
 
 SimpleCov.start
