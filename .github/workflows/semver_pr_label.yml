@@ -1,0 +1,25 @@
+name: Semver PR Label
+
+on:
+  pull_request:
+    branches: [main]
+
+    # The default triggers for pull requests are opened, synchronize, and reopened.
+    # Add labeled and unlabeled to the list of triggers so that the
+    # semver_pr_label job is run when a label is added or removed from a
+    # pull request.
+
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  semver_pr_label:
+    name: Semver PR Label
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check that a semver label is present on the PR
+        if: github.event_name == 'pull_request'
+        uses: docker://agilepathway/pull-request-label-checker:latest
+        with:
+          one_of: major-change,minor-change,patch-change,internal-change
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
