@@ -5,6 +5,20 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v1.0.0 (2023-12-31)
+
+[Full Changelog](https://github.com/main-branch/process_executer/compare/v0.7.0..v1.0.0)
+
+Changes since v0.7.0:
+
+* e11f03e Separate semver PR label check into its own workflow (#36)
+* eabcc3e Update min req Ruby version from 2.7 to 3.0 (#32)
+* 5483bb8 Update spec_helper.rb to new standard (#31)
+* 4a27341 Update all development dependencies to latest versions (#30)
+* ea7513d Enforce that a semver label is present on PRs (#28)
+* 0aa26cd Instruct Rubocop that dev deps go in gemspec (#29)
+* 53cb526 Add a truffle-ruby build on ubuntu (#18)
+
 ## v0.7.0 (2023-02-17)
 
 [Full Changelog](https://github.com/main-branch/process_executer/compare/v0.6.1..v0.7.0)
