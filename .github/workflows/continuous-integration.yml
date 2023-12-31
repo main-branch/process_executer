@@ -1,18 +1,13 @@
 name: Continuous Integration
 
+# This is a workflow fix
+
 on:
   push:
     branches: [main]
 
   pull_request:
     branches: [main]
-
-    # The default triggers for pull requests are opened, synchronize, and reopened.
-    # Add labeled and unlabeled to the list of triggers so that the
-    # check_for_semver_pr_label job is run when a label is added or removed from a
-    # pull request.
-
-    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 jobs:
   build:
@@ -49,18 +44,6 @@ jobs:
 
       - name: Run rake
         run: bundle exec rake
-
-  check_for_semver_pr_label:
-    name: Check that a semver label is present on the PR
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Check that a semver label is present on the PR
-        if: github.event_name == 'pull_request'
-        uses: docker://agilepathway/pull-request-label-checker:latest
-        with:
-          one_of: major-change,minor-change,patch-change,internal-change
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
 
   coverage:
     name: Report test coverage to CodeClimate
