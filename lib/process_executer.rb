@@ -12,7 +12,8 @@ require 'timeout'
 module ProcessExecuter
   # Execute the specified command as a subprocess and return the exit status
   #
-  # This method blocks until the command has terminated.
+  # This is a convenience method that calls Process.spawn and blocks until the
+  # command has terminated.
   #
   # The command will be send the SIGKILL signal if it does not terminate within
   # the specified timeout.
@@ -38,7 +39,7 @@ module ProcessExecuter
   #   documentation for valid command and options
   #
   # @see ProcessExecuter::Options#initialize See ProcessExecuter::Options#initialize
-  #   for additional options that may be specified
+  #   for options that may be specified
   #
   # @param command [Array<String>] the command to execute
   # @param options_hash [Hash] the options to use when exectuting the command

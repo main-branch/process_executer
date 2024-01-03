@@ -27,13 +27,14 @@ module ProcessExecuter
       close_others chdir
     ].freeze
 
-    # These options are allowed but should NOT be passed to `Process.spawn`
+    # These options are allowed by `ProcessExecuter.spawn` but should NOT be passed
+    # to `Process.spawn`
     #
     NON_SPAWN_OPTIONS = %i[
       timeout
     ].freeze
 
-    # Any `SPAWN_OPTIONS`` set to this value will not be passed to `Process.spawn`
+    # Any `SPAWN_OPTIONS` set to `NOT_SET` will not be passed to `Process.spawn`
     #
     NOT_SET = :not_set
 
@@ -76,7 +77,7 @@ module ProcessExecuter
     # @param options [Hash] Process.spawn options plus additional options listed below.
     #
     #   See [Process.spawn](https://ruby-doc.org/core/Process.html#method-c-spawn)
-    #   for a list of valid.
+    #   for a list of valid options that can be passed to `Process.spawn`.
     #
     # @option options [Integer, Float, nil] :timeout
     #   Number of seconds to wait for the process to terminate. Any number
