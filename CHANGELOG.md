@@ -5,6 +5,16 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v1.0.1 (2024-01-04)
+
+[Full Changelog](https://github.com/main-branch/process_executer/compare/v1.0.0..v1.0.1)
+
+Changes since v1.0.0:
+
+* f434aa1 Add an experimental build for jruby-head on windows (#15)
+* 97dbcf5 Make updates resulting from doc review (#38)
+* 93eab18 Release v1.0.0 (#37)
+
 ## v1.0.0 (2023-12-31)
 
 [Full Changelog](https://github.com/main-branch/process_executer/compare/v0.7.0..v1.0.0)
