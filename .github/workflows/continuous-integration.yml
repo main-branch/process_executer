@@ -13,20 +13,37 @@ jobs:
   build:
     name: Ruby ${{ matrix.ruby }} on ${{ matrix.operating-system }}
     runs-on: ${{ matrix.operating-system }}
+    continue-on-error: ${{ matrix.experimental == 'Yes' }}
 
     strategy:
       fail-fast: false
       matrix:
-        ruby:
-          ["3.0", "3.1", "3.2", "3.3", "head", "jruby-head", "truffleruby-head"]
+        ruby: ["3.0", "3.1", "3.2", "3.3", "jruby-head", "truffleruby-head"]
         operating-system: [ubuntu-latest]
+        experimental: [No]
         include:
-          - ruby: 3.0
+          - # Run minimal Ruby version supported on windows-latest
+            ruby: 3.0
             operating-system: windows-latest
-          - ruby: 3.3
+
+          - # Run maximal Ruby version supported on windows-latest
+            ruby: 3.3
             operating-system: windows-latest
-          # - ruby: jruby-head
-          #   operating-system: windows-latest
+
+          - # Run head version of Ruby on ubuntu-latest
+            ruby: head
+            operating-system: ubuntu-latest
+            # If this build fails, it is ok to set the `experimental` flag
+            # to `Yes` to allow the build to continue. Add an issue about
+            # the build failing on "ruby: head".
+            # experimental: Yes
+
+          - # Experimental build for jruby on windows
+            ruby: jruby-head
+            operating-system: windows-latest
+            # This gem does not support jruby on windows yet
+            # Remove this `experimental` flag when this build succeeds.
+            experimental: Yes
 
     env:
       JAVA_OPTS: -Djdk.io.File.enableADS=true
