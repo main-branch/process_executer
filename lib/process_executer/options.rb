@@ -2,6 +2,7 @@
 
 require 'forwardable'
 require 'ostruct'
+require 'pp'
 
 module ProcessExecuter
   # Validate ProcessExecuter::Executer#spawn options and return Process.spawn options
@@ -87,6 +88,7 @@ module ProcessExecuter
     def initialize(**options)
       assert_no_unknown_options(options)
       @options = DEFAULTS.merge(options)
+      assert_timeout_is_valid
     end
 
     # Returns the options to be passed to Process.spawn
@@ -128,6 +130,24 @@ module ProcessExecuter
     def assert_no_unknown_options(options)
       unknown_options = options.keys.reject { |key| valid_option?(key) }
       raise ArgumentError, "Unknown options: #{unknown_options.join(', ')}" unless unknown_options.empty?
+    end
+
+    # Raise an error if timeout is not a real non-negative number
+    # @return [void]
+    # @raise [ArgumentError] if timeout is not a real non-negative number
+    # @api private
+    def assert_timeout_is_valid
+      return if @options[:timeout].nil?
+      return if @options[:timeout].is_a?(Numeric) && @options[:timeout].real? && !@options[:timeout].negative?
+
+      raise ArgumentError, invalid_timeout_message
+    end
+
+    # The message to be used when raising an error for an invalid timeout
+    # @return [String]
+    # @api private
+    def invalid_timeout_message
+      "timeout must be nil or a real non-negative number but was #{options[:timeout].pretty_inspect}"
     end
 
     # Determine if the given option is a valid option

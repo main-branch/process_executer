@@ -4,6 +4,48 @@ RSpec.describe ProcessExecuter do
   describe '.spawn' do
     subject { ProcessExecuter.spawn(*command, **options) }
 
+    context 'when :timeout is specified' do
+      context 'when :timeout is a String' do
+        let(:command) { %w[echo hello] }
+        let(:options) { { timeout: 'a string' } }
+        it 'should raise an ArgumentError' do
+          expect { subject }.to raise_error(ArgumentError, /timeout/)
+        end
+      end
+
+      context 'when :timeout is a Complex' do
+        let(:command) { %w[echo hello] }
+        let(:options) { { timeout: Complex(3, 4) } }
+        it 'should raise an ArgumentError' do
+          expect { subject }.to raise_error(ArgumentError, /timeout/)
+        end
+      end
+
+      context 'when :timeout is nil' do
+        let(:command) { %w[echo hello] }
+        let(:options) { { timeout: nil } }
+        it 'should NOT raise an error' do
+          expect { subject }.not_to raise_error
+        end
+      end
+
+      context 'when :timeout an Integer' do
+        let(:command) { %w[echo hello] }
+        let(:options) { { timeout: Integer(1) } }
+        it 'should NOT raise an error' do
+          expect { subject }.not_to raise_error
+        end
+      end
+
+      context 'when :timeout a Float' do
+        let(:command) { %w[echo hello] }
+        let(:options) { { timeout: Float(1.0) } }
+        it 'should NOT raise an error' do
+          expect { subject }.not_to raise_error
+        end
+      end
+    end
+
     context 'for a command that does not time out' do
       let(:command) { %w[false] }
       let(:options) { {} }
