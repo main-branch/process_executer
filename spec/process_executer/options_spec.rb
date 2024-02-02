@@ -23,7 +23,7 @@ RSpec.describe ProcessExecuter::Options do
       umask: double('umask'),
       close_others: double('close_others'),
       chdir: double('chdir'),
-      timeout: double('timeout')
+      timeout: 0
     }
     # :nocov:
   end
