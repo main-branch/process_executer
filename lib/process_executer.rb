@@ -2,6 +2,7 @@
 
 require 'process_executer/monitored_pipe'
 require 'process_executer/options'
+require 'process_executer/status'
 
 require 'timeout'
 
@@ -59,16 +60,16 @@ module ProcessExecuter
   # @param pid [Integer] the process id
   # @param options [ProcessExecuter::Options] the options used
   #
-  # @return [Process::Status] the status of the process
+  # @return [ProcessExecuter::Status] the status of the process
   #
   # @api private
   #
   private_class_method def self.wait_for_process(pid, options)
     Timeout.timeout(options.timeout) do
-      Process.wait2(pid).last
+      ProcessExecuter::Status.new(Process.wait2(pid).last, false)
     end
   rescue Timeout::Error
     Process.kill('KILL', pid)
-    Process.wait2(pid).last
+    ProcessExecuter::Status.new(Process.wait2(pid).last, true)
   end
 end
