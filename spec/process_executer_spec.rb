@@ -49,15 +49,15 @@ RSpec.describe ProcessExecuter do
     context 'for a command that does not time out' do
       let(:command) { %w[false] }
       let(:options) { {} }
-      it { is_expected.to be_a(Process::Status) }
-      it { is_expected.to have_attributes(exitstatus: 1) }
+      it { is_expected.to be_a(ProcessExecuter::Status) }
+      it { is_expected.to have_attributes(timeout?: false, exitstatus: 1) }
     end
 
     context 'for a command that times out' do
       let(:command) { %w[sleep 1] }
       let(:options) { { timeout: 0.01 } }
 
-      it { is_expected.to be_a(Process::Status) }
+      it { is_expected.to be_a(ProcessExecuter::Status) }
 
       it 'should have killed the process' do
         start_time = Time.now
@@ -72,13 +72,11 @@ RSpec.describe ProcessExecuter do
         if (WINDOWS = (RUBY_PLATFORM =~ /mswin|win32|mingw|bccwin|cygwin/) rescue false)
           # On windows, the status of a process killed with SIGKILL will indicate
           # that the process exited normally with exitstatus 0.
-          expect(subject.exited?).to eq(true)
-          expect(subject.exitstatus).to eq(0)
+          expect(subject).to have_attributes(exited?: true, exitstatus: 0, timeout?: true)
         else
           # On other platforms, the status of a process killed with SIGKILL will indicate
           # that the process terminated because of the uncaught signal
-          expect(subject.signaled?).to eq(true)
-          expect(subject.termsig).to eq(9)
+          expect(subject).to have_attributes(signaled?: true, termsig: 9, timeout?: true)
         end
         # rubocop:enable Style/RescueModifier
         # :nocov:

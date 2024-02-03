@@ -77,7 +77,15 @@ important behaviorial differences:
 2. A timeout can be specified using the `:timeout` option
 
 If the command does not terminate before the timeout, the process is killed by
-sending it the SIGKILL signal.
+sending it the SIGKILL signal. The returned status object's `timeout?` attribute will
+return `true`. For example:
+
+```ruby
+status = ProcessExecuter.spawn('sleep 10', timeout: 0.01)
+status.signaled? #=> true
+status.termsig #=> 9
+status.timeout? #=> true
+```
 
 ## Installation
 
