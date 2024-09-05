@@ -23,6 +23,7 @@ module ProcessExecuter
   #   status = ProcessExecuter.spawn('echo hello')
   #   status.exited? # => true
   #   status.success? # => true
+  #   status.timeout? # => false
   #
   # @example with a timeout
   #   status = ProcessExecuter.spawn('sleep 10', timeout: 0.01)
@@ -30,6 +31,7 @@ module ProcessExecuter
   #   status.success? # => nil
   #   status.signaled? # => true
   #   status.termsig # => 9
+  #   status.timeout? # => true
   #
   # @example capturing stdout to a string
   #   stdout = StringIO.new
