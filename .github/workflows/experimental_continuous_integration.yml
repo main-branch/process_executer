@@ -3,12 +3,6 @@ name: Continuous Integration
 # This is a workflow fix
 
 on:
-  push:
-    branches: [main]
-
-  pull_request:
-    branches: [main]
-
   workflow_dispatch:
 
 jobs:
@@ -21,12 +15,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - # Run head version of Ruby on ubuntu-latest
-            ruby: head
+          - ruby: head
             operating-system: ubuntu-latest
 
-          - # Experimental build for jruby on windows
-            ruby: jruby-head
+          - ruby: jruby-head
             operating-system: windows-latest
 
     env:
@@ -45,47 +37,3 @@ jobs:
 
       - name: Run rake
         run: bundle exec rake
-
-        experimental:
-          name: Experimental builds
-          needs: [build]
-          runs-on: ubuntu-latest
-          if: github.ref == 'refs/heads/main'  # Only run if on main branch
-
-          steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-
-            - name: Install GitHub CLI
-              run: sudo apt-get install gh -y
-
-            - name: Authenticate with GitHub CLI
-              run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
-            - name: Trigger Experimental Workflow
-              run: gh workflow run experimental_continuous_integration.yml
-
-  coverage:
-    name: Report test coverage to CodeClimate
-    needs: [ build ]
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Initialize Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: 3.3
-          bundler-cache: true
-
-      - name: Run tests
-        run: bundle exec rake spec
-
-      - name: Report test coverage
-        uses: paambaati/codeclimate-action@v3.2.0
-        env:
-          CC_TEST_REPORTER_ID: d3bf532dce7cc5d9ae5ae10efd7708d8465d3cc6236e5e11377cbef62ed2b32f
-        with:
-          coverageLocations: ${{github.workspace}}/coverage/lcov/*.lcov:lcov
