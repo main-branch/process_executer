@@ -53,6 +53,14 @@ RSpec.describe ProcessExecuter do
       it { is_expected.to have_attributes(timeout?: false, exitstatus: 1) }
     end
 
+    def windows?
+      !!(RUBY_PLATFORM =~ /mswin|win32|mingw|bccwin|cygwin/)
+    rescue StandardError
+      # :nocov:
+      false
+      # :nocov:
+    end
+
     context 'for a command that times out' do
       let(:command) { %w[sleep 1] }
       let(:options) { { timeout: 0.01 } }
@@ -68,8 +76,7 @@ RSpec.describe ProcessExecuter do
         expect(end_time - start_time).to be < 0.1
 
         # :nocov:
-        # rubocop:disable Style/RescueModifier
-        if (WINDOWS = (RUBY_PLATFORM =~ /mswin|win32|mingw|bccwin|cygwin/) rescue false)
+        if windows?
           # On windows, the status of a process killed with SIGKILL will indicate
           # that the process exited normally with exitstatus 0.
           expect(subject).to have_attributes(exited?: true, exitstatus: 0, timeout?: true)
@@ -78,7 +85,6 @@ RSpec.describe ProcessExecuter do
           # that the process terminated because of the uncaught signal
           expect(subject).to have_attributes(signaled?: true, termsig: 9, timeout?: true)
         end
-        # rubocop:enable Style/RescueModifier
         # :nocov:
       end
     end
