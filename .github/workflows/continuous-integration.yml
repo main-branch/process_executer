@@ -67,7 +67,7 @@ jobs:
         run: bundle exec rake spec
 
       - name: Report test coverage
-        uses: paambaati/codeclimate-action@v9.0.0
+        uses: paambaati/codeclimate-action@v9
         env:
           CC_TEST_REPORTER_ID: d3bf532dce7cc5d9ae5ae10efd7708d8465d3cc6236e5e11377cbef62ed2b32f
         with:
