@@ -7,6 +7,6 @@ on:
 
 jobs:
   run_semver_pr_label_check:
-    uses: main-branch/semver_pr_label_check/.github/workflows/semver_pr_label_check.yml@main
+    uses: main-branch/semver_pr_label_check/.github/workflows/semver_pr_label_check.yml@v1
     secrets:
       repo_token: ${{ secrets.GITHUB_TOKEN }}
