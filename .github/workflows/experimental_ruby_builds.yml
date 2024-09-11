@@ -1,7 +1,10 @@
-name: Experimental Rubies
+name: Experimental Ruby Builds
 
 on:
-  workflow_dispatch
+  push:
+    branches: [main]
+
+  workflow_dispatch:
 
 jobs:
   build:
