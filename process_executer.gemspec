@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
   spec.description = 'An API for executing commands in a subprocess'
   spec.homepage = 'https://github.com/main-branch/process_executer'
   spec.license = 'MIT'
-  spec.required_ruby_version = '>= 3.0.0'
+  spec.required_ruby_version = '>= 3.1.0'
 
   spec.metadata['allowed_push_host'] = 'https://rubygems.org'
 
@@ -31,9 +31,13 @@ Gem::Specification.new do |spec|
   spec.bindir = 'exe'
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ['lib']
+  spec.requirements = [
+    'Platform: Mac, Linux, or Windows',
+    'Ruby: MRI 3.1 or later, TruffleRuby 24 or later, or JRuby 9.4 or later'
+  ]
 
   spec.add_development_dependency 'bundler-audit', '~> 0.9'
-  spec.add_development_dependency 'create_github_release', '~> 1.4'
+  spec.add_development_dependency 'create_github_release', '~> 1.5'
   spec.add_development_dependency 'rake', '~> 13.2'
   spec.add_development_dependency 'rspec', '~> 3.13'
   spec.add_development_dependency 'rubocop', '~> 1.66'

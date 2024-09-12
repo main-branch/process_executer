@@ -12,7 +12,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       # SimpleCov in JRuby reports the following line as not covered even though it is
       # :nocov:
       expect(monitored_pipe).to have_attributes(
-        thread: Thread, writers: writers, pipe_reader: IO, pipe_writer: IO, chunk_size: 100_000
+        thread: Thread, writers:, pipe_reader: IO, pipe_writer: IO, chunk_size: 100_000
       )
       # :nocov:
     end
