@@ -6,9 +6,14 @@ on:
 
   workflow_dispatch:
 
+# Experimental platforms / Ruby versions:
+#  - Ubuntu: MRI (head), JRuby (head), TruffleRuby (head)
+#  - Windows: MRI (head), JRuby (9.4), JRuby (head)
+
 jobs:
   build:
     name: Ruby ${{ matrix.ruby }} on ${{ matrix.operating-system }}
+
     runs-on: ${{ matrix.operating-system }}
     continue-on-error: true
 
@@ -17,6 +22,18 @@ jobs:
       matrix:
         include:
           - ruby: head
+            operating-system: ubuntu-latest
+
+          - ruby: head
+            operating-system: windows-latest
+
+          - ruby: truffleruby-head
+            operating-system: ubuntu-latest
+
+          - ruby: jruby-9.4
+            operating-system: windows-latest
+
+          - ruby: jruby-head
             operating-system: ubuntu-latest
 
           - ruby: jruby-head
