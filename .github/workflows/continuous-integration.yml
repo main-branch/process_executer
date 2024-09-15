@@ -29,6 +29,9 @@ jobs:
           - ruby: "3.1"
             operating-system: windows-latest
 
+    env:
+      JRUBY_OPTS: --debug
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,6 +50,9 @@ jobs:
 
     needs: [build]
     runs-on: ubuntu-latest
+
+    env:
+      JRUBY_OPTS: --debug
 
     steps:
       - name: Checkout
