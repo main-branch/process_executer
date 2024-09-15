@@ -12,18 +12,22 @@ RSpec.configure do |config|
   end
 end
 
+# SimpleCov configuration
+#
 require 'simplecov'
 require 'simplecov-lcov'
 require 'simplecov-rspec'
 
-if ENV.fetch('GITHUB_ACTIONS', 'false') == 'true'
+def ci_build? = ENV.fetch('GITHUB_ACTIONS', 'false') == 'true'
+
+if ci_build?
   SimpleCov.formatters = [
     SimpleCov::Formatter::HTMLFormatter,
     SimpleCov::Formatter::LcovFormatter
   ]
 end
 
-SimpleCov::RSpec.start
+SimpleCov::RSpec.start(list_uncovered_lines: ci_build?)
 
 # Make sure to require your project AFTER starting SimpleCov
 #
