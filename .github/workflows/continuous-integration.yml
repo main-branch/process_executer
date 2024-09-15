@@ -9,6 +9,11 @@ on:
 
   workflow_dispatch:
 
+env:
+  # SimpleCov suggests setting the JRuby --debug flag to ensure that coverage
+  # results from JRuby are complete.
+  JRUBY_OPTS: --debug
+
 # Supported platforms / Ruby versions:
 #  - Ubuntu: MRI (3.1, 3.2, 3.3), TruffleRuby (24), JRuby (9.4)
 #  - Windows: MRI (3.1)
@@ -29,9 +34,6 @@ jobs:
           - ruby: "3.1"
             operating-system: windows-latest
 
-    env:
-      JRUBY_OPTS: --debug
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,9 +52,6 @@ jobs:
 
     needs: [build]
     runs-on: ubuntu-latest
-
-    env:
-      JRUBY_OPTS: --debug
 
     steps:
       - name: Checkout
