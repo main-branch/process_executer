@@ -45,14 +45,9 @@ CLEAN << 'rspec-report.xml'
 
 require 'rubocop/rake_task'
 
-RuboCop::RakeTask.new do |t|
-  t.options = %w[
-    --format progress
-    --format json --out rubocop-report.json
-  ]
-end
+RuboCop::RakeTask.new
 
-CLEAN << 'rubocop-report.json'
+# YARD
 
 unless RUBY_PLATFORM == 'java'
   # YARD
