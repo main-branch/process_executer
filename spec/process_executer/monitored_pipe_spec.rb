@@ -29,6 +29,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
   describe '#close' do
     it 'should kill the thread' do
       monitored_pipe.close
+      sleep(0.25) # Give the thread time to die
       expect(monitored_pipe.thread.alive?).to eq(false)
     end
 
