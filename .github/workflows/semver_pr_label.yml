@@ -2,7 +2,7 @@ name: Semver PR Label
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, v1.x]
 
     # The default triggers for pull requests are opened, synchronize, and reopened.
     # Add labeled and unlabeled to the list of triggers so that the
