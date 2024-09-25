@@ -5,6 +5,18 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v1.1.1 (2024-09-25)
+
+[Full Changelog](https://github.com/main-branch/process_executer/compare/v1.1.0..v1.1.1)
+
+Changes since v1.1.0:
+
+* c3f063a Use a later version of ruby for development
+* d4eeb1e Use latest version of the actions/checkout to v4
+* eb4dad7 Fix flakey test on  JRuby
+* ac9417a Update CI build to run on v1.x branch
+* 014e70f Remove unused require for 'forwardable' and 'ostruct' (for v1.x)
+
 ## v1.1.0 (2024-02-02)
 
 [Full Changelog](https://github.com/main-branch/process_executer/compare/v1.0.2..v1.1.0)
