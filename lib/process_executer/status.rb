@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'delegate'
+require 'forwardable'
 
 module ProcessExecuter
   # A simple delegator for Process::Status that adds a `timeout?` attribute
