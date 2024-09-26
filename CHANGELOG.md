@@ -5,6 +5,36 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v2.0.0.pre1 (2024-09-26)
+
+[Full Changelog](https://github.com/main-branch/process_executer/compare/v1.1.0..v2.0.0.pre1)
+
+Changes since v1.1.0:
+
+* 8e15c39 Re-add require for 'forwardable'
+* 4bba06e Fix flakey test that checks for thread to die
+* 83bfd78 Remove unused require for 'forwardable' and 'ostruct'
+* ea3ea3c Use shared Rubocop config
+* ecd2cb5 Update copyright notice in this project
+* 7d5bfe1 Update links in gemspec
+* 797de91 Add Slack badge for this project in README
+* 591b716 Update “Build Status” link the README
+* 2fcd001 Update yardopts with new standard options
+* 4e1de47 Standardize YARD and Markdown Lint configurations
+* 929c680 Set JRuby --debug option when running tests in GitHub Actions workflows
+* 71049cb Finish Integration of simplecov-rspec into the project
+* 4fb44bb Update continuous integration and experimental ruby builds
+* 289645c Depend on v1 of semver_pr_label_check
+* 3c4d988 Update code climate test coverage reporter version
+* 04103b4 Simplify how the experimental ruby builds are triggered
+* 35840a4 Use a reusable workflow for the Semver PR label check
+* 0d887f0 Update code climate test coverage reporter version
+* bb7f73b Rename the experimental build workflow
+* 035ce8a Fix the experimental CI Build workflow
+* 3d739f4 Move CI builds using experimental Rubies to a different workflow
+* c5ef6b0 Integrate simplecov-rspec to ensure code covage in CI builds
+* f33707e Update development dependencies and examples (#45)
+
 ## v1.1.0 (2024-02-02)
 
 [Full Changelog](https://github.com/main-branch/process_executer/compare/v1.0.2..v1.1.0)
