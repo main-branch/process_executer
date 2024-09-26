@@ -38,13 +38,6 @@ jobs:
             # the build failing on "ruby: head".
             # experimental: Yes
 
-          - # Experimental build for jruby on windows
-            ruby: jruby-head
-            operating-system: windows-latest
-            # This gem does not support jruby on windows yet
-            # Remove this `experimental` flag when this build succeeds.
-            experimental: Yes
-
     env:
       JAVA_OPTS: -Djdk.io.File.enableADS=true
       JRUBY_OPTS: --debug
