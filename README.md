@@ -6,6 +6,8 @@
 [![Build Status](https://github.com/main-branch/process_executer/actions/workflows/continuous-integration.yml/badge.svg)](https://github.com/main-branch/process_executer/actions/workflows/continuous-integration.yml)
 [![Maintainability](https://api.codeclimate.com/v1/badges/0b5c67e5c2a773009cd0/maintainability)](https://codeclimate.com/github/main-branch/process_executer/maintainability)
 [![Test Coverage](https://api.codeclimate.com/v1/badges/0b5c67e5c2a773009cd0/test_coverage)](https://codeclimate.com/github/main-branch/process_executer/test_coverage)
+[![Conventional
+Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-%23FE5196?logo=conventionalcommits&logoColor=white)](https://conventionalcommits.org)
 [![Slack](https://img.shields.io/badge/slack-main--branch/process__executer-yellow.svg?logo=slack)](https://main-branch.slack.com/archives/C07NG2BPG8Y)
 
 * [Usage](#usage)
@@ -15,7 +17,8 @@
 * [Contributing](#contributing)
   * [Reporting Issues](#reporting-issues)
   * [Developing](#developing)
-  * [Submitting Pull Requests](#submitting-pull-requests)
+  * [Commit message guidelines](#commit-message-guidelines)
+  * [Pull request guidelines](#pull-request-guidelines)
   * [Releasing](#releasing)
 * [License](#license)
 
@@ -117,59 +120,34 @@ allow you to experiment.
 
 To install this gem onto your local machine, run `bundle exec rake install`.
 
-### Submitting Pull Requests
+### Commit message guidelines
 
-In order for a pull request to be merged, it must be approved by a code owner and
-include a semver label.
+All commit messages must follow the [Conventional Commits
+standard](https://www.conventionalcommits.org/en/v1.0.0/). This helps us maintain a
+clear and structured commit history, automate versioning, and generate changelogs
+effectively.
 
-The approval must be done using the Github PR Review process by a code owner defined
-in the project's CODEOWNERS file.
+To ensure compliance, this project includes:
 
-The semver label indicates the type of change so that the gem version can be
-increments according to semver rules prior to release. One and only one of the
-following labels must added to the PR:
+* A git commit-msg hook that validates your commit messages before they are accepted.
 
-* **`major-change`**
+  To activate the hook, you must have node installed and run `npm install`.
 
-  Use when the PR includes incompatible API or functional changes.
+* A GitHub Actions workflow that will enforce the Conventional Commit standard as
+  part of the continuous integration pipeline.
 
-  This typically occurs when the changes introduced could break existing code that
-  depends on this gem. For example, removing a public method, changing a method's
-  signature, or altering the expected behavior of a method in a way that would
-  require changes in the dependent code.
+  Any commit message that does not conform to the Conventional Commits standard will
+  cause the workflow to fail and not allow the PR to be merged.
 
-* **`minor-change`**
+### Pull request guidelines
 
-  Use when the PR adds functionality in a backward-compatible manner.
-
-  This includes adding new features, enhancements, or deprecating existing features
-  as long as the deprecation itself doesn't break compatibility.
-
-  It's also common to include substantial improvements or optimizations in this
-  category, as long as they don't alter the expected behavior of the existing API.
-
-* **`patch-change`**
-
-  Use when the PR includes small user-facing changes that are backward-compatible and
-  do not introduce new functionality.
-
-  This includes bug fixes or other internal changes that do not affect the API such
-  as refactoring code, improving performance, or updating user documentation.
-
-* **`internal-change`**
-
-  Use when the PR includes changes that are NOT user facing and will NOT require a
-  release.
-
-  This includes updates to developer documentation, comments, GitHub Actions, minor
-  refactorings, and fixing Rubocop offenses.
+All pull requests must be merged using rebase merges. This ensures that commit
+messages from the feature branch are preserved in the release branch, keeping the
+history clean and meaningful.
 
 ### Releasing
 
-To release a new version, first determine the proper semver increment based on the
-PRs included in the release.
-
-Then in the root directory of this project with the `main` branch checked out, run
+In the root directory of this project with the `main` branch checked out, run
 the following command:
 
 ```shell
