@@ -3,6 +3,4 @@
 --markup-provider=redcarpet
 --markup markdown
 - CHANGELOG.md
-- CONTRIBUTING.md
-- RELEASING.md
 - LICENSE.txt

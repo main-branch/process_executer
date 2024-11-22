@@ -7,7 +7,7 @@ desc 'Run the same tasks that the CI build will run'
 if RUBY_PLATFORM == 'java'
   task default: %w[spec rubocop bundle:audit build]
 else
-  task default: %w[spec rubocop yard yard:audit yard:coverage bundle:audit build]
+  task default: %w[spec rubocop yard bundle:audit build]
 end
 
 # Bundler Audit
@@ -50,28 +50,33 @@ RuboCop::RakeTask.new
 # YARD
 
 unless RUBY_PLATFORM == 'java'
-  # YARD
+  # yard:build
 
   require 'yard'
-  YARD::Rake::YardocTask.new do |t|
-    t.files = %w[lib/**/*.rb examples/**/*]
+
+  YARD::Rake::YardocTask.new('yard:build') do |t|
+    t.files = %w[lib/**/*.rb]
+    t.stats_options = ['--list-undoc']
   end
 
   CLEAN << '.yardoc'
   CLEAN << 'doc'
 
-  # Yardstick
+  # yard:audit
 
   desc 'Run yardstick to show missing YARD doc elements'
   task :'yard:audit' do
     sh "yardstick 'lib/**/*.rb'"
   end
 
-  # Yardstick coverage
+  # yard:coverage
 
   require 'yardstick/rake/verify'
 
   Yardstick::Rake::Verify.new(:'yard:coverage') do |verify|
     verify.threshold = 100
+    verify.require_exact_threshold = false
   end
+
+  task yard: %i[yard:build yard:audit yard:coverage]
 end
