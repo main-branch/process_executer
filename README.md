@@ -11,6 +11,7 @@ Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-%23FE5196?log
 [![Slack](https://img.shields.io/badge/slack-main--branch/process__executer-yellow.svg?logo=slack)](https://main-branch.slack.com/archives/C07NG2BPG8Y)
 
 * [Usage](#usage)
+  * [ProcessExecuter.run](#processexecuterrun)
   * [ProcessExecuter::MonitoredPipe](#processexecutermonitoredpipe)
   * [ProcessExecuter.spawn](#processexecuterspawn)
 * [Installation](#installation)
@@ -28,6 +29,36 @@ Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-%23FE5196?log
 gem is hosted on RubyGems.org. Read below of an overview and several examples.
 
 This gem contains the following important classes:
+
+### ProcessExecuter.run
+
+`ProcessExecuter.run` execute the given command as a subprocess blocking until it is finished.
+
+A Result object is returned which includes the process's status and output.
+
+Supports the same features as
+[Process.spawn](https://docs.ruby-lang.org/en/3.3/Process.html#method-c-spawn).
+In addition, it (1) blocks until the command has exited, (2) captures stdout and
+stderr to a buffer or file, and (3) can optionally kill the command if it exceeds
+an timeout.
+
+This command takes two forms:
+
+1. When passing a single string the command is passed to a shell:
+
+    `ProcessExecuter.run([env, ] command_line, options = {}) ->` {ProcessExecuter::Command::Result}
+
+2. When passing an array of strings the command is run directly (bypassing the shell):
+
+    `ProcessExecuter.run([env, ] exe_path, *args, options = {}) ->` {ProcessExecuter::Command::Result}
+
+Argument env, if given, is a hash that affects ENV for the new process; see
+[Execution
+Environment](https://docs.ruby-lang.org/en/3.3/Process.html#module-Process-label-Execution+Environment).
+
+Argument options is a hash of options for the new process; see the options listed below.
+
+See comprehensive examples in the YARD documentation for this method.
 
 ### ProcessExecuter::MonitoredPipe
 

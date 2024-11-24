@@ -12,6 +12,21 @@ RSpec.configure do |config|
   end
 end
 
+def windows?
+  RbConfig::CONFIG['host_os'] =~ /mswin|mingw|cygwin/
+end
+
+def ruby_command(code)
+  @ruby_path ||=
+    if Gem.win_platform?
+      `where ruby`.chomp
+    else
+      `which ruby`.chomp
+    end
+
+  [@ruby_path, '-e', code]
+end
+
 # SimpleCov configuration
 #
 require 'simplecov'
@@ -27,7 +42,12 @@ if ci_build?
   ]
 end
 
-SimpleCov::RSpec.start(list_uncovered_lines: ci_build?)
+require 'rbconfig'
+
+SimpleCov::RSpec.start(list_uncovered_lines: ci_build?) do
+  # Avoid false positives in spec directory from JRuby, TruffleRuby, and Windows
+  add_filter '/spec/' unless RUBY_ENGINE == 'ruby' && !Gem.win_platform?
+end
 
 # Make sure to require your project AFTER starting SimpleCov
 #

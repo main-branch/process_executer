@@ -1,5 +1,9 @@
 # frozen_string_literal: true
 
+require 'English'
+require 'logger'
+require 'tmpdir'
+
 RSpec.describe ProcessExecuter do
   describe '.spawn' do
     subject { ProcessExecuter.spawn(*command, **options) }
