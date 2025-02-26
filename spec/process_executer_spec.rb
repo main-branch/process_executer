@@ -23,23 +23,29 @@ RSpec.describe ProcessExecuter do
 
       context 'when :timeout is nil' do
         let(:command) { %w[echo hello] }
-        let(:options) { { timeout: nil } }
+        let(:output_writer) { StringIO.new }
+        let(:output_pipe) { ProcessExecuter::MonitoredPipe.new(output_writer) }
+        let(:options) { { out: output_pipe, timeout: nil } }
         it 'should NOT raise an error' do
           expect { subject }.not_to raise_error
         end
       end
 
-      context 'when :timeout an Integer' do
+      context 'when :timeout is an Integer' do
         let(:command) { %w[echo hello] }
-        let(:options) { { timeout: Integer(1) } }
+        let(:output_writer) { StringIO.new }
+        let(:output_pipe) { ProcessExecuter::MonitoredPipe.new(output_writer) }
+        let(:options) { { out: output_pipe, timeout: Integer(1) } }
         it 'should NOT raise an error' do
           expect { subject }.not_to raise_error
         end
       end
 
-      context 'when :timeout a Float' do
+      context 'when :timeout is a Float' do
         let(:command) { %w[echo hello] }
-        let(:options) { { timeout: Float(1.0) } }
+        let(:output_writer) { StringIO.new }
+        let(:output_pipe) { ProcessExecuter::MonitoredPipe.new(output_writer) }
+        let(:options) { { out: output_pipe, timeout: Float(1.0) } }
         it 'should NOT raise an error' do
           expect { subject }.not_to raise_error
         end
