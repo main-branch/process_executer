@@ -76,7 +76,7 @@ RSpec.describe ProcessExecuter::Options do
     context 'when all options are given' do
       let(:options_hash) { all_options_hash }
       let(:expected_spawn_options) do
-        all_options_hash.select { |key, _| ProcessExecuter::Options::SPAWN_OPTIONS.include?(key) }
+        all_options_hash.slice(*ProcessExecuter::Options::SPAWN_OPTIONS)
       end
       it { is_expected.to eq(expected_spawn_options) }
     end

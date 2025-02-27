@@ -281,17 +281,54 @@ module ProcessExecuter
     # @api private
     def monitor_pipe
       new_data = pipe_reader.read_nonblock(chunk_size)
-      # SimpleCov under JRuby reports the begin statement as not covered, but it is
-      # :nocov:
-      begin
-        # :nocov:
-        writers.each { |w| w.write(new_data) }
-      rescue StandardError => e
-        @exception = e
-        @state = :closing
-      end
+      write_data(new_data)
     rescue IO::WaitReadable
       pipe_reader.wait_readable(0.001)
+    end
+
+    # Check if the writer is a file descriptor
+    #
+    # @param writer [#write] the writer to check
+    # @return [Boolean] true if the writer is a file descriptor
+    # @api private
+    def file_descriptor?(writer) = writer.is_a?(Integer) || writer.is_a?(Symbol)
+
+    # Write the data read from the pipe to all destinations
+    #
+    # If an exception is raised by a writer, set the state to `:closing`
+    # so that the pipe can be closed.
+    #
+    # @param data [String] the data read from the pipe
+    # @return [void]
+    # @api private
+    def write_data(data)
+      writers.each do |w|
+        file_descriptor?(w) ? write_data_to_fd(w, data) : w.write(data)
+      end
+    rescue StandardError => e
+      @exception = e
+      @state = :closing
+    end
+
+    # Write data to the given file_descriptor correctly handling stdout and stderr
+    # @param file_descriptor [Integer, Symbol] the file descriptor to write to (either an integer or :out or :err)
+    # @param data [String] the data to write
+    # @return [void]
+    # @api private
+    def write_data_to_fd(file_descriptor, data)
+      # The case line is not marked as not covered only when using TruffleRuby
+      # :nocov:
+      case file_descriptor
+      # :nocov:
+      when :out, 1
+        $stdout.write data
+      when :err, 2
+        $stderr.write data
+      else
+        io = IO.open(file_descriptor, mode: 'a', autoclose: false)
+        io.write(data)
+        io.close
+      end
     end
 
     # Read any remaining data from the pipe and close it
