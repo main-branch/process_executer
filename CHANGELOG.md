@@ -5,6 +5,18 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v1.3.0 (2025-02-26)
+
+[Full Changelog](https://github.com/main-branch/process_executer/compare/v1.2.0..v1.3.0)
+
+Changes since v1.2.0:
+
+* d1e189b build: add Ruby 3.4 to the CI workflow
+* e805dfc feat: implement ProcessExecuter.run_command
+* bad822f fix: update the yard build in the rake file and update included files
+* 6fbdc5e feat: allow #spawn to accept file descriptors for redirection destination
+* d745685 test: make it so that tests do not give unnecessary output
+
 ## v1.2.0 (2024-10-10)
 
 [Full Changelog](https://github.com/main-branch/process_executer/compare/v1.1.2..v1.2.0)
