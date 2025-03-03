@@ -11,16 +11,16 @@ Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-%23FE5196?log
 [![Slack](https://img.shields.io/badge/slack-main--branch/process__executer-yellow.svg?logo=slack)](https://main-branch.slack.com/archives/C07NG2BPG8Y)
 
 * [Usage](#usage)
-  * [ProcessExecuter.run](#processexecuterrun)
-  * [ProcessExecuter::MonitoredPipe](#processexecutermonitoredpipe)
-  * [ProcessExecuter.spawn](#processexecuterspawn)
+    * [ProcessExecuter.run](#processexecuterrun)
+    * [ProcessExecuter::MonitoredPipe](#processexecutermonitoredpipe)
+    * [ProcessExecuter.spawn\_and\_wait](#processexecuterspawn_and_wait)
 * [Installation](#installation)
 * [Contributing](#contributing)
-  * [Reporting Issues](#reporting-issues)
-  * [Developing](#developing)
-  * [Commit message guidelines](#commit-message-guidelines)
-  * [Pull request guidelines](#pull-request-guidelines)
-  * [Releasing](#releasing)
+    * [Reporting Issues](#reporting-issues)
+    * [Developing](#developing)
+    * [Commit message guidelines](#commit-message-guidelines)
+    * [Pull request guidelines](#pull-request-guidelines)
+    * [Releasing](#releasing)
 * [License](#license)
 
 ## Usage
@@ -40,17 +40,17 @@ Supports the same features as
 [Process.spawn](https://docs.ruby-lang.org/en/3.3/Process.html#method-c-spawn).
 In addition, it (1) blocks until the command has exited, (2) captures stdout and
 stderr to a buffer or file, and (3) can optionally kill the command if it exceeds
-an timeout.
+a given timeout duration.
 
 This command takes two forms:
 
 1. When passing a single string the command is passed to a shell:
 
-    `ProcessExecuter.run([env, ] command_line, options = {}) ->` {ProcessExecuter::Command::Result}
+    `ProcessExecuter.run([env, ] command_line, options = {}) ->` {ProcessExecuter::Result}
 
 2. When passing an array of strings the command is run directly (bypassing the shell):
 
-    `ProcessExecuter.run([env, ] exe_path, *args, options = {}) ->` {ProcessExecuter::Command::Result}
+    `ProcessExecuter.run([env, ] exe_path, *args, options = {}) ->` {ProcessExecuter::Result}
 
 Argument env, if given, is a hash that affects ENV for the new process; see
 [Execution
@@ -99,27 +99,27 @@ output_buffer.string #=> "Hello World\n"
 File.read('process.out') #=> "Hello World\n"
 ```
 
-Since the data is streamed, any object that implements `#write` can be used. For insance,
-you can use it to parse process output as a stream which might be useful for long XML
-or JSON output.
+Since the data is streamed, any object that implements `#write` can be used. For
+insance, you can use it to parse process output as a stream which might be useful for
+long XML or JSON output.
 
-### ProcessExecuter.spawn
+### ProcessExecuter.spawn_and_wait
 
 `ProcessExecuter.spawn` has the same interface as `Process.spawn` but has two
 important behaviorial differences:
 
 1. It blocks until the subprocess finishes
-2. A timeout can be specified using the `:timeout` option
+2. A timeout can be specified using the `:timeout_after` option
 
-If the command does not terminate before the timeout, the process is killed by
-sending it the SIGKILL signal. The returned status object's `timeout?` attribute will
-return `true`. For example:
+If the command does not terminate before the number of seconds specified by
+`:timeout_after`, the process is killed by sending it the SIGKILL signal. The
+returned Result object's `timed_out?` attribute will return `true`. For example:
 
 ```ruby
-status = ProcessExecuter.spawn('sleep 10', timeout: 0.01)
-status.signaled? #=> true
-status.termsig #=> 9
-status.timeout? #=> true
+result = ProcessExecuter.spawn_and_wait('sleep 10', timeout_after: 0.01)
+result.signaled? #=> true
+result.termsig #=> 9
+result.timed_out? #=> true
 ```
 
 ## Installation

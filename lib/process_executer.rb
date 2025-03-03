@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
+require 'process_executer/errors'
 require 'process_executer/monitored_pipe'
 require 'process_executer/options'
-require 'process_executer/command'
-require 'process_executer/status'
+require 'process_executer/result'
+require 'process_executer/runner'
 
 require 'logger'
 require 'timeout'
@@ -13,86 +14,114 @@ require 'timeout'
 # environment variables.
 #
 # Methods:
-# * {run}: Executes a command and captures its output and status in a result object.
-# * {spawn}: Executes a command and returns its exit status.
+# * {run}: Executes a command and returns the result which includes the process
+#   status and output
+# * {spawn_and_wait}: a thin wrapper around `Process.spawn` that blocks until the
+#   command finishes
 #
 # Features:
 # * Supports executing commands via a shell or directly.
 # * Captures stdout and stderr to buffers, files, or custom objects.
 # * Optionally enforces timeouts and terminates long-running commands.
-# * Provides detailed status information, including success, failure, or timeout states.
+# * Provides detailed status information, including the command that was run, the
+#   options that were given, and success, failure, or timeout states.
 #
 # @api public
 #
 module ProcessExecuter
-  # Execute the given command as a subprocess and return the exit status
+  # Run a command in a subprocess, wait for it to finish, then return the result
   #
-  # This is a convenience method that calls
+  # This method is a thin wrapper around
   # [Process.spawn](https://docs.ruby-lang.org/en/3.3/Process.html#method-c-spawn)
   # and blocks until the command terminates.
   #
-  # The command will be sent the SIGKILL signal if it does not terminate within
-  # the specified timeout.
+  # A timeout may be specified with the `:timeout_after` option. The command will be
+  # sent the SIGKILL signal if it does not terminate within the specified timeout.
   #
   # @example
-  #   status = ProcessExecuter.spawn('echo hello')
-  #   status.exited? # => true
-  #   status.success? # => true
-  #   status.timeout? # => false
+  #   result = ProcessExecuter.spawn_and_wait('echo hello')
+  #   result.exited? # => true
+  #   result.success? # => true
+  #   result.timed_out? # => false
   #
   # @example with a timeout
-  #   status = ProcessExecuter.spawn('sleep 10', timeout: 0.01)
-  #   status.exited? # => false
-  #   status.success? # => nil
-  #   status.signaled? # => true
-  #   status.termsig # => 9
-  #   status.timeout? # => true
+  #   result = ProcessExecuter.spawn_and_wait('sleep 10', timeout_after: 0.01)
+  #   result.exited? # => false
+  #   result.success? # => nil
+  #   result.signaled? # => true
+  #   result.termsig # => 9
+  #   result.timed_out? # => true
   #
   # @example capturing stdout to a string
-  #   stdout = StringIO.new
-  #   status = ProcessExecuter.spawn('echo hello', out: stdout)
-  #   stdout.string # => "hello"
+  #   stdout_buffer = StringIO.new
+  #   stdout_pipe = ProcessExecuter::MonitoredPipe.new(stdout_buffer)
+  #   result = ProcessExecuter.spawn_and_wait('echo hello', out: stdout_pipe)
+  #   stdout_buffer.string # => "hello\n"
   #
   # @see https://ruby-doc.org/core-3.1.2/Kernel.html#method-i-spawn Kernel.spawn
   #   documentation for valid command and options
   #
-  # @see ProcessExecuter::Options#initialize See ProcessExecuter::Options#initialize
-  #   for options that may be specified
+  # @see ProcessExecuter::Options#initialize ProcessExecuter::Options#initialize for
+  #   options that may be specified
   #
   # @param command [Array<String>] The command to execute
   # @param options_hash [Hash] The options to use when executing the command
   #
-  # @return [Process::Status] the exit status of the process
+  # @return [ProcessExecuter::Result] The result of the completed subprocess
   #
-  def self.spawn(*command, **options_hash)
+  def self.spawn_and_wait(*command, **options_hash)
     options = ProcessExecuter::Options.new(**options_hash)
     pid = Process.spawn(*command, **options.spawn_options)
-    wait_for_process(pid, options)
+    wait_for_process(pid, command, options)
   end
 
-  # Execute the given command as a subprocess, blocking until it finishes
+  # Execute the given command as a subprocess blocking until it finishes
   #
-  # Returns a result object which includes the process's status and output.
+  # Works just like {ProcessExecuter.spawn}, but does the following in addition:
   #
-  # Supports the same features as
-  # [Process.spawn](https://docs.ruby-lang.org/en/3.3/Process.html#method-c-spawn).
-  # In addition, it:
+  #   1. If nothing is specified for `out`, stdout is captured to a `StringIO` object
+  #      which can be accessed via the Result object in `result.options.out`. The
+  #      same applies to `err`.
   #
-  # 1. Blocks until the command exits
-  # 2. Captures stdout and stderr to a buffer or file
-  # 3. Optionally kills the command if it exceeds a timeout
+  #   2. If `merge` is set to `true`, stdout and stderr are captured to the same
+  #      buffer.
+  #
+  #   3. `out` and `err` are automatically wrapped in a
+  #      `ProcessExecuter::MonitoredPipe` object so that any object that implements
+  #      `#write` (or an Array of such objects) can be given for `out` and `err`.
+  #
+  #   4. Raises one of the following errors unless `raise_errors` is explicitly set
+  #      to `false`:
+  #
+  #      * `ProcessExecuter::FailedError` if the command returns a non-zero
+  #        exitstatus
+  #      * `ProcessExecuter::SignaledError` if the command exits because of
+  #        an unhandled signal
+  #      * `ProcessExecuter::TimeoutError` if the command times out
+  #
+  #      If `raise_errors` is false, the returned Result object will contain the error.
+  #
+  #   5. Raises a `ProcessExecuter::ProcessIOError` if an exception is raised
+  #      while collecting subprocess output. This can not be turned off.
+  #
+  #   6. If a `logger` is provided, it will be used to log:
+  #
+  #      * The command that was executed and its status to `info` level
+  #      * The stdout and stderr output to `debug` level
+  #
+  #     By default, Logger.new(nil) is used for the logger.
   #
   # This method takes two forms:
   #
   # 1. The command is executed via a shell when the command is given as a single
   #    string:
   #
-  #     `ProcessExecuter.run([env, ] command_line, options = {}) ->` {ProcessExecuter::Command::Result}
+  #     `ProcessExecuter.run([env, ] command_line, options = {}) ->` {ProcessExecuter::Result}
   #
   # 2. The command is executed directly (bypassing the shell) when the command and it
   #    arguments are given as an array of strings:
   #
-  #     `ProcessExecuter.run([env, ] exe_path, *args, options = {}) ->` {ProcessExecuter::Command::Result}
+  #     `ProcessExecuter.run([env, ] exe_path, *args, options = {}) ->` {ProcessExecuter::Result}
   #
   # Optional argument `env` is a hash that affects ENV for the new process; see
   # [Execution
@@ -102,11 +131,11 @@ module ProcessExecuter
   #
   # @example Run a command given as a single string (uses shell)
   #   # The command must be properly shell escaped when passed as a single string.
-  #   command = 'echo "stdout: `pwd`"" && echo "stderr: $HOME" 1>&2'
+  #   command = 'echo "stdout: `pwd`" && echo "stderr: $HOME" 1>&2'
   #   result = ProcessExecuter.run(command)
   #   result.success? #=> true
-  #   result.stdout.string #=> "stdout: /Users/james/projects/main-branch/process_executer\n"
-  #   result.stderr.string #=> "stderr: /Users/james\n"
+  #   result.stdout #=> "stdout: /Users/james/projects/main-branch/process_executer\n"
+  #   result.stderr #=> "stderr: /Users/james\n"
   #
   # @example Run a command given as an array of strings (does not use shell)
   #   # The command and its args must be provided as separate strings in the array.
@@ -114,67 +143,65 @@ module ProcessExecuter
   #   command = ['git', 'clone', 'https://github.com/main-branch/process_executer']
   #   result = ProcessExecuter.run(*command)
   #   result.success? #=> true
-  #   result.stdout.string #=> ""
-  #   result.stderr.string #=> "Cloning into 'process_executer'...\n"
+  #   result.stdout #=> ""
+  #   result.stderr #=> "Cloning into 'process_executer'...\n"
   #
   # @example Run a command with a timeout
   #   command = ['sleep', '1']
-  #   result = ProcessExecuter.run(*command, timeout: 0.01)
-  #   #=> raises ProcessExecuter::Command::TimeoutError which contains the command result
+  #   result = ProcessExecuter.run(*command, timeout_after: 0.01)
+  #   #=> raises ProcessExecuter::TimeoutError which contains the command result
   #
   # @example Run a command which fails
   #   command = ['exit 1']
   #   result = ProcessExecuter.run(*command)
-  #   #=> raises ProcessExecuter::Command::FailedError which contains the command result
+  #   #=> raises ProcessExecuter::FailedError which contains the command result
   #
   # @example Run a command which exits due to an unhandled signal
   #   command = ['kill -9 $$']
   #   result = ProcessExecuter.run(*command)
-  #   #=> raises ProcessExecuter::Command::SignaledError which contains the command result
+  #   #=> raises ProcessExecuter::SignaledError which contains the command result
   #
-  # @example Return a result instead of raising an error when `raise_errors` is `false`
-  #   # By setting `raise_errors` to `false`, exceptions will not be raised even
-  #   # if the command fails.
+  # @example Do not raise an error when the command fails
   #   command = ['echo "Some error" 1>&2 && exit 1']
   #   result = ProcessExecuter.run(*command, raise_errors: false)
-  #   # An error is not raised
   #   result.success? #=> false
   #   result.exitstatus #=> 1
-  #   result.stdout.string #=> ""
-  #   result.stderr.string #=> "Some error\n"
+  #   result.stdout #=> ""
+  #   result.stderr #=> "Some error\n"
   #
   # @example Set environment variables
   #   env = { 'FOO' => 'foo', 'BAR' => 'bar' }
   #   command = 'echo "$FOO$BAR"'
   #   result = ProcessExecuter.run(env, *command)
-  #   result.stdout.string #=> "foobar\n"
+  #   result.stdout #=> "foobar\n"
   #
   # @example Set environment variables when using a command array
-  #   env = { 'GIT_DIR' => '/path/to/.git' }
-  #   command = ['git', 'status']
+  #   env = { 'FOO' => 'foo', 'BAR' => 'bar' }
+  #   command = ['ruby', '-e', 'puts ENV["FOO"] + ENV["BAR"]']
   #   result = ProcessExecuter.run(env, *command)
-  #   result.stdout.string #=> "On branch main\nYour branch is ..."
+  #   result.stdout #=> "foobar\n"
   #
   # @example Unset environment variables
-  #   env = { 'GIT_DIR' => nil } # setting to nil unsets the variable in the environment
-  #   command = ['git', 'status']
+  #   env = { 'FOO' => nil } # setting to nil unsets the variable in the environment
+  #   command = ['echo "FOO: $FOO"']
   #   result = ProcessExecuter.run(env, *command)
-  #   result.stdout.string #=> "On branch main\nYour branch is ..."
+  #   result.stdout #=> "FOO: \n"
   #
   # @example Reset existing environment variables and add new ones
   #   env = { 'PATH' => '/bin' }
   #   result = ProcessExecuter.run(env, 'echo "Home: $HOME" && echo "Path: $PATH"', unsetenv_others: true)
-  #   result.stdout.string #=> "Home: \n/Path: /bin\n"
+  #   result.stdout #=> "Home: \n/Path: /bin\n"
   #
   # @example Run command in a different directory
   #   command = ['pwd']
   #   result = ProcessExecuter.run(*command, chdir: '/tmp')
-  #   result.stdout.string #=> "/tmp\n"
+  #   result.stdout #=> "/tmp\n"
   #
   # @example Capture stdout and stderr into a single buffer
   #   command = ['echo "stdout" && echo "stderr" 1>&2']
   #   result = ProcessExecuter.run(*command, merge: true)
-  #   result.stdout.string #=> "stdout\nstderr\n"
+  #   result.stdout #=> "stdout\nstderr\n"
+  #   result.stderr #=> "stdout\nstderr\n"
   #   result.stdout.object_id == result.stderr.object_id #=> true
   #
   # @example Capture to an explicit buffer
@@ -184,18 +211,17 @@ module ProcessExecuter
   #   result = ProcessExecuter.run(*command, out: out, err: err)
   #   out.string #=> "stdout\n"
   #   err.string #=> "stderr\n"
-  #   result.stdout.object_id == out.object_id #=> true
-  #   result.stderr.object_id == err.object_id #=> true
   #
   # @example Capture to a file
   #   # Same technique can be used for stderr
   #   out = File.open('stdout.txt', 'w')
+  #   err = StringIO.new
   #   command = ['echo "stdout" && echo "stderr" 1>&2']
   #   result = ProcessExecuter.run(*command, out: out, err: err)
   #   out.close
   #   File.read('stdout.txt') #=> "stdout\n"
   #   # stderr is still captured to a StringIO buffer internally
-  #   result.stderr.string #=> "stderr\n"
+  #   result.stderr #=> "stderr\n"
   #
   # @example Capture to multiple writers (e.g. files, buffers, STDOUT, etc.)
   #   # Same technique can be used for stderr
@@ -207,6 +233,9 @@ module ProcessExecuter
   #   out_file.close
   #   out_buffer.string #=> "stdout\n"
   #   File.read('stdout.txt') #=> "stdout\n"
+  #   # Since one of the out writers has a #string method, Result#stdout will
+  #   # return the string from that writer
+  #   result.stdout #=> "stdout\n"
   #
   # @param command [Array<String>] The command to run
   #
@@ -225,10 +254,12 @@ module ProcessExecuter
   #
   # @param logger [Logger] The logger to use
   # @param options_hash [Hash] Additional options
-  # @option options_hash [Numeric] :timeout The maximum seconds to wait for the command to complete
+  # @option options_hash [Numeric] :timeout_after The maximum seconds to wait for the
+  #   command to complete
   #
-  #     If timeout is zero or nil, the command will not time out. If the command
-  #     times out, it is killed via a SIGKILL signal and {ProcessExecuter::Command::TimeoutError} is raised.
+  #     If zero or nil, the command will not time out. If the command
+  #     times out, it is killed via a SIGKILL signal. A {ProcessExecuter::TimeoutError}
+  #     will be raised if the `:raise_errors` option is true.
   #
   #     If the command does not exit when receiving the SIGKILL signal, this method may hang indefinitely.
   #
@@ -246,34 +277,55 @@ module ProcessExecuter
   # @option options_hash [Boolean] :close_others (false) If true, close non-standard file descriptors
   # @option options_hash [String] :chdir (nil) The directory to run the command in
   #
-  # @raise [ProcessExecuter::Command::FailedError] if the command returned a non-zero exit status
-  # @raise [ProcessExecuter::Command::SignaledError] if the command exited because of an unhandled signal
-  # @raise [ProcessExecuter::Command::TimeoutError] if the command timed out
-  # @raise [ProcessExecuter::Command::ProcessIOError] if an exception was raised while collecting subprocess output
+  # @raise [ProcessExecuter::FailedError] if the command returned a non-zero exit status
+  # @raise [ProcessExecuter::SignaledError] if the command exited because of an unhandled signal
+  # @raise [ProcessExecuter::TimeoutError] if the command timed out
+  # @raise [ProcessExecuter::ProcessIOError] if an exception was raised while collecting subprocess output
   #
-  # @return [ProcessExecuter::Command::Result] A result object containing the process status and captured output
+  # @return [ProcessExecuter::Result] The result of the completed subprocess
   #
   def self.run(*command, logger: Logger.new(nil), **options_hash)
-    ProcessExecuter::Command::Runner.new(logger).call(*command, **options_hash)
+    ProcessExecuter::Runner.new(logger).call(*command, **options_hash)
   end
 
   # Wait for process to terminate
   #
-  # If a timeout is specified in options, terminate the process after options.timeout seconds.
+  # If a `:timeout_after` is specified in options, terminate the process after the
+  # specified number of seconds.
   #
   # @param pid [Integer] the process ID
   # @param options [ProcessExecuter::Options] the options used
   #
-  # @return [ProcessExecuter::Status] the process status including Process::Status attributes and a timeout flag
+  # @return [ProcessExecuter::Result] The result of the completed subprocess
   #
   # @api private
   #
-  private_class_method def self.wait_for_process(pid, options)
-    Timeout.timeout(options.timeout) do
-      ProcessExecuter::Status.new(Process.wait2(pid).last, false, options.timeout)
-    end
-  rescue Timeout::Error
-    Process.kill('KILL', pid)
-    ProcessExecuter::Status.new(Process.wait2(pid).last, true, options.timeout)
+  private_class_method def self.wait_for_process(pid, command, options)
+    start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    process_status, timed_out = wait_for_process_raw(pid, options.timeout_after)
+    elapsed_time = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+    ProcessExecuter::Result.new(process_status, command:, options:, timed_out:, elapsed_time:)
+  end
+
+  # Wait for a process to terminate returning the status and timed out flag
+  #
+  # @param pid [Integer] the process ID
+  # @param timeout_after [Numeric, nil] the number of seconds to wait for the process to terminate
+  # @return [Array<Process::Status, Boolean>] an array containing the process status and a boolean
+  #   indicating whether the process timed out
+  # @api private
+  private_class_method def self.wait_for_process_raw(pid, timeout_after)
+    timed_out = false
+
+    process_status =
+      begin
+        Timeout.timeout(timeout_after) { Process.wait2(pid).last }
+      rescue Timeout::Error
+        Process.kill('KILL', pid)
+        timed_out = true
+        Process.wait2(pid).last
+      end
+
+    [process_status, timed_out]
   end
 end

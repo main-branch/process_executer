@@ -5,51 +5,51 @@ require 'logger'
 require 'tmpdir'
 
 RSpec.describe ProcessExecuter do
-  describe '.spawn' do
-    subject { ProcessExecuter.spawn(*command, **options) }
+  describe '.spawn_and_wait' do
+    subject { ProcessExecuter.spawn_and_wait(*command, **options) }
 
-    context 'when :timeout is specified' do
-      context 'when :timeout is a String' do
+    context 'when :timeout_after is specified' do
+      context 'when :timeout_after is a String' do
         let(:command) { %w[echo hello] }
-        let(:options) { { timeout: 'a string' } }
+        let(:options) { { timeout_after: 'a string' } }
         it 'should raise an ArgumentError' do
-          expect { subject }.to raise_error(ArgumentError, /timeout/)
+          expect { subject }.to raise_error(ArgumentError, /timeout_after must be/)
         end
       end
 
-      context 'when :timeout is a Complex' do
+      context 'when :timeout_after is a Complex' do
         let(:command) { %w[echo hello] }
-        let(:options) { { timeout: Complex(3, 4) } }
+        let(:options) { { timeout_after: Complex(3, 4) } }
         it 'should raise an ArgumentError' do
-          expect { subject }.to raise_error(ArgumentError, /timeout/)
+          expect { subject }.to raise_error(ArgumentError, /timeout_after must be/)
         end
       end
 
-      context 'when :timeout is nil' do
+      context 'when :timeout_after is nil' do
         let(:command) { %w[echo hello] }
         let(:output_writer) { StringIO.new }
         let(:output_pipe) { ProcessExecuter::MonitoredPipe.new(output_writer) }
-        let(:options) { { out: output_pipe, timeout: nil } }
+        let(:options) { { out: output_pipe, timeout_after: nil } }
         it 'should NOT raise an error' do
           expect { subject }.not_to raise_error
         end
       end
 
-      context 'when :timeout is an Integer' do
+      context 'when :timeout_after is an Integer' do
         let(:command) { %w[echo hello] }
         let(:output_writer) { StringIO.new }
         let(:output_pipe) { ProcessExecuter::MonitoredPipe.new(output_writer) }
-        let(:options) { { out: output_pipe, timeout: Integer(1) } }
+        let(:options) { { out: output_pipe, timeout_after: Integer(1) } }
         it 'should NOT raise an error' do
           expect { subject }.not_to raise_error
         end
       end
 
-      context 'when :timeout is a Float' do
+      context 'when :timeout_after is a Float' do
         let(:command) { %w[echo hello] }
         let(:output_writer) { StringIO.new }
         let(:output_pipe) { ProcessExecuter::MonitoredPipe.new(output_writer) }
-        let(:options) { { out: output_pipe, timeout: Float(1.0) } }
+        let(:options) { { out: output_pipe, timeout_after: Float(1.0) } }
         it 'should NOT raise an error' do
           expect { subject }.not_to raise_error
         end
@@ -59,8 +59,8 @@ RSpec.describe ProcessExecuter do
     context 'for a command that does not time out' do
       let(:command) { %w[false] }
       let(:options) { {} }
-      it { is_expected.to be_a(ProcessExecuter::Status) }
-      it { is_expected.to have_attributes(timeout?: false, exitstatus: 1) }
+      it { is_expected.to be_a(ProcessExecuter::Result) }
+      it { is_expected.to have_attributes(timed_out?: false, exitstatus: 1) }
     end
 
     def windows?
@@ -73,9 +73,9 @@ RSpec.describe ProcessExecuter do
 
     context 'for a command that times out' do
       let(:command) { %w[sleep 1] }
-      let(:options) { { timeout: 0.01 } }
+      let(:options) { { timeout_after: 0.01 } }
 
-      it { is_expected.to be_a(ProcessExecuter::Status) }
+      it { is_expected.to be_a(ProcessExecuter::Result) }
 
       it 'should have killed the process' do
         start_time = Time.now
@@ -89,11 +89,11 @@ RSpec.describe ProcessExecuter do
         if windows?
           # On windows, the status of a process killed with SIGKILL will indicate
           # that the process exited normally with exitstatus 0.
-          expect(subject).to have_attributes(exited?: true, exitstatus: 0, timeout?: true)
+          expect(subject).to have_attributes(exited?: true, exitstatus: 0, timed_out?: true)
         else
           # On other platforms, the status of a process killed with SIGKILL will indicate
           # that the process terminated because of the uncaught signal
-          expect(subject).to have_attributes(signaled?: true, termsig: 9, timeout?: true)
+          expect(subject).to have_attributes(signaled?: true, termsig: 9, timed_out?: true)
         end
         # :nocov:
       end

@@ -9,15 +9,15 @@ RSpec.describe ProcessExecuter do
     context 'with command given as a single string' do
       let(:command) { Gem.win_platform? ? 'echo %VAR%' : 'echo $VAR' }
       subject { ProcessExecuter.run({ 'VAR' => 'test' }, command) }
-      it { is_expected.to be_a(ProcessExecuter::Command::Result) }
-      it { is_expected.to have_attributes(success?: true, exitstatus: 0, signaled?: false, timeout?: false) }
+      it { is_expected.to be_a(ProcessExecuter::Result) }
+      it { is_expected.to have_attributes(success?: true, exitstatus: 0, signaled?: false, timed_out?: false) }
       it 'is expected to process the command with the shell and do shell expansions' do
-        expect(subject.stdout.string.gsub("\r\n", "\n")).to eq("test\n")
+        expect(subject.stdout.gsub("\r\n", "\n")).to eq("test\n")
       end
     end
 
     let(:result) { ProcessExecuter.run(*command, logger: logger, **options) }
-    let(:logger) { nil }
+    let(:logger) { Logger.new(nil) }
     let(:options) { {} }
 
     subject { result }
@@ -28,12 +28,35 @@ RSpec.describe ProcessExecuter do
         STDERR.puts 'stderr output'
       COMMAND
 
-      it { is_expected.to be_a(ProcessExecuter::Command::Result) }
-      it { is_expected.to have_attributes(success?: true, exitstatus: 0, signaled?: false, timeout?: false) }
+      it { is_expected.to be_a(ProcessExecuter::Result) }
+      it { is_expected.to have_attributes(success?: true, exitstatus: 0, signaled?: false, timed_out?: false) }
 
       it 'is expected to capture the command output' do
-        expect(subject.stdout.string.gsub("\r\n", "\n")).to eq("stdout output\n")
-        expect(subject.stderr.string.gsub("\r\n", "\n")).to eq("stderr output\n")
+        expect(subject.stdout.gsub("\r\n", "\n")).to eq("stdout output\n")
+        expect(subject.stderr.gsub("\r\n", "\n")).to eq("stderr output\n")
+      end
+    end
+
+    context 'when the output can not be determined' do
+      let(:command) { ruby_command <<~COMMAND }
+        puts 'stdout output'
+        STDERR.puts 'stderr output'
+      COMMAND
+
+      context 'when stdout can not be determined' do
+        let(:options) { { out: File.open(File::NULL, 'w') } }
+        it 'should return nil for stdout' do
+          expect(subject.stdout).to be_nil
+          expect(subject.stderr.gsub("\r\n", "\n")).to eq("stderr output\n")
+        end
+      end
+
+      context 'when stderr can not be determined' do
+        let(:options) { { err: File.open(File::NULL, 'w') } }
+        it 'should return nil for stderr' do
+          expect(subject.stdout.gsub("\r\n", "\n")).to eq("stdout output\n")
+          expect(subject.stderr).to be_nil
+        end
       end
     end
 
@@ -45,13 +68,13 @@ RSpec.describe ProcessExecuter do
       COMMAND
 
       it 'is expected to raise an command error' do
-        expect { result }.to raise_error(ProcessExecuter::Command::Error)
+        expect { result }.to raise_error(ProcessExecuter::Error)
       end
 
       context 'the error raised' do
         subject { result rescue $ERROR_INFO } # rubocop:disable Style/RescueModifier
 
-        it { is_expected.to be_a(ProcessExecuter::Command::FailedError) }
+        it { is_expected.to be_a(ProcessExecuter::FailedError) }
 
         it 'is expected to have the expected error message' do
           pid = subject.result.pid
@@ -64,11 +87,11 @@ RSpec.describe ProcessExecuter do
         context 'the result object contained in the error' do
           subject { result rescue $ERROR_INFO.result } # rubocop:disable Style/RescueModifier
 
-          it { is_expected.to be_a(ProcessExecuter::Command::Result) }
+          it { is_expected.to be_a(ProcessExecuter::Result) }
           it { is_expected.to have_attributes(success?: false, exitstatus: 1) }
           it 'is expected have the output from the command' do
-            expect(subject.stdout.string.gsub("\r\n", "\n")).to eq("stdout output\n")
-            expect(subject.stderr.string.gsub("\r\n", "\n")).to eq("stderr output\n")
+            expect(subject.stdout.gsub("\r\n", "\n")).to eq("stdout output\n")
+            expect(subject.stderr.gsub("\r\n", "\n")).to eq("stderr output\n")
           end
         end
       end
@@ -76,16 +99,16 @@ RSpec.describe ProcessExecuter do
 
     context 'with a command that times out' do
       let(:command) { 'sleep 1' }
-      let(:options) { { timeout: 0.01 } }
+      let(:options) { { timeout_after: 0.01 } }
 
       it 'is expected to raise an error' do
-        expect { subject }.to raise_error(ProcessExecuter::Command::Error)
+        expect { subject }.to raise_error(ProcessExecuter::Error)
       end
 
       context 'the error raised' do
         subject { result rescue $ERROR_INFO } # rubocop:disable Style/RescueModifier
 
-        it { is_expected.to be_a(ProcessExecuter::Command::TimeoutError) }
+        it { is_expected.to be_a(ProcessExecuter::TimeoutError) }
 
         it 'is expected to have the expected error message' do
           pid = subject.result.pid
@@ -108,8 +131,8 @@ RSpec.describe ProcessExecuter do
         context 'the result object contained in the error' do
           subject { result rescue $ERROR_INFO.result } # rubocop:disable Style/RescueModifier
 
-          it { is_expected.to be_a(ProcessExecuter::Command::Result) }
-          it { is_expected.to have_attributes(success?: nil, timeout?: true) }
+          it { is_expected.to be_a(ProcessExecuter::Result) }
+          it { is_expected.to have_attributes(success?: nil, timed_out?: true) }
         end
       end
     end
@@ -121,13 +144,13 @@ RSpec.describe ProcessExecuter do
       COMMAND
 
       it 'is expected to raise an error' do
-        expect { subject }.to raise_error(ProcessExecuter::Command::Error)
+        expect { subject }.to raise_error(ProcessExecuter::Error)
       end
 
       context 'the error raised' do
         subject { result rescue $ERROR_INFO } # rubocop:disable Style/RescueModifier
 
-        it { is_expected.to be_a(ProcessExecuter::Command::SignaledError) }
+        it { is_expected.to be_a(ProcessExecuter::SignaledError) }
 
         it 'is expected to have the expected error message' do
           pid = subject.result.pid
@@ -149,7 +172,7 @@ RSpec.describe ProcessExecuter do
         context 'the result object contained in the error' do
           subject { result rescue $ERROR_INFO.result } # rubocop:disable Style/RescueModifier
 
-          it { is_expected.to be_a(ProcessExecuter::Command::Result) }
+          it { is_expected.to be_a(ProcessExecuter::Result) }
           it { is_expected.to have_attributes(signaled?: true, termsig: 9) }
         end
       end
@@ -170,24 +193,24 @@ RSpec.describe ProcessExecuter do
         end
 
         it 'is expected to return an a Result' do
-          expect(subject).to be_a(ProcessExecuter::Command::Result)
+          expect(subject).to be_a(ProcessExecuter::Result)
           expect(subject).to have_attributes(success?: false, exitstatus: 1)
-          expect(subject.stdout.string.gsub("\r\n", "\n")).to eq("stdout output\n")
-          expect(subject.stderr.string.gsub("\r\n", "\n")).to eq("stderr output\n")
+          expect(subject.stdout.gsub("\r\n", "\n")).to eq("stdout output\n")
+          expect(subject.stderr.gsub("\r\n", "\n")).to eq("stderr output\n")
         end
       end
 
       context 'a command that times out' do
         let(:command) { 'sleep 1' }
-        let(:options) { { raise_errors: false, timeout: 0.01 } }
+        let(:options) { { raise_errors: false, timeout_after: 0.01 } }
 
         it 'is not expected to raise an error' do
           expect { subject }.not_to raise_error
         end
 
         it 'is expected to return a result' do
-          expect(subject).to be_a(ProcessExecuter::Command::Result)
-          expect(subject).to have_attributes(success?: nil, timeout?: true)
+          expect(subject).to be_a(ProcessExecuter::Result)
+          expect(subject).to have_attributes(success?: nil, timed_out?: true)
         end
       end
 
@@ -200,7 +223,7 @@ RSpec.describe ProcessExecuter do
         end
 
         it 'is expected to return a result' do
-          expect(subject).to be_a(ProcessExecuter::Command::Result)
+          expect(subject).to be_a(ProcessExecuter::Result)
           expect(subject).to have_attributes(signaled?: true, termsig: 9)
         end
       end
@@ -218,14 +241,14 @@ RSpec.describe ProcessExecuter do
 
       context 'when adding environment variables' do
         it 'is expected to add those variables in the environment' do
-          expect(subject.stdout.string.gsub("\r\n", "\n")).to eq("val1 #{existing_var[1]}\n")
+          expect(subject.stdout.gsub("\r\n", "\n")).to eq("val1 #{existing_var[1]}\n")
         end
       end
 
       context 'when removing environment variables' do
         let(:env) { { 'VAR1' => 'val1', existing_var[0] => nil } }
         it 'is expected to remove those variables from the environment' do
-          expect(subject.stdout.string.gsub("\r\n", "\n")).to eq("val1 \n")
+          expect(subject.stdout.gsub("\r\n", "\n")).to eq("val1 \n")
         end
       end
 
@@ -237,7 +260,7 @@ RSpec.describe ProcessExecuter do
         let(:options) { { unsetenv_others: true } }
 
         it 'is expected to remove all existing variables from the environment and add the given variables' do
-          expect(subject.stdout.string.gsub("\r\n", "\n")).to eq('false')
+          expect(subject.stdout.gsub("\r\n", "\n")).to eq('false')
         end
       end
     end
@@ -248,7 +271,7 @@ RSpec.describe ProcessExecuter do
       let(:command) { ['ruby', '-e', 'puts Dir.pwd'] }
       let(:options) { { chdir: @tmpdir } }
       it 'is expected to run the command in the specified directory' do
-        expect(subject.stdout.string.gsub("\r\n", "\n")).to eq("#{@tmpdir}\n")
+        expect(subject.stdout.gsub("\r\n", "\n")).to eq("#{@tmpdir}\n")
       end
     end
 
@@ -262,8 +285,8 @@ RSpec.describe ProcessExecuter do
 
       it 'is expected to merge stdout and stderr' do
         # The order these strings are concatenated is not guaranteed
-        expect(subject.stdout.string.gsub("\r\n", "\n")).to include("stdout output\n")
-        expect(subject.stdout.string.gsub("\r\n", "\n")).to include("stderr output\n")
+        expect(subject.stdout.gsub("\r\n", "\n")).to include("stdout output\n")
+        expect(subject.stdout.gsub("\r\n", "\n")).to include("stderr output\n")
         expect(subject.stdout.object_id).to eq(subject.stderr.object_id)
       end
     end
@@ -314,8 +337,8 @@ RSpec.describe ProcessExecuter do
 
       subject { ProcessExecuter.run('echo Hello') }
 
-      it 'is expected to raise ProcessExecuter::Command::ProcessIOError' do
-        expect { subject }.to raise_error(ProcessExecuter::Command::ProcessIOError)
+      it 'is expected to raise ProcessExecuter::ProcessIOError' do
+        expect { subject }.to raise_error(ProcessExecuter::ProcessIOError)
       end
     end
 
@@ -382,7 +405,7 @@ RSpec.describe ProcessExecuter do
 
       context 'a command that times out' do
         let(:command) { 'sleep 1' }
-        let(:options) { { raise_errors: false, timeout: 0.01 } }
+        let(:options) { { raise_errors: false, timeout_after: 0.01 } }
 
         context 'when log level is WARN' do
           let(:log_level) { Logger::WARN }
