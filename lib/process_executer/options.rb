@@ -7,7 +7,7 @@ module ProcessExecuter
   #
   # Valid options are those accepted by Process.spawn plus the following additions:
   #
-  # * `:timeout`:
+  # * `:timeout_after`: the number of seconds to allow a process to run before killing it
   #
   # @api public
   #
@@ -30,7 +30,7 @@ module ProcessExecuter
     # to `Process.spawn`
     #
     NON_SPAWN_OPTIONS = %i[
-      timeout
+      timeout_after raise_errors
     ].freeze
 
     # Any `SPAWN_OPTIONS` set to `NOT_SET` will not be passed to `Process.spawn`
@@ -50,7 +50,8 @@ module ProcessExecuter
       umask: NOT_SET,
       close_others: NOT_SET,
       chdir: NOT_SET,
-      timeout: nil
+      raise_errors: true,
+      timeout_after: nil
     }.freeze
 
     # :nocov:
@@ -71,14 +72,14 @@ module ProcessExecuter
     # Create a new Options object
     #
     # @example
-    #   options = ProcessExecuter::Options.new(out: $stdout, err: $stderr, timeout: 10)
+    #   options = ProcessExecuter::Options.new(out: $stdout, err: $stderr, timeout_after: 10)
     #
     # @param options [Hash] Process.spawn options plus additional options listed below.
     #
     #   See [Process.spawn](https://ruby-doc.org/core/Process.html#method-c-spawn)
     #   for a list of valid options that can be passed to `Process.spawn`.
     #
-    # @option options [Integer, Float, nil] :timeout
+    # @option options [Integer, Float, nil] :timeout_after
     #   Number of seconds to wait for the process to terminate. Any number
     #   may be used, including Floats to specify fractional seconds. A value of 0 or nil
     #   will allow the process to run indefinitely.
@@ -92,7 +93,7 @@ module ProcessExecuter
     # Returns the options to be passed to Process.spawn
     #
     # @example
-    #   options = ProcessExecuter::Options.new(out: $stdout, err: $stderr, timeout: 10)
+    #   options = ProcessExecuter::Options.new(out: $stdout, err: $stderr, timeout_after: 10)
     #   options.spawn_options # => { out: $stdout, err: $stderr }
     #
     # @return [Hash]
@@ -130,22 +131,24 @@ module ProcessExecuter
       raise ArgumentError, "Unknown options: #{unknown_options.join(', ')}" unless unknown_options.empty?
     end
 
-    # Raise an error if timeout is not a real non-negative number
+    # Raise an error if timeout_after is not a non-negative real number
     # @return [void]
-    # @raise [ArgumentError] if timeout is not a real non-negative number
+    # @raise [ArgumentError] if timeout_after is not a non-negative real number
     # @api private
     def assert_timeout_is_valid
-      return if @options[:timeout].nil?
-      return if @options[:timeout].is_a?(Numeric) && @options[:timeout].real? && !@options[:timeout].negative?
+      return if @options[:timeout_after].nil?
+      return if @options[:timeout_after].is_a?(Numeric) &&
+                @options[:timeout_after].real? &&
+                !@options[:timeout_after].negative?
 
-      raise ArgumentError, invalid_timeout_message
+      raise ArgumentError, invalid_timeout_after_message
     end
 
-    # The message to be used when raising an error for an invalid timeout
+    # The message to be used when raising an error for an invalid timeout_after
     # @return [String]
     # @api private
-    def invalid_timeout_message
-      "timeout must be nil or a real non-negative number but was #{options[:timeout].pretty_inspect}"
+    def invalid_timeout_after_message
+      "timeout_after must be nil or a non-negative real number but was #{options[:timeout_after].pretty_inspect}"
     end
 
     # Determine if the given option is a valid option
