@@ -112,7 +112,7 @@ RSpec.describe ProcessExecuter do
 
         it 'is expected to have the expected error message' do
           pid = subject.result.pid
-          # :nocov:
+          # :nocov: execution of this code is platform dependent
           expected_message =
             if RUBY_ENGINE == 'jruby'
               %(["sleep 1"], status: pid #{pid} KILL (signal 9) timed out after 0.01s, stderr: "")
@@ -155,7 +155,7 @@ RSpec.describe ProcessExecuter do
         it 'is expected to have the expected error message' do
           pid = subject.result.pid
 
-          # :nocov:
+          # :nocov: execution of this code is platform dependent
           expected_message =
             if RUBY_ENGINE == 'jruby'
               %(#{command.inspect}, status: pid #{pid} KILL (signal 9), stderr: "")
@@ -420,7 +420,7 @@ RSpec.describe ProcessExecuter do
           it 'is expected to log the command and its status' do
             subject
 
-            # :nocov:
+            # :nocov: execution of this code is platform dependent
             expected_message =
               if RUBY_ENGINE == 'jruby'
                 /INFO -- : \[.*?\] exited with status pid \d+ KILL \(signal 9\) timed out after 0.01s$/
