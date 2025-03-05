@@ -1,25 +1,28 @@
 # frozen_string_literal: true
 
+require 'logger'
+require 'timeout'
+
 require 'process_executer/errors'
 require 'process_executer/monitored_pipe'
 require 'process_executer/options'
+require 'process_executer/option_definition'
 require 'process_executer/result'
 require 'process_executer/runner'
-
-require 'logger'
-require 'timeout'
 
 # The `ProcessExecuter` module provides methods to execute subprocess commands
 # with enhanced features such as output capture, timeout handling, and custom
 # environment variables.
 #
 # Methods:
+#
 # * {run}: Executes a command and returns the result which includes the process
 #   status and output
 # * {spawn_and_wait}: a thin wrapper around `Process.spawn` that blocks until the
 #   command finishes
 #
 # Features:
+#
 # * Supports executing commands via a shell or directly.
 # * Captures stdout and stderr to buffers, files, or custom objects.
 # * Optionally enforces timeouts and terminates long-running commands.
@@ -27,7 +30,6 @@ require 'timeout'
 #   options that were given, and success, failure, or timeout states.
 #
 # @api public
-#
 module ProcessExecuter
   # Run a command in a subprocess, wait for it to finish, then return the result
   #
@@ -70,7 +72,20 @@ module ProcessExecuter
   # @return [ProcessExecuter::Result] The result of the completed subprocess
   #
   def self.spawn_and_wait(*command, **options_hash)
-    options = ProcessExecuter::Options.new(**options_hash)
+    options = ProcessExecuter.spawn_and_wait_options(options_hash)
+    spawn_and_wait_with_options(command, options)
+  end
+
+  # Run a command in a subprocess, wait for it to finish, then return the result
+  #
+  # @see ProcessExecuter.spawn_and_wait for full documentation
+  #
+  # @param command [Array<String>] The command to run
+  # @param options [ProcessExecuter::SpawnAndWaitOptions] The options to use when running the command
+  #
+  # @return [ProcessExecuter::Result] The result of the completed subprocess
+  # @api private
+  def self.spawn_and_wait_with_options(command, options)
     pid = Process.spawn(*command, **options.spawn_options)
     wait_for_process(pid, command, options)
   end
@@ -252,7 +267,6 @@ module ProcessExecuter
   #   Otherwise, the command is run bypassing the shell. When bypassing the shell, shell expansions
   #   and redirections are not supported.
   #
-  # @param logger [Logger] The logger to use
   # @param options_hash [Hash] Additional options
   # @option options_hash [Numeric] :timeout_after The maximum seconds to wait for the
   #   command to complete
@@ -276,6 +290,7 @@ module ProcessExecuter
   # @option options_hash [Integer] :umask (nil) Set the umask (see File.umask)
   # @option options_hash [Boolean] :close_others (false) If true, close non-standard file descriptors
   # @option options_hash [String] :chdir (nil) The directory to run the command in
+  # @option options_hash [Logger] :logger The logger to use
   #
   # @raise [ProcessExecuter::FailedError] if the command returned a non-zero exit status
   # @raise [ProcessExecuter::SignaledError] if the command exited because of an unhandled signal
@@ -284,8 +299,23 @@ module ProcessExecuter
   #
   # @return [ProcessExecuter::Result] The result of the completed subprocess
   #
-  def self.run(*command, logger: Logger.new(nil), **options_hash)
-    ProcessExecuter::Runner.new(logger).call(*command, **options_hash)
+  def self.run(*command, **options_hash)
+    options = ProcessExecuter.run_options(options_hash)
+    run_with_options(command, options)
+  end
+
+  # Run a command with the given options
+  #
+  # @see ProcessExecuter.run for full documentation
+  #
+  # @param command [Array<String>] The command to run
+  # @param options [ProcessExecuter::RunOptions] The options to use when running the command
+  #
+  # @return [ProcessExecuter::Result] The result of the completed subprocess
+  #
+  # @api private
+  def self.run_with_options(command, options)
+    ProcessExecuter::Runner.new.call(command, options)
   end
 
   # Wait for process to terminate
@@ -327,5 +357,89 @@ module ProcessExecuter
       end
 
     [process_status, timed_out]
+  end
+
+  # Convert a hash to a SpawnOptions object
+  #
+  # @example
+  #   options_hash = { out: $stdout }
+  #   options = ProcessExecuter.spawn_options(options_hash) # =>
+  #     #<ProcessExecuter::SpawnOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #   ProcessExecuter.spawn_options(options) # =>
+  #     #<ProcessExecuter::SpawnOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #
+  # @param obj [Hash, SpawnOptions] the object to be converted
+  #
+  # @return [SpawnOptions]
+  #
+  # @raise [ArgumentError] if obj is not a Hash or SpawnOptions
+  #
+  # @api public
+  #
+  def self.spawn_options(obj)
+    case obj
+    when ProcessExecuter::SpawnOptions
+      obj
+    when Hash
+      ProcessExecuter::SpawnOptions.new(**obj)
+    else
+      raise ArgumentError, "Expected a Hash or ProcessExecuter::SpawnOptions but got a #{obj.class}"
+    end
+  end
+
+  # Convert a hash to a SpawnAndWaitOptions object
+  #
+  # @example
+  #   options_hash = { out: $stdout }
+  #   options = ProcessExecuter.spawn_and_wait_options(options_hash) # =>
+  #     #<ProcessExecuter::SpawnAndWaitOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #   ProcessExecuter.spawn_and_wait_options(options) # =>
+  #     #<ProcessExecuter::SpawnAndWaitOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #
+  # @param obj [Hash, SpawnAndWaitOptions] the object to be converted
+  #
+  # @return [SpawnAndWaitOptions]
+  #
+  # @raise [ArgumentError] if obj is not a Hash or SpawnOptions
+  #
+  # @api public
+  #
+  def self.spawn_and_wait_options(obj)
+    case obj
+    when ProcessExecuter::SpawnAndWaitOptions
+      obj
+    when Hash
+      ProcessExecuter::SpawnAndWaitOptions.new(**obj)
+    else
+      raise ArgumentError, "Expected a Hash or ProcessExecuter::SpawnAndWaitOptions but got a #{obj.class}"
+    end
+  end
+
+  # Convert a hash to a RunOptions object
+  #
+  # @example
+  #   options_hash = { out: $stdout }
+  #   options = ProcessExecuter.run_options(options_hash) # =>
+  #     #<ProcessExecuter::RunOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #   ProcessExecuter.run_options(options) # =>
+  #     #<ProcessExecuter::RunOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #
+  # @param obj [Hash, RunOptions] the object to be converted
+  #
+  # @return [RunOptions]
+  #
+  # @raise [ArgumentError] if obj is not a Hash or SpawnOptions
+  #
+  # @api public
+  #
+  def self.run_options(obj)
+    case obj
+    when ProcessExecuter::RunOptions
+      obj
+    when Hash
+      ProcessExecuter::RunOptions.new(**obj)
+    else
+      raise ArgumentError, "Expected a Hash or ProcessExecuter::RunOptions but got a #{obj.class}"
+    end
   end
 end
