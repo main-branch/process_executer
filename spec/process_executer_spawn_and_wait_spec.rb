@@ -66,7 +66,7 @@ RSpec.describe ProcessExecuter do
     def windows?
       !!(RUBY_PLATFORM =~ /mswin|win32|mingw|bccwin|cygwin/)
     rescue StandardError
-      # :nocov:
+      # :nocov: this code is not guaranteed to be executed
       false
       # :nocov:
     end
@@ -85,7 +85,7 @@ RSpec.describe ProcessExecuter do
         # The process should have been killed very soon after 0.01 seconds (before 1 second)
         expect(end_time - start_time).to be < 0.1
 
-        # :nocov:
+        # :nocov: execution of this code is platform dependent
         if windows?
           # On windows, the status of a process killed with SIGKILL will indicate
           # that the process exited normally with exitstatus 0.

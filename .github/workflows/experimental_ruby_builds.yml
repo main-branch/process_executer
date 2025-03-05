@@ -34,15 +34,19 @@ jobs:
 
           - ruby: truffleruby-head
             operating-system: ubuntu-latest
+            env: { FAIL_ON_LOW_COVERAGE: FALSE }
 
           - ruby: jruby-9.4
             operating-system: windows-latest
+            env: { FAIL_ON_LOW_COVERAGE: FALSE }
 
           - ruby: jruby-head
             operating-system: ubuntu-latest
+            env: { FAIL_ON_LOW_COVERAGE: FALSE }
 
           - ruby: jruby-head
             operating-system: windows-latest
+            env: { FAIL_ON_LOW_COVERAGE: FALSE }
 
     steps:
       - name: Checkout

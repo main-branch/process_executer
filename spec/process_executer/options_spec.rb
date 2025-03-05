@@ -10,8 +10,6 @@ RSpec.describe ProcessExecuter::Options do
   let(:options) { ProcessExecuter::Options.new(**options_hash) }
 
   let(:all_options_hash) do
-    # :nocov:
-    # JRuby does not count the following as covered even though it is
     {
       in: double('in'),
       out: double('out'),
@@ -26,7 +24,6 @@ RSpec.describe ProcessExecuter::Options do
       timeout_after: 0,
       raise_errors: true
     }
-    # :nocov:
   end
 
   describe '#initialize' do
