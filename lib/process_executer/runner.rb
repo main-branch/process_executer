@@ -103,8 +103,16 @@ module ProcessExecuter
     def process_result(result)
       log_result(result)
 
-      return unless result.options.raise_errors
+      raise_errors(result) if result.options.raise_errors
+    end
 
+    # Raise an error if the command failed
+    # @return [void]
+    # @raise [ProcessExecuter::FailedError] If the command failed
+    # @raise [ProcessExecuter::SignaledError] If the command was signaled
+    # @raise [ProcessExecuter::TimeoutError] If the command times out
+    # @api private
+    def raise_errors(result)
       raise TimeoutError, result if result.timed_out?
       raise SignaledError, result if result.signaled?
       raise FailedError, result unless result.success?
