@@ -15,24 +15,6 @@ module ProcessExecuter
   # @api public
   #
   class Runner
-    # Create a new RunCommand instance
-    #
-    # @example
-    #   runner = Runner.new()
-    #   result = runner.call('echo', 'hello')
-    #
-    # @param logger [Logger] The logger to use. Defaults to a no-op logger if nil.
-    #
-    def initialize(logger = Logger.new(nil))
-      @logger = logger
-    end
-
-    # The logger to use
-    # @example
-    #   runner.logger #=> #<Logger:0x00007f9b1b8b3d20>
-    # @return [Logger]
-    attr_reader :logger
-
     # Run a command and return the status including stdout and stderr output
     #
     # @example
@@ -45,20 +27,20 @@ module ProcessExecuter
     #   result.stderr # => ""
     #
     # @param command [Array<String>] The command to run
-    # @param out [#write, Array<#write>, nil] The object (or array of objects) to which stdout is written
-    # @param err [#write, Array<#write>, nil] The object (or array of objects) to which stderr is written
-    # @param merge [Boolean] Write both stdout and stderr into the buffer for stdout
-    # @param options_hash [Hash] Additional options to pass to Process.spawn
-    #
-    #   See {ProcessExecuter.run} for a full list of options.
+    # @param options [ProcessExecuter::RunOptions] Options for running the command
     #
     # @return [ProcessExecuter::Result] The result of the completed subprocess
     #
-    def call(*command, out: nil, err: nil, merge: false, **options_hash)
-      out ||= StringIO.new
-      err ||= (merge ? out : StringIO.new)
+    def call(command, options)
+      options.out = StringIO.new if options.out == :not_set
 
-      spawn(command, out:, err:, **options_hash).tap { |result| process_result(result) }
+      if options.merge
+        options.err = options.out
+      elsif options.err == :not_set
+        options.err = StringIO.new
+      end
+
+      spawn(command, options).tap { |result| process_result(result) }
     end
 
     private
@@ -66,11 +48,7 @@ module ProcessExecuter
     # Wrap the output buffers in pipes and then execute the command
     #
     # @param command [Array<String>] The command to execute
-    # @param out [#write, Array<#write>] The object (or array of objects) to which stdout is written
-    # @param err [#write, Array<#write>] The object (or array of objects) to which stderr is written
-    # @param options_hash [Hash] Additional options to pass to Process.spawn
-    #
-    #   See {ProcessExecuter.run} for a full list of options.
+    # @param options [ProcessExecuter::RunOptions] Options for running the command
     #
     # @raise [ProcessExecuter::ProcessIOError] If an exception was raised while collecting subprocess output
     # @raise [ProcessExecuter::TimeoutError] If the command times out
@@ -79,17 +57,32 @@ module ProcessExecuter
     #
     # @api private
     #
-    def spawn(command, out:, err:, **options_hash)
-      out = [out] unless out.is_a?(Array)
-      err = [err] unless err.is_a?(Array)
-      out_pipe = ProcessExecuter::MonitoredPipe.new(*out)
-      err_pipe = ProcessExecuter::MonitoredPipe.new(*err)
-      ProcessExecuter.spawn_and_wait(*command, out: out_pipe, err: err_pipe, **options_hash)
+    def spawn(command, options)
+      options.out = wrap_with_pipe(options.out)
+      options.err = wrap_with_pipe(options.err)
+
+      ProcessExecuter.spawn_and_wait_with_options(command, options)
     ensure
-      out_pipe.close
-      err_pipe.close
-      raise_pipe_error(command, :stdout, out_pipe) if out_pipe.exception
-      raise_pipe_error(command, :stderr, err_pipe) if err_pipe.exception
+      close_pipe(command, :stdout, options.out)
+      close_pipe(command, :stderr, options.err)
+    end
+
+    # Close the pipe and raise an error if the pipe raised an exception
+    # @return [void]
+    # @raise [ProcessExecuter::ProcessIOError] If an exception was raised while
+    #   collecting subprocess output
+    # @api private
+    def close_pipe(command, pipe_name, pipe)
+      pipe.close
+      raise_pipe_error(command, pipe_name, pipe) if pipe.exception
+    end
+
+    # Wrap the destination in a ProcessExecuter::MonitoredPipe
+    # @return [ProcessExecuter::MonitoredPipe]
+    # @api private
+    def wrap_with_pipe(destination)
+      destination = [destination] unless destination.is_a?(Array)
+      ProcessExecuter::MonitoredPipe.new(*destination)
     end
 
     # Process the result of the command and return a ProcessExecuter::Result
@@ -123,8 +116,8 @@ module ProcessExecuter
     # @return [void]
     # @api private
     def log_result(result)
-      logger.info { "#{result.command} exited with status #{result}" }
-      logger.debug { "stdout:\n#{result.stdout.inspect}\nstderr:\n#{result.stderr.inspect}" }
+      result.options.logger.info { "#{result.command} exited with status #{result}" }
+      result.options.logger.debug { "stdout:\n#{result.stdout.inspect}\nstderr:\n#{result.stderr.inspect}" }
     end
 
     # Raise an error when there was exception while collecting the subprocess output

@@ -52,11 +52,11 @@ module ProcessExecuter
     #   data_collector = StringIO.new
     #   pipe = ProcessExecuter::MonitoredPipe.new(data_collector)
     #
-    # @param writers [Array<#write>] as data is read from the pipe, it is written to these writers
+    # @param writers [#write, Array<#write>] as data is read from the pipe, it is written to these writers
     # @param chunk_size [Integer] the size of the chunks to read from the pipe
     #
     def initialize(*writers, chunk_size: 100_000)
-      @writers = writers
+      @writers = writers.is_a?(Array) ? writers : [writers]
       @chunk_size = chunk_size
       @pipe_reader, @pipe_writer = IO.pipe
       @state = :open
