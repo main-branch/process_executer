@@ -267,7 +267,8 @@ module ProcessExecuter
       # :nocov: SimpleCov on JRuby reports the last with the last argument line is not covered
       [
         *super,
-        OptionDefinition.new(:timeout_after, default: nil, validator: method(:validate_timeout_after))
+        OptionDefinition.new(:timeout_after, default: nil, validator: method(:validate_timeout_after)),
+        OptionDefinition.new(:logger, default: Logger.new(nil), validator: method(:validate_logger))
       ].freeze
       # :nocov:
     end
@@ -284,6 +285,20 @@ module ProcessExecuter
       raise(
         ArgumentError,
         "timeout_after must be nil or a non-negative real number but was #{timeout_after.inspect}"
+      )
+      # :nocov:
+    end
+
+    # Validate the logger option value
+    # @return [String, nil] the error message if the value is not valid
+    # @api private
+    def validate_logger
+      return if logger.respond_to?(:info) && logger.respond_to?(:debug)
+
+      # :nocov: SimpleCov on JRuby reports the last with the last argument line is not covered
+      raise(
+        ArgumentError,
+        "logger must respond to #info and #debug but was #{logger.inspect}"
       )
       # :nocov:
     end
@@ -305,8 +320,7 @@ module ProcessExecuter
       [
         *super,
         OptionDefinition.new(:merge, default: false, validator: method(:validate_merge)),
-        OptionDefinition.new(:raise_errors, default: true, validator: method(:validate_raise_errors)),
-        OptionDefinition.new(:logger, default: Logger.new(nil), validator: method(:validate_logger))
+        OptionDefinition.new(:raise_errors, default: true, validator: method(:validate_raise_errors))
       ].freeze
     end
     # :nocov:
@@ -335,20 +349,6 @@ module ProcessExecuter
       raise(
         ArgumentError,
         "merge must be true or false but was #{merge.inspect}"
-      )
-      # :nocov:
-    end
-
-    # Validate the logger option value
-    # @return [String, nil] the error message if the value is not valid
-    # @api private
-    def validate_logger
-      return if logger.respond_to?(:info) && logger.respond_to?(:debug)
-
-      # :nocov: SimpleCov on JRuby reports the last with the last argument line is not covered
-      raise(
-        ArgumentError,
-        "logger must respond to #info and #debug but was #{logger.inspect}"
       )
       # :nocov:
     end

@@ -31,48 +31,6 @@ RSpec.describe ProcessExecuter::RunOptions do
       end
     end
 
-    context 'when giving 10 for timeout_after' do
-      let(:options_hash) { { timeout_after: 10 } }
-
-      it 'should set timeout_after to 10' do
-        expect(subject.timeout_after).to eq(10)
-      end
-    end
-
-    context 'when giving 0 for timeout_after' do
-      let(:options_hash) { { timeout_after: 0 } }
-
-      it 'should set timeout_after to 0' do
-        expect(subject.timeout_after).to eq(0)
-      end
-    end
-
-    context 'when giving -1 for timeout_after' do
-      let(:options_hash) { { timeout_after: -1 } }
-
-      it 'should raise an error' do
-        expect { subject }.to(
-          raise_error(
-            ArgumentError,
-            'timeout_after must be nil or a non-negative real number but was -1'
-          )
-        )
-      end
-    end
-
-    context 'when given an invalid logger value' do
-      let(:options_hash) { { logger: 'invalid' } }
-
-      it 'should raise an error' do
-        expect { subject }.to(
-          raise_error(
-            ArgumentError,
-            'logger must respond to #info and #debug but was "invalid"'
-          )
-        )
-      end
-    end
-
     context 'when giving true for merge' do
       let(:options_hash) { { merge: true } }
 

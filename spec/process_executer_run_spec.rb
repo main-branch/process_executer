@@ -345,97 +345,22 @@ RSpec.describe ProcessExecuter do
     context 'when given a logger' do
       let(:logger) { Logger.new(log_buffer, level: log_level) }
       let(:log_buffer) { StringIO.new }
+      let(:command) { ruby_command <<~COMMAND }
+        puts 'stdout output'
+        STDERR.puts 'stderr output'
+      COMMAND
 
-      context 'a command that returns exitstatus 0' do
-        let(:command) { ruby_command <<~COMMAND }
-          puts 'stdout output'
-          STDERR.puts 'stderr output'
-        COMMAND
-
-        context 'when log level is WARN' do
-          let(:log_level) { Logger::WARN }
-          it 'is expected not to log anything' do
-            subject
-            expect(log_buffer.string).to be_empty
-          end
-        end
-
-        context 'when log level is INFO' do
-          let(:log_level) { Logger::INFO }
-          it 'is expected to log the command and its status' do
-            subject
-            expect(log_buffer.string).to match(/INFO -- : \[.*?\] exited with status pid \d+ exit 0$/)
-            expect(log_buffer.string).not_to match(/DEBUG -- : /)
-          end
-        end
-
-        context 'when log level is DEBUG' do
-          let(:log_level) { Logger::DEBUG }
-          it 'is expected to log the command and its status AND the command stdout and stderr' do
-            subject
-            expect(log_buffer.string).to match(/INFO -- : \[.*?\] exited with status pid \d+ exit 0$/)
-            expect(log_buffer.string.gsub("\r\n", "\n").gsub('\r\n', '\n')).to(
-              match(/DEBUG -- : stdout:\n"stdout output\\n"\nstderr:\n"stderr output\\n"$/)
-            )
-          end
-        end
-      end
-
-      context 'a command that returns exitstatus 1' do
-        let(:command) { 'echo "stdout output" && echo "stderr output" 1>&2 && exit 1' }
-        let(:options) { { raise_errors: false } }
-
-        context 'when log level is WARN' do
-          let(:log_level) { Logger::WARN }
-          it 'is expected not to log anything' do
-            subject
-            expect(log_buffer.string).to be_empty
-          end
-        end
-
-        context 'when log level is INFO' do
-          let(:log_level) { Logger::INFO }
-          it 'is expected to log the command and its status' do
-            subject
-            expect(log_buffer.string).to match(/INFO -- : \[.*?\] exited with status pid \d+ exit 1$/)
-            expect(log_buffer.string).not_to match(/DEBUG -- : /)
-          end
-        end
-      end
-
-      context 'a command that times out' do
-        let(:command) { 'sleep 1' }
-        let(:options) { { raise_errors: false, timeout_after: 0.01 } }
-
-        context 'when log level is WARN' do
-          let(:log_level) { Logger::WARN }
-          it 'is expected not to log anything' do
-            subject
-            expect(log_buffer.string).to be_empty
-          end
-        end
-
-        context 'when log level is INFO' do
-          let(:log_level) { Logger::INFO }
-          it 'is expected to log the command and its status' do
-            subject
-
-            # :nocov: execution of this code is platform dependent
-            expected_message =
-              if RUBY_ENGINE == 'jruby'
-                /INFO -- : \[.*?\] exited with status pid \d+ KILL \(signal 9\) timed out after 0.01s$/
-              elsif RUBY_ENGINE == 'truffleruby'
-                /INFO -- : \[.*?\] exited with status pid \d+ exit nil timed out after 0.01s$/
-              elsif Gem.win_platform?
-                /INFO -- : \[.*?\] exited with status pid \d+ exit 0 timed out after 0.01s$/
-              else
-                /INFO -- : \[.*?\] exited with status pid \d+ SIGKILL \(signal 9\) timed out after 0.01s$/
-              end
-            # :nocov:
-
-            expect(log_buffer.string).to match(expected_message)
-
-            expect(log_buffer.string).not_to match(/DEBUG -- : /)
+      context 'when the command is not given an explicit out: or err: option' do
+        context 'a command that returns exitstatus 0' do
+          context 'when log level is DEBUG' do
+            let(:log_level) { Logger::DEBUG }
+            it 'is expected to log the command and its status AND the command stdout and stderr' do
+              subject
+              expect(log_buffer.string).to match(/INFO -- : \[.*?\] exited with status pid \d+ exit 0$/)
+              expect(log_buffer.string.gsub("\r\n", "\n").gsub('\r\n', '\n')).to(
+                match(/DEBUG -- : stdout:\n"stdout output\\n"\nstderr:\n"stderr output\\n"$/)
+              )
+            end
           end
         end
       end

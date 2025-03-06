@@ -19,7 +19,7 @@ require 'process_executer/runner'
 # * {run}: Executes a command and returns the result which includes the process
 #   status and output
 # * {spawn_and_wait}: a thin wrapper around `Process.spawn` that blocks until the
-#   command finishes
+#   command finishes and logs the result
 #
 # Features:
 #
@@ -39,6 +39,13 @@ module ProcessExecuter
   #
   # A timeout may be specified with the `:timeout_after` option. The command will be
   # sent the SIGKILL signal if it does not terminate within the specified timeout.
+  #
+  # If a `logger` is provided, it will be used to log:
+  #
+  # * The command that was executed and its result to `info` level
+  # * The stdout and stderr output to `debug` level
+  #
+  # By default, Logger.new(nil) is used for the logger.
   #
   # @example
   #   result = ProcessExecuter.spawn_and_wait('echo hello')
@@ -60,6 +67,20 @@ module ProcessExecuter
   #   result = ProcessExecuter.spawn_and_wait('echo hello', out: stdout_pipe)
   #   stdout_buffer.string # => "hello\n"
   #
+  # @example logging the result
+  #   logger_buffer = StringIO.new
+  #   logger = Logger.new(logger_buffer, level: Logger::DEBUG)
+  #   out = ProcessExecuter::MonitoredPipe.new(StringIO.new)
+  #   err = ProcessExecuter::MonitoredPipe.new(StringIO.new)
+  #   # In order to log stdout and stderr, you have to capture them to a buffer
+  #   result = ProcessExecuter.spawn_and_wait('echo hello', logger:, out:, err:)
+  #   logger_buffer.string # =>
+  #     I, [2025-03-05T16:35:33.203461 #3504]  INFO -- : ["echo hello"] exited with status pid 3981 exit 0
+  #     D, [2025-03-05T16:35:33.203851 #3504] DEBUG -- : stdout:
+  #     "hello\n"
+  #     stderr:
+  #     ""
+  #
   # @see https://ruby-doc.org/core-3.1.2/Kernel.html#method-i-spawn Kernel.spawn
   #   documentation for valid command and options
   #
@@ -68,6 +89,9 @@ module ProcessExecuter
   #
   # @param command [Array<String>] The command to execute
   # @param options_hash [Hash] The options to use when executing the command
+  #
+  #   Any options that can be given to `Process.spawn` can be given here. In addition,
+  #   the following options are supported: `:timeout_after`, and `:logger`.
   #
   # @return [ProcessExecuter::Result] The result of the completed subprocess
   #
@@ -87,44 +111,42 @@ module ProcessExecuter
   # @api private
   def self.spawn_and_wait_with_options(command, options)
     pid = Process.spawn(*command, **options.spawn_options)
-    wait_for_process(pid, command, options)
+    wait_for_process(pid, command, options).tap do |result|
+      result.options.logger.info { "#{result.command} exited with status #{result}" }
+      result.options.logger.debug { "stdout:\n#{result.stdout.inspect}\nstderr:\n#{result.stderr.inspect}" }
+    end
   end
 
   # Execute the given command as a subprocess blocking until it finishes
   #
-  # Works just like {ProcessExecuter.spawn}, but does the following in addition:
+  # This method builds on top of {ProcessExecuter.spawn_and_wait} (which means
+  # you can specify the timeout_after and logger options) and adds the following:
   #
   #   1. If nothing is specified for `out`, stdout is captured to a `StringIO` object
-  #      which can be accessed via the Result object in `result.options.out`. The
-  #      same applies to `err`.
+  #      which can be accessed via the Result object in `result.stdout`. The
+  #      same applies to `err` capturing to `result.stderr`.
   #
   #   2. If `merge` is set to `true`, stdout and stderr are captured to the same
-  #      buffer.
+  #      buffer. The default `false`.
   #
   #   3. `out` and `err` are automatically wrapped in a
-  #      `ProcessExecuter::MonitoredPipe` object so that any object that implements
-  #      `#write` (or an Array of such objects) can be given for `out` and `err`.
+  #      {ProcessExecuter::MonitoredPipe} object so that any object that implements
+  #      `#write` (like a StringIO) (or an Array of such objects) can be given for
+  #      `out` and `err`.
   #
   #   4. Raises one of the following errors unless `raise_errors` is explicitly set
   #      to `false`:
-  #
-  #      * `ProcessExecuter::FailedError` if the command returns a non-zero
+  #      * {ProcessExecuter::FailedError} if the command returns a non-zero
   #        exitstatus
-  #      * `ProcessExecuter::SignaledError` if the command exits because of
+  #      * {ProcessExecuter::SignaledError} if the command exits because of
   #        an unhandled signal
-  #      * `ProcessExecuter::TimeoutError` if the command times out
+  #      * {ProcessExecuter::TimeoutError} if the command times out
   #
-  #      If `raise_errors` is false, the returned Result object will contain the error.
+  #       If `raise_errors` is false, the returned {ProcessExecuter::Result} object
+  #       have the error information.
   #
-  #   5. Raises a `ProcessExecuter::ProcessIOError` if an exception is raised
+  #   5. Raises a {ProcessExecuter::ProcessIOError} if an exception is raised
   #      while collecting subprocess output. This can not be turned off.
-  #
-  #   6. If a `logger` is provided, it will be used to log:
-  #
-  #      * The command that was executed and its status to `info` level
-  #      * The stdout and stderr output to `debug` level
-  #
-  #     By default, Logger.new(nil) is used for the logger.
   #
   # This method takes two forms:
   #
@@ -267,20 +289,16 @@ module ProcessExecuter
   #   Otherwise, the command is run bypassing the shell. When bypassing the shell, shell expansions
   #   and redirections are not supported.
   #
-  # @param options_hash [Hash] Additional options
-  # @option options_hash [Numeric] :timeout_after The maximum seconds to wait for the
-  #   command to complete
+  # @param options_hash [Hash] Options for running the command
   #
-  #     If zero or nil, the command will not time out. If the command
-  #     times out, it is killed via a SIGKILL signal. A {ProcessExecuter::TimeoutError}
-  #     will be raised if the `:raise_errors` option is true.
+  #   Any options that can be given to `Process.spawn` can be given here. In
+  #   addition, the following options are supported: `:timeout_after`, `:logger`,
+  #   `:merge`, and `:raise_errors`
   #
-  #     If the command does not exit when receiving the SIGKILL signal, this method may hang indefinitely.
-  #
-  # @option options_hash [#write] :out (nil) The object to write stdout to
-  # @option options_hash [#write] :err (nil) The object to write stderr to
-  # @option options_hash [Boolean] :merge (false) If true, stdout and stderr are written to the same capture buffer
-  # @option options_hash [Boolean] :raise_errors (true) Raise an exception if the command fails
+  # @option options_hash [IO, Integer, String, Symbol, #write] :out (nil) The pipe, file
+  #   descriptor, filename or object to write stdout to
+  # @option options_hash [IO, Integer, String, Symbol, #write] :err (nil) The pipe, file descriptor, fiolename or
+  #   object to write stderr to
   # @option options_hash [Boolean] :unsetenv_others (false) If true, unset all environment variables before
   #   applying the new ones
   # @option options_hash [true, Integer, nil] :pgroup (nil) true or 0: new process group; non-zero: join
@@ -290,7 +308,19 @@ module ProcessExecuter
   # @option options_hash [Integer] :umask (nil) Set the umask (see File.umask)
   # @option options_hash [Boolean] :close_others (false) If true, close non-standard file descriptors
   # @option options_hash [String] :chdir (nil) The directory to run the command in
+  #
+  # @option options_hash [Numeric, nil] :timeout_after The max seconds to allows te
+  #   command to complete before killing it
+  #
+  #     If zero or nil, the command will not time out. If the command
+  #     times out, it is killed via a SIGKILL signal. A {ProcessExecuter::TimeoutError}
+  #     will be raised if the `:raise_errors` option is true.
+  #
+  #     If the command does not exit when receiving the SIGKILL signal, this method may hang indefinitely.
   # @option options_hash [Logger] :logger The logger to use
+  #
+  # @option options_hash [Boolean] :merge (false) If true, stdout and stderr are written to the same capture buffer
+  # @option options_hash [Boolean] :raise_errors (true) Raise an exception if the command fails
   #
   # @raise [ProcessExecuter::FailedError] if the command returned a non-zero exit status
   # @raise [ProcessExecuter::SignaledError] if the command exited because of an unhandled signal

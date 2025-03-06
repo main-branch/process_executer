@@ -98,5 +98,122 @@ RSpec.describe ProcessExecuter do
         # :nocov:
       end
     end
+
+    context 'when given a logger' do
+      let(:logger) { Logger.new(log_buffer, level: log_level) }
+      let(:log_buffer) { StringIO.new }
+      let(:options) { { logger: logger } }
+      let(:options) { { out: @out_pipe, err: @err_pipe, logger:, timeout_after: } }
+      let(:timeout_after) { nil }
+
+      before do
+        @out_buffer = StringIO.new
+        @out_pipe = ProcessExecuter::MonitoredPipe.new(@out_buffer)
+        @err_buffer = StringIO.new
+        @err_pipe = ProcessExecuter::MonitoredPipe.new(@err_buffer)
+      end
+
+      after do
+        # Alway close the pipes to ensure resourecs are released
+        @out_pipe.close
+        @err_pipe.close
+        # Always raise an exception if the pipe raised an exception
+        raise @out_pipe.exception if @out_pipe.exception
+        raise @err_pipe.exception if @err_pipe.exception
+      end
+
+      context 'a command that returns exitstatus 0' do
+        let(:command) { ruby_command <<~COMMAND }
+          puts 'stdout output'
+          STDERR.puts 'stderr output'
+        COMMAND
+
+        context 'when log level is WARN' do
+          let(:log_level) { Logger::WARN }
+          it 'is expected not to log anything' do
+            subject
+            expect(log_buffer.string).to be_empty
+          end
+        end
+
+        context 'when log level is INFO' do
+          let(:log_level) { Logger::INFO }
+          it 'is expected to log the command and its status' do
+            subject
+            expect(log_buffer.string).to match(/INFO -- : \[.*?\] exited with status pid \d+ exit 0$/)
+            expect(log_buffer.string).not_to match(/DEBUG -- : /)
+          end
+        end
+
+        context 'when log level is DEBUG' do
+          let(:log_level) { Logger::DEBUG }
+          it 'is expected to log the command and its status AND the command stdout and stderr' do
+            subject
+            expect(log_buffer.string).to match(/INFO -- : \[.*?\] exited with status pid \d+ exit 0$/)
+            expect(log_buffer.string.gsub("\r\n", "\n").gsub('\r\n', '\n')).to(
+              match(/DEBUG -- : stdout:\n"stdout output\\n"\nstderr:\n"stderr output\\n"$/)
+            )
+          end
+        end
+      end
+
+      context 'a command that returns exitstatus 1' do
+        let(:command) { 'echo "stdout output" && echo "stderr output" 1>&2 && exit 1' }
+
+        context 'when log level is WARN' do
+          let(:log_level) { Logger::WARN }
+          it 'is expected not to log anything' do
+            subject
+            expect(log_buffer.string).to be_empty
+          end
+        end
+
+        context 'when log level is INFO' do
+          let(:log_level) { Logger::INFO }
+          it 'is expected to log the command and its status' do
+            subject
+            expect(log_buffer.string).to match(/INFO -- : \[.*?\] exited with status pid \d+ exit 1$/)
+            expect(log_buffer.string).not_to match(/DEBUG -- : /)
+          end
+        end
+      end
+
+      context 'a command that times out' do
+        let(:command) { 'sleep 1' }
+        let(:timeout_after) { 0.01 }
+
+        context 'when log level is WARN' do
+          let(:log_level) { Logger::WARN }
+          it 'is expected not to log anything' do
+            subject
+            expect(log_buffer.string).to be_empty
+          end
+        end
+
+        context 'when log level is INFO' do
+          let(:log_level) { Logger::INFO }
+          it 'is expected to log the command and its status' do
+            subject
+
+            # :nocov: execution of this code is platform dependent
+            expected_message =
+              if RUBY_ENGINE == 'jruby'
+                /INFO -- : \[.*?\] exited with status pid \d+ KILL \(signal 9\) timed out after 0.01s$/
+              elsif RUBY_ENGINE == 'truffleruby'
+                /INFO -- : \[.*?\] exited with status pid \d+ exit nil timed out after 0.01s$/
+              elsif Gem.win_platform?
+                /INFO -- : \[.*?\] exited with status pid \d+ exit 0 timed out after 0.01s$/
+              else
+                /INFO -- : \[.*?\] exited with status pid \d+ SIGKILL \(signal 9\) timed out after 0.01s$/
+              end
+            # :nocov:
+
+            expect(log_buffer.string).to match(expected_message)
+
+            expect(log_buffer.string).not_to match(/DEBUG -- : /)
+          end
+        end
+      end
+    end
   end
 end
