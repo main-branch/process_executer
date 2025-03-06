@@ -22,6 +22,20 @@ RSpec.describe ProcessExecuter do
 
     subject { result }
 
+    context 'when neither ":out" nor ":err" are given' do
+      let(:command) { ruby_command <<~COMMAND }
+        puts 'stdout output'
+        STDERR.puts 'stderr output'
+      COMMAND
+
+      it 'should capture stdout and stderr' do
+        aggregate_failures do
+          expect(subject.stdout.gsub("\r\n", "\n")).to eq("stdout output\n")
+          expect(subject.stderr.gsub("\r\n", "\n")).to eq("stderr output\n")
+        end
+      end
+    end
+
     context 'with a command that returns exitstatus 0' do
       let(:command) { ruby_command <<~COMMAND }
         puts 'stdout output'
