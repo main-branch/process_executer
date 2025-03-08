@@ -3,16 +3,498 @@
 require 'tmpdir'
 
 RSpec.describe ProcessExecuter::MonitoredPipe do
-  let(:monitored_pipe) { described_class.new(*writers) }
+  let(:monitored_pipe) { described_class.new(destination) }
   let(:output_writer) { StringIO.new }
-  let(:writers) { [output_writer] }
+  let(:destination) { output_writer }
+
+  context 'when used to wrap an output destination for Process.spawn' do
+    context 'when the output destination is nil' do
+      let(:destination) { nil }
+      it 'should raise an ArgumentError' do
+        expect { ProcessExecuter::MonitoredPipe.new(nil) }.to raise_error(ArgumentError, 'wrong exec redirect action')
+      end
+    end
+
+    context 'when the output destination is an fd' do
+      it 'should write output to the fd' do
+        command = ruby_command(<<~COMMAND)
+          puts 'stdout output'
+        COMMAND
+        Dir.mktmpdir do |dir|
+          path = File.join(dir, 'output.txt')
+          f = File.open(path, 'w', 0o644)
+          fd = f.fileno
+          monitored_pipe = ProcessExecuter::MonitoredPipe.new(fd)
+          _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+          monitored_pipe.close
+          f.close
+          expect(monitored_pipe.exception).to be_nil
+          expect(status.exitstatus).to eq(0)
+          expect(File.read(path).gsub("\r\n", "\n")).to eq("stdout output\n")
+        end
+      end
+    end
+
+    context 'when the output destination is a Symbol' do
+      context 'when the output destination is :out' do
+        it 'should write output to STDERR in the child to STDOUT in the parent' do
+          command = ruby_command(<<~COMMAND)
+            $stderr.puts 'child stderr output'
+          COMMAND
+          monitored_pipe = ProcessExecuter::MonitoredPipe.new(:out)
+
+          stdout_buffer = StringIO.new
+          saved_stdout = $stdout
+          $stdout = stdout_buffer
+
+          _pid, status = Process.wait2(Process.spawn(*command, err: monitored_pipe))
+          monitored_pipe.close
+
+          $stdout = saved_stdout
+
+          expect(monitored_pipe.exception).to be_nil
+          expect(status.exitstatus).to eq(0)
+          expect(stdout_buffer.string.gsub("\r\n", "\n")).to eq("child stderr output\n")
+        end
+      end
+
+      context 'when the output destination is :err' do
+        it 'should write the child\'s STDOUT to the parent\'s STDERR' do
+          command = ruby_command(<<~COMMAND)
+            puts 'child stdout output'
+          COMMAND
+          monitored_pipe = ProcessExecuter::MonitoredPipe.new(:err)
+
+          stderr_buffer = StringIO.new
+          saved_stderr = $stderr
+          $stderr = stderr_buffer
+
+          _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+          monitored_pipe.close
+
+          $stderr = saved_stderr
+
+          expect(monitored_pipe.exception).to be_nil
+          expect(status.exitstatus).to eq(0)
+          expect(stderr_buffer.string.gsub("\r\n", "\n")).to eq("child stdout output\n")
+        end
+      end
+    end
+
+    context 'when the output destination is a File opened for writing' do
+      it 'should write output to the file and not close the file' do
+        command = ruby_command(<<~COMMAND)
+          puts 'stdout output'
+        COMMAND
+
+        Dir.mktmpdir do |dir|
+          path = File.join(dir, 'output.txt')
+          f = File.open(path, 'w', 0o644)
+          monitored_pipe = ProcessExecuter::MonitoredPipe.new(f)
+          _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+          monitored_pipe.close
+
+          expect(monitored_pipe.exception).to be_nil
+          expect(status.exitstatus).to eq(0)
+          expect(f.closed?).to eq(false)
+
+          f.close
+
+          expect(File.read(path).gsub("\r\n", "\n")).to eq("stdout output\n")
+        end
+      end
+    end
+
+    context 'when the output destination is a filepath' do
+      context 'when the filepath does not exist' do
+        it 'should create the file with 0644 perms and write output to the file' do
+          command = ruby_command(<<~COMMAND)
+            puts 'stdout output'
+          COMMAND
+
+          Dir.mktmpdir do |dir|
+            filepath = File.join(dir, 'output.txt')
+            monitored_pipe = ProcessExecuter::MonitoredPipe.new(filepath)
+            _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+            monitored_pipe.close
+
+            expect(monitored_pipe.exception).to be_nil
+            expect(status.exitstatus).to eq(0)
+            unless windows?
+              file_permissions = File.stat(filepath).mode & 0o7777
+              expect(file_permissions).to eq(0o644)
+            end
+            expect(File.read(filepath).gsub("\r\n", "\n")).to eq("stdout output\n")
+          end
+        end
+      end
+
+      context 'when the filepath exists' do
+        it 'should overrite the file with the output and not change the file perms' do
+          command = ruby_command(<<~COMMAND)
+            puts 'stdout output'
+          COMMAND
+
+          Dir.mktmpdir do |dir|
+            filepath = File.join(dir, 'output.txt')
+
+            f = File.open(filepath, 'w', 0o600)
+            f.puts 'initial content'
+            f.close
+
+            monitored_pipe = ProcessExecuter::MonitoredPipe.new(filepath)
+            _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+            monitored_pipe.close
+
+            expect(monitored_pipe.exception).to be_nil
+            expect(status.exitstatus).to eq(0)
+            unless windows?
+              file_permissions = File.stat(filepath).mode & 0o7777
+              expect(file_permissions).to eq(0o600)
+            end
+            expect(File.read(filepath).gsub("\r\n", "\n")).to eq("stdout output\n")
+          end
+        end
+      end
+    end
+
+    context 'when the output destination is an array in the form [filepath]' do
+      # [filepath] only works for stdin
+      it 'should raise an ArgumentError' do
+        expect { ProcessExecuter::MonitoredPipe.new(['filepath']) }.to(
+          raise_error(ArgumentError, 'wrong exec redirect action')
+        )
+      end
+    end
+
+    context 'when the output destination is an array in the form [filepath, mode]' do
+      context 'when mode is "r"' do
+        it 'should raise an ArgumentError' do
+          command = ruby_command(<<~COMMAND)
+            puts 'stdout output'
+          COMMAND
+          Dir.mktmpdir do |dir|
+            filepath = File.join(dir, 'output.txt')
+            File.write(filepath, 'initial content')
+            monitored_pipe = ProcessExecuter::MonitoredPipe.new([filepath, 'r'])
+            _pid, _status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+            monitored_pipe.close
+
+            # We should try to model what happens in this command:
+            #
+            #   pid, status = Process.wait2(Process.spawn(*command, out: ['output.txt', 'r']))
+            #
+            # This command returns a status with exitstatus == 1 and outputs "echo:
+            # fflush: Bad file descriptor" to stderr
+            #
+            # However, the current implementation does this (which I think is reasonable):
+
+            expect(monitored_pipe.exception.inspect).to eq('#<IOError: not opened for writing>')
+          end
+        end
+      end
+
+      context 'when mode is "w"' do
+        context 'when the filepath does not exist' do
+          it 'should create the file with perms 0o644 and write output to the file' do
+            command = ruby_command(<<~COMMAND)
+              puts 'stdout output'
+            COMMAND
+
+            Dir.mktmpdir do |dir|
+              filepath = File.join(dir, 'output.txt')
+              monitored_pipe = ProcessExecuter::MonitoredPipe.new([filepath, 'w'])
+              _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+              monitored_pipe.close
+
+              expect(monitored_pipe.exception).to be_nil
+              expect(status.exitstatus).to eq(0)
+
+              unless windows?
+                file_permissions = File.stat(filepath).mode & 0o7777
+                expect(file_permissions).to eq(0o644)
+              end
+              expect(File.read(filepath).gsub("\r\n", "\n")).to eq("stdout output\n")
+            end
+          end
+        end
+
+        context 'when the filepath exists' do
+          it 'should overrite the file with the output and not change the file perms' do
+            command = ruby_command(<<~COMMAND)
+              # Suppresses conversion between EOL and CRLF
+              puts 'stdout output'
+            COMMAND
+
+            Dir.mktmpdir do |dir|
+              filepath = File.join(dir, 'output.txt')
+              File.open(filepath, 'w', 0o600) { |f| f.puts 'initial content' }
+
+              monitored_pipe = ProcessExecuter::MonitoredPipe.new([filepath, 'w'])
+              _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+              monitored_pipe.close
+
+              expect(monitored_pipe.exception).to be_nil
+              expect(status.exitstatus).to eq(0)
+
+              unless windows?
+                file_permissions = File.stat(filepath).mode & 0o7777
+                expect(file_permissions).to eq(0o600)
+              end
+              expect(File.read(filepath).gsub("\r\n", "\n")).to eq("stdout output\n")
+            end
+          end
+        end
+      end
+
+      context 'when mode is "a"' do
+        context 'when the filepath does not exist' do
+          it 'should create the file with 0o644 perms and write output to the file' do
+            command = ruby_command(<<~COMMAND)
+              # Suppresses conversion between EOL and CRLF
+              puts 'stdout output'
+            COMMAND
+
+            Dir.mktmpdir do |dir|
+              filepath = File.join(dir, 'output.txt')
+              monitored_pipe = ProcessExecuter::MonitoredPipe.new([filepath, 'a'])
+              _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+              monitored_pipe.close
+
+              expect(monitored_pipe.exception).to be_nil
+              expect(status.exitstatus).to eq(0)
+
+              unless windows?
+                file_permissions = File.stat(filepath).mode & 0o7777
+                expect(file_permissions).to eq(0o644)
+              end
+              expect(File.read(filepath).gsub("\r\n", "\n")).to eq("stdout output\n")
+            end
+          end
+        end
+
+        context 'when the filepath exists' do
+          it 'should append the output to the file and not change the file perms' do
+            command = ruby_command(<<~COMMAND)
+              puts 'stdout output'
+            COMMAND
+
+            Dir.mktmpdir do |dir|
+              filepath = File.join(dir, 'output.txt')
+              File.open(filepath, 'w', 0o600) { |f| f.puts 'initial content' }
+
+              monitored_pipe = ProcessExecuter::MonitoredPipe.new([filepath, 'a'])
+              _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+              monitored_pipe.close
+
+              expect(monitored_pipe.exception).to be_nil
+              expect(status.exitstatus).to eq(0)
+
+              unless windows?
+                file_permissions = File.stat(filepath).mode & 0o7777
+                expect(file_permissions).to eq(0o600)
+              end
+              expect(File.read(filepath).gsub("\r\n", "\n")).to eq("initial content\nstdout output\n")
+            end
+          end
+        end
+      end
+    end
+
+    context 'when the output destination is an array in the form [filepath, mode, perm]' do
+      context 'when mode is "w"' do
+        context 'when the filepath does not exist' do
+          it 'should create the file with the given perms and write output to the file' do
+            command = ruby_command(<<~COMMAND)
+              puts 'stdout output'
+            COMMAND
+
+            Dir.mktmpdir do |dir|
+              filepath = File.join(dir, 'output.txt')
+              monitored_pipe = ProcessExecuter::MonitoredPipe.new([filepath, 'w', 0o600])
+              _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+              monitored_pipe.close
+
+              expect(monitored_pipe.exception).to be_nil
+              expect(status.exitstatus).to eq(0)
+
+              unless windows?
+                file_permissions = File.stat(filepath).mode & 0o7777
+                expect(file_permissions).to eq(0o600)
+              end
+              expect(File.read(filepath).gsub("\r\n", "\n")).to eq("stdout output\n")
+            end
+          end
+        end
+        context 'when the filepath exists' do
+          it 'should overrite the file with the output and not chnage the file perms' do
+            command = ruby_command(<<~COMMAND)
+              puts 'stdout output'
+            COMMAND
+
+            Dir.mktmpdir do |dir|
+              filepath = File.join(dir, 'output.txt')
+              File.open(filepath, 'w', 0o600) { |f| f.puts 'initial content' }
+
+              monitored_pipe = ProcessExecuter::MonitoredPipe.new([filepath, 'w', 0o644])
+              _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+              monitored_pipe.close
+
+              expect(monitored_pipe.exception).to be_nil
+              expect(status.exitstatus).to eq(0)
+
+              unless windows?
+                file_permissions = File.stat(filepath).mode & 0o7777
+                expect(file_permissions).to eq(0o600)
+              end
+              expect(File.read(filepath).gsub("\r\n", "\n")).to eq("stdout output\n")
+            end
+          end
+        end
+      end
+
+      context 'when mode is "a"' do
+        context 'when the filepath does not exist' do
+          it 'should create the file with the given perms and write output to the file' do
+            command = ruby_command(<<~COMMAND)
+              puts 'stdout output'
+            COMMAND
+
+            Dir.mktmpdir do |dir|
+              filepath = File.join(dir, 'output.txt')
+              monitored_pipe = ProcessExecuter::MonitoredPipe.new([filepath, 'a', 0o600])
+              _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+              monitored_pipe.close
+
+              expect(monitored_pipe.exception).to be_nil
+              expect(status.exitstatus).to eq(0)
+
+              unless windows?
+                file_permissions = File.stat(filepath).mode & 0o7777
+                expect(file_permissions).to eq(0o600)
+              end
+              expect(File.read(filepath).gsub("\r\n", "\n")).to eq("stdout output\n")
+            end
+          end
+        end
+
+        context 'when the filepath exists' do
+          it 'should append the output to the file and not change the file perms' do
+            command = ruby_command(<<~COMMAND)
+              puts 'stdout output'
+            COMMAND
+
+            Dir.mktmpdir do |dir|
+              filepath = File.join(dir, 'output.txt')
+              File.open(filepath, 'w', 0o600) { |f| f.puts 'initial content' }
+
+              monitored_pipe = ProcessExecuter::MonitoredPipe.new([filepath, 'a', 0o644])
+              _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+              monitored_pipe.close
+
+              expect(monitored_pipe.exception).to be_nil
+              expect(status.exitstatus).to eq(0)
+
+              unless windows?
+                file_permissions = File.stat(filepath).mode & 0o7777
+                expect(file_permissions).to eq(0o600)
+              end
+              expect(File.read(filepath).gsub("\r\n", "\n")).to eq("initial content\nstdout output\n")
+            end
+          end
+        end
+      end
+    end
+
+    context 'when the output destination is an array in the form [:child, fd]' do
+      # redirect the source to the destination fd in the child process
+      it 'should raise an error' do
+        expect { ProcessExecuter::MonitoredPipe.new([:child, 1]) }.to(
+          raise_error(ArgumentError, 'wrong exec redirect action')
+        )
+      end
+    end
+
+    context 'when the output destination is :close' do
+      # close the fd in the child process
+      it 'should raise an error' do
+        expect { ProcessExecuter::MonitoredPipe.new(:close) }.to(
+          raise_error(ArgumentError, 'wrong exec redirect action')
+        )
+      end
+    end
+
+    context 'when the output destination is an object that responds to #write but not #fileno' do
+      it 'should write output to the object' do
+        output_writer = StringIO.new
+        monitored_pipe = ProcessExecuter::MonitoredPipe.new(output_writer)
+        command = ruby_command(<<~COMMAND)
+          puts 'stdout output'
+        COMMAND
+        _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+        monitored_pipe.close
+        expect(monitored_pipe.exception).to be_nil
+        expect(status.exitstatus).to eq(0)
+        expect(output_writer.string.gsub("\r\n", "\n")).to eq("stdout output\n")
+      end
+    end
+
+    context 'when the output destination is another monitored pipe' do
+      it 'should write output to the other monitored pipe' do
+        output_writer = StringIO.new
+        monitored_pipe1 = ProcessExecuter::MonitoredPipe.new(output_writer)
+        monitored_pipe2 = ProcessExecuter::MonitoredPipe.new(monitored_pipe1)
+        command = ruby_command(<<~COMMAND)
+          puts 'stdout output'
+        COMMAND
+        _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe2))
+        monitored_pipe2.close
+        monitored_pipe1.close
+        expect(monitored_pipe1.exception).to be_nil
+        expect(monitored_pipe2.exception).to be_nil
+        expect(status.exitstatus).to eq(0)
+        expect(output_writer.string.gsub("\r\n", "\n")).to eq("stdout output\n")
+      end
+    end
+
+    context 'when the output destination is an array of objects containing one or more of: ' \
+            'fd, File opened for writing, filepath, [filepath, mode], [filepath, mode, perms],
+            and objects responding to #write but not #fileno' do
+      it 'should write output to all the objects' do
+        Dir.mktmpdir do |dir|
+          destination1 = File.join(dir, 'output1.txt')
+          filepath2 = File.join(dir, 'output2.txt')
+          destination2 = File.open(filepath2, 'w', 0o644)
+          destination3 = StringIO.new
+          monitored_pipe = ProcessExecuter::MonitoredPipe.new([:tee, destination1, destination2, destination3])
+
+          command = ruby_command(<<~COMMAND)
+            puts 'stdout output'
+          COMMAND
+          _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+          monitored_pipe.close
+          destination2.close
+
+          expect(monitored_pipe.exception).to be_nil
+          expect(status.exitstatus).to eq(0)
+          expect(File.read(destination1).gsub("\r\n", "\n")).to eq("stdout output\n")
+          expect(File.read(filepath2).gsub("\r\n", "\n")).to eq("stdout output\n")
+          expect(destination3.string.gsub("\r\n", "\n")).to eq("stdout output\n")
+        end
+      end
+    end
+  end
 
   describe '#initialize' do
     after { monitored_pipe.close }
 
     it 'should create a new monitored pipe' do
       expect(monitored_pipe).to have_attributes(
-        thread: Thread, writers:, pipe_reader: IO, pipe_writer: IO, chunk_size: 100_000
+        thread: Thread,
+        destination: ProcessExecuter::DestinationBase,
+        pipe_reader: IO,
+        pipe_writer: IO,
+        chunk_size: Integer
       )
     end
 
@@ -71,28 +553,12 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
   end
 
   describe '#write' do
-    context 'with a single writer' do
-      it 'should write to the writer' do
-        monitored_pipe.write('hello')
-        monitored_pipe.write(' ')
-        monitored_pipe.write('world')
-        monitored_pipe.close
-        expect(output_writer.string).to eq('hello world')
-      end
-    end
-
-    context 'with multiple writers' do
-      let(:output_writer1) { StringIO.new }
-      let(:output_writer2) { StringIO.new }
-      let(:writers) { [output_writer1, output_writer2] }
-      it 'should write to the writers' do
-        monitored_pipe.write('hello')
-        monitored_pipe.write(' ')
-        monitored_pipe.write('world')
-        monitored_pipe.close
-        expect(output_writer1.string).to eq('hello world')
-        expect(output_writer2.string).to eq('hello world')
-      end
+    it 'should write to the destination' do
+      monitored_pipe.write('hello')
+      monitored_pipe.write(' ')
+      monitored_pipe.write('world')
+      monitored_pipe.close
+      expect(output_writer.string).to eq('hello world')
     end
 
     context 'with a file descriptor to an open file' do
@@ -109,7 +575,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     end
 
     context 'with a file descriptor to an open file' do
-      let(:writers) { [@file.fileno] }
+      let(:destination) { @file.fileno }
 
       it 'should write to the file descriptor' do
         Dir.mktmpdir do |dir|
@@ -127,7 +593,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     end
 
     context 'with :out' do
-      let(:writers) { [:out] }
+      let(:destination) { :out }
 
       it 'should write to STDOUT' do
         expect do
@@ -138,7 +604,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     end
 
     context 'with 1' do
-      let(:writers) { [1] }
+      let(:destination) { 1 }
 
       it 'should write to STDOUT' do
         expect do
@@ -149,7 +615,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     end
 
     context 'with :err' do
-      let(:writers) { [:err] }
+      let(:destination) { :err }
 
       it 'should write to STDERR' do
         expect do
@@ -160,7 +626,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     end
 
     context 'with 2' do
-      let(:writers) { [2] }
+      let(:destination) { 2 }
 
       it 'should write to STDERR' do
         expect do
@@ -222,7 +688,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
           Encoding::UndefinedConversionError, 'UTF-8 conversion error'
         )
       end
-      let(:writers) { [output_writer] }
+      let(:destination) { output_writer }
 
       it 'should eventually kill the monitoring thread' do
         monitored_pipe.write('hello')

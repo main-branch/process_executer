@@ -62,12 +62,12 @@ See comprehensive examples in the YARD documentation for this method.
 
 ### ProcessExecuter::MonitoredPipe
 
-`ProcessExecuter::MonitoredPipe` streams data sent through a pipe to one or more writers.
+`ProcessExecuter::MonitoredPipe` streams data sent through a pipe to one or more destinations.
 
 When a new `MonitoredPipe` is created, a pipe is created (via IO.pipe) and
 a thread is created which reads data as it is written written to the pipe.
 
-Data that is read from the pipe is written one or more writers passed to
+Data that is read from the pipe is written to the destination given to
 `MonitoredPipe#initialize`.
 
 This is useful for streaming process output (stdout and/or stderr) to anything that has a
@@ -83,8 +83,8 @@ pid, status = Process.wait2(Process.spawn('echo "Hello World"', out: out_pipe))
 output_buffer.string #=> "Hello World\n"
 ```
 
-`MonitoredPipe#initialize` can take more than one writer so that pipe output can be
-streamed (or `tee`d) to multiple writers at the same time:
+`MonitoredPipe#initialize` can take more than one destination so that pipe output can be
+streamed (or `tee`d) to multiple destinations at the same time:
 
 ```ruby
 require 'stringio'
@@ -92,7 +92,7 @@ require 'process_executer'
 
 output_buffer = StringIO.new
 output_file = File.open('process.out', 'w')
-out_pipe = ProcessExecuter::MonitoredPipe.new(output_buffer, output_file)
+out_pipe = ProcessExecuter::MonitoredPipe.new([:tee, output_buffer, output_file])
 pid, status = Process.wait2(Process.spawn('echo "Hello World"', out: out_pipe))
 output_file.close
 output_buffer.string #=> "Hello World\n"

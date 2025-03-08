@@ -39,7 +39,6 @@ module ProcessExecuter
       elsif options.err == :not_set
         options.err = StringIO.new
       end
-
       spawn(command, options).tap { |result| process_result(result) }
     end
 
@@ -58,8 +57,8 @@ module ProcessExecuter
     # @api private
     #
     def spawn(command, options)
-      options.out = wrap_with_pipe(options.out)
-      options.err = wrap_with_pipe(options.err)
+      options.out = ProcessExecuter::MonitoredPipe.new(options.out)
+      options.err = (options.merge ? options.out : ProcessExecuter::MonitoredPipe.new(options.err))
 
       ProcessExecuter.spawn_and_wait_with_options(command, options)
     ensure
@@ -75,14 +74,6 @@ module ProcessExecuter
     def close_pipe(command, pipe_name, pipe)
       pipe.close
       raise_pipe_error(command, pipe_name, pipe) if pipe.exception
-    end
-
-    # Wrap the destination in a ProcessExecuter::MonitoredPipe
-    # @return [ProcessExecuter::MonitoredPipe]
-    # @api private
-    def wrap_with_pipe(destination)
-      destination = [destination] unless destination.is_a?(Array)
-      ProcessExecuter::MonitoredPipe.new(*destination)
     end
 
     # Process the result of the command and return a ProcessExecuter::Result
