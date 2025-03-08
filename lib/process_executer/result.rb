@@ -80,7 +80,9 @@ module ProcessExecuter
     #   result.timed_out? # => true
     # @return [Boolean]
     #
-    def timed_out? = @timed_out
+    def timed_out?
+      @timed_out
+    end
 
     # Overrides the default success? method to return nil if the process timed out
     #
@@ -107,9 +109,8 @@ module ProcessExecuter
 
     # Return the captured stdout output
     #
-    # This output is only returned if the `:out` option was set to a
-    # `ProcessExecuter::MonitoredPipe` that includes a writer that implements `#string`
-    # method (e.g. a StringIO).
+    # This output is only returned if the `:out` option value is a
+    # `ProcessExecuter::MonitoredPipe`.
     #
     # @example
     #   # Note that `ProcessExecuter.run` will wrap the given out: object in a
@@ -120,22 +121,16 @@ module ProcessExecuter
     # @return [String, nil]
     #
     def stdout
-      Array(options.out).each do |pipe|
-        next unless pipe.is_a?(ProcessExecuter::MonitoredPipe)
+      pipe = options.out
+      return nil unless pipe.is_a?(ProcessExecuter::MonitoredPipe)
 
-        pipe.writers.each do |writer|
-          return writer.string if writer.respond_to?(:string)
-        end
-      end
-
-      nil
+      pipe.destination.string
     end
 
     # Return the captured stderr output
     #
-    # This output is only returned if the `:err` option was set to a
-    # `ProcessExecuter::MonitoredPipe` that includes a writer that implements `#string`
-    # method (e.g. a StringIO).
+    # This output is only returned if the `:err` option value is a
+    # `ProcessExecuter::MonitoredPipe`.
     #
     # @example
     #   # Note that `ProcessExecuter.run` will wrap the given err: object in a
@@ -146,15 +141,10 @@ module ProcessExecuter
     # @return [String, nil]
     #
     def stderr
-      Array(options.err).each do |pipe|
-        next unless pipe.is_a?(ProcessExecuter::MonitoredPipe)
+      pipe = options.err
+      return nil unless pipe.is_a?(ProcessExecuter::MonitoredPipe)
 
-        pipe.writers.each do |writer|
-          return writer.string if writer.respond_to?(:string)
-        end
-      end
-
-      nil
+      pipe.destination.string
     end
   end
 end

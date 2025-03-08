@@ -3,6 +3,8 @@
 require 'logger'
 require 'timeout'
 
+require 'process_executer/destination_base'
+require 'process_executer/destinations'
 require 'process_executer/errors'
 require 'process_executer/monitored_pipe'
 require 'process_executer/options'
@@ -238,18 +240,16 @@ module ProcessExecuter
   #   # stderr is still captured to a StringIO buffer internally
   #   result.stderr #=> "stderr\n"
   #
-  # @example Capture to multiple writers (e.g. files, buffers, STDOUT, etc.)
+  # @example Capture to multiple destinations (e.g. files, buffers, STDOUT, etc.)
   #   # Same technique can be used for stderr
   #   out_buffer = StringIO.new
   #   out_file = File.open('stdout.txt', 'w')
   #   command = ['echo "stdout" && echo "stderr" 1>&2']
-  #   result = ProcessExecuter.run(*command, out: [out_buffer, out_file])
+  #   result = ProcessExecuter.run(*command, out: [:tee, out_buffer, out_file])
   #   # You must manage closing resources you create yourself
   #   out_file.close
   #   out_buffer.string #=> "stdout\n"
   #   File.read('stdout.txt') #=> "stdout\n"
-  #   # Since one of the out writers has a #string method, Result#stdout will
-  #   # return the string from that writer
   #   result.stdout #=> "stdout\n"
   #
   # @param command [Array<String>] The command to run

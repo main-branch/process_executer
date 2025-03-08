@@ -37,29 +37,6 @@ RSpec.describe ProcessExecuter do
       end
     end
 
-    context 'when the output can not be determined' do
-      let(:command) { ruby_command <<~COMMAND }
-        puts 'stdout output'
-        STDERR.puts 'stderr output'
-      COMMAND
-
-      context 'when stdout can not be determined' do
-        let(:options) { { out: File.open(File::NULL, 'w') } }
-        it 'should return nil for stdout' do
-          expect(subject.stdout).to be_nil
-          expect(subject.stderr.gsub("\r\n", "\n")).to eq("stderr output\n")
-        end
-      end
-
-      context 'when stderr can not be determined' do
-        let(:options) { { err: File.open(File::NULL, 'w') } }
-        it 'should return nil for stderr' do
-          expect(subject.stdout.gsub("\r\n", "\n")).to eq("stdout output\n")
-          expect(subject.stderr).to be_nil
-        end
-      end
-    end
-
     context 'with a command that returns exitstatus 1' do
       let(:command) { ruby_command <<~COMMAND }
         puts 'stdout output'
@@ -287,7 +264,8 @@ RSpec.describe ProcessExecuter do
         # The order these strings are concatenated is not guaranteed
         expect(subject.stdout.gsub("\r\n", "\n")).to include("stdout output\n")
         expect(subject.stdout.gsub("\r\n", "\n")).to include("stderr output\n")
-        expect(subject.stdout.object_id).to eq(subject.stderr.object_id)
+        expect(subject.stderr.gsub("\r\n", "\n")).to include("stdout output\n")
+        expect(subject.stderr.gsub("\r\n", "\n")).to include("stderr output\n")
       end
     end
 
@@ -441,17 +419,17 @@ RSpec.describe ProcessExecuter do
       end
     end
 
-    context 'when given multiple writers to capture stdout' do
+    context 'when given multiple destinations for stdout' do
       let(:command) { ruby_command <<~COMMAND }
         puts 'Test output'
       COMMAND
 
-      it 'is expected to write stdout output to all writers' do
+      it 'is expected to write stdout output to all destinations' do
         Dir.mktmpdir do |dir|
           Dir.chdir(dir) do
             out_buffer = StringIO.new
             out_file = File.open('stdout.txt', 'w')
-            ProcessExecuter.run(*command, out: [out_buffer, out_file])
+            ProcessExecuter.run(*command, out: [:tee, out_buffer, out_file])
             out_file.close
             expect(out_buffer.string.gsub("\r\n", "\n")).to eq("Test output\n")
             expect(File.read('stdout.txt').gsub("\r\n", "\n")).to eq("Test output\n")

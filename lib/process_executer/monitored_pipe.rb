@@ -4,19 +4,16 @@ require 'stringio'
 require 'io/wait'
 
 module ProcessExecuter
-  # Stream data sent through a pipe to one or more writers
+  # Write data sent through a pipe to a destination
   #
   # When a new MonitoredPipe is created, a pipe is created (via IO.pipe) and
   # a thread is created to read data written to the pipe.
   #
-  # Data that is read from that pipe is written one or more writers passed to
-  # `#initialize`.
-  #
-  # If any of the writers raise an exception, the monitoring thread will exit, the
+  # If the destination raises an exception, the monitoring thread will exit, the
   # pipe will be closed, and the exception will be saved in `#exception`.
   #
   # `#close` must be called to ensure that (1) the pipe is closed, (2) all data is
-  # read from the pipe and written to the writers, and (3) the monitoring thread is
+  # read from the pipe and written to the destination, and (3) the monitoring thread is
   # killed.
   #
   # @example Collect pipe data into a string
@@ -52,11 +49,12 @@ module ProcessExecuter
     #   data_collector = StringIO.new
     #   pipe = ProcessExecuter::MonitoredPipe.new(data_collector)
     #
-    # @param writers [#write, Array<#write>] as data is read from the pipe, it is written to these writers
+    # @param redirection_destination [Array<#write>] as data is read from the pipe,
+    #   it is written to this destination
     # @param chunk_size [Integer] the size of the chunks to read from the pipe
     #
-    def initialize(*writers, chunk_size: 100_000)
-      @writers = writers.is_a?(Array) ? writers : [writers]
+    def initialize(redirection_destination, chunk_size: 100_000)
+      @destination = Destinations.factory(redirection_destination)
       @chunk_size = chunk_size
       @pipe_reader, @pipe_writer = IO.pipe
       @state = :open
@@ -87,12 +85,14 @@ module ProcessExecuter
 
       @state = :closing
       sleep 0.001 until state == :closed
+
+      destination.close
     end
 
     # Return the write end of the pipe so that data can be written to it
     #
     # Data written to this end of the pipe will be read by the monitor thread and
-    # written to the writers passed to `#initialize`.
+    # written to the destination.
     #
     # This is so we can provide a MonitoredPipe to Process.spawn as a FD
     #
@@ -170,24 +170,17 @@ module ProcessExecuter
 
     # @!attribute [r]
     #
-    # An array of writers to write data that is read from the pipe
+    # The redirection destination to write data that is read from the pipe
     #
-    # @example with one writer
+    # @example
     #   require 'stringio'
     #   data_collector = StringIO.new
     #   pipe = ProcessExecuter::MonitoredPipe.new(data_collector)
-    #   pipe.writers #=> [data_collector]
+    #   pipe.destination #=>
     #
-    # @example with an array of writers
-    #   require 'stringio'
-    #   data_collector1 = StringIO.new
-    #   data_collector2 = StringIO.new
-    #   pipe = ProcessExecuter::MonitoredPipe.new(data_collector1, data_collector2)
-    #   pipe.writers #=> [data_collector1, data_collector2]]
+    # @return [Array<ProcessExecuter::Destination::Base>]
     #
-    # @return [Array<#write>]
-    #
-    attr_reader :writers
+    attr_reader :destination
 
     # @!attribute [r]
     #
@@ -246,14 +239,14 @@ module ProcessExecuter
 
     # @!attribute [r]
     #
-    # The exception raised by a writer
+    # The exception raised by a destination
     #
-    # If an exception is raised by a writer, it is stored here. Otherwise, it is `nil`.
+    # If an exception is raised by a destination, it is stored here. Otherwise, it is `nil`.
     #
     # @example
     #   pipe.exception #=> nil
     #
-    # @return [Exception, nil] the exception raised by a writer or `nil` if no exception was raised
+    # @return [Exception, nil] the exception raised by a destination or `nil` if no exception was raised
     #
     attr_reader :exception
 
@@ -275,7 +268,7 @@ module ProcessExecuter
 
     # Read data from the pipe until `#state` is changed to `:closing`
     #
-    # Data read from the pipe is written to the writers given to the constructor.
+    # Data read from the pipe is written to the destination.
     #
     # @return [void]
     # @api private
@@ -286,14 +279,14 @@ module ProcessExecuter
       pipe_reader.wait_readable(0.001)
     end
 
-    # Check if the writer is a file descriptor
-    #
-    # @param writer [#write] the writer to check
-    # @return [Boolean] true if the writer is a file descriptor
-    # @api private
-    def file_descriptor?(writer) = writer.is_a?(Integer) || writer.is_a?(Symbol)
+    # # Check if the writer is a file descriptor
+    # #
+    # # @param writer [#write] the writer to check
+    # # @return [Boolean] true if the writer is a file descriptor
+    # # @api private
+    # def file_descriptor?(writer) = writer.is_a?(Integer) || writer.is_a?(Symbol)
 
-    # Write the data read from the pipe to all destinations
+    # Write the data read from the pipe to the destination
     #
     # If an exception is raised by a writer, set the state to `:closing`
     # so that the pipe can be closed.
@@ -302,34 +295,32 @@ module ProcessExecuter
     # @return [void]
     # @api private
     def write_data(data)
-      writers.each do |w|
-        file_descriptor?(w) ? write_data_to_fd(w, data) : w.write(data)
-      end
+      destination.write(data)
     rescue StandardError => e
       @exception = e
       @state = :closing
     end
 
-    # Write data to the given file_descriptor correctly handling stdout and stderr
-    # @param file_descriptor [Integer, Symbol] the file descriptor to write to (either an integer or :out or :err)
-    # @param data [String] the data to write
-    # @return [void]
-    # @api private
-    def write_data_to_fd(file_descriptor, data)
-      # The case line is not marked as not covered only when using TruffleRuby
-      # :nocov:
-      case file_descriptor
-      # :nocov:
-      when :out, 1
-        $stdout.write data
-      when :err, 2
-        $stderr.write data
-      else
-        io = IO.open(file_descriptor, mode: 'a', autoclose: false)
-        io.write(data)
-        io.close
-      end
-    end
+    # # Write data to the given file_descriptor correctly handling stdout and stderr
+    # # @param file_descriptor [Integer, Symbol] the file descriptor to write to (either an integer or :out or :err)
+    # # @param data [String] the data to write
+    # # @return [void]
+    # # @api private
+    # def write_data_to_fd(file_descriptor, data)
+    #   # The case line is not marked as not covered only when using TruffleRuby
+    #   # :nocov:
+    #   case file_descriptor
+    #   # :nocov:
+    #   when :out, 1
+    #     $stdout.write data
+    #   when :err, 2
+    #     $stderr.write data
+    #   else
+    #     io = IO.open(file_descriptor, mode: 'a', autoclose: false)
+    #     io.write(data)
+    #     io.close
+    #   end
+    # end
 
     # Read any remaining data from the pipe and close it
     #
