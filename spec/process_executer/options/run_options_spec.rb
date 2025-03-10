@@ -24,7 +24,6 @@ RSpec.describe ProcessExecuter::Options::RunOptions do
           chdir: :not_set,
           timeout_after: nil,
           logger: be_a(Logger).and(satisfy { |logger| logger.instance_variable_get(:@logdev).nil? }),
-          merge: false,
           raise_errors: true
         )
         expect(subject.logger.instance_variable_get(:@logdev)).to be_nil
@@ -68,27 +67,6 @@ RSpec.describe ProcessExecuter::Options::RunOptions do
           raise_error(
             ArgumentError,
             'logger must respond to #info and #debug but was "invalid"'
-          )
-        )
-      end
-    end
-
-    context 'when giving true for merge' do
-      let(:options_hash) { { merge: true } }
-
-      it 'should set merge to true' do
-        expect(subject.merge).to eq(true)
-      end
-    end
-
-    context 'when given an invalid merge value' do
-      let(:options_hash) { { merge: 'invalid' } }
-
-      it 'should raise an error' do
-        expect { subject }.to(
-          raise_error(
-            ArgumentError,
-            'merge must be true or false but was "invalid"'
           )
         )
       end
@@ -140,13 +118,12 @@ RSpec.describe ProcessExecuter::Options::RunOptions do
   describe '#spawn_options' do
     subject { options.spawn_options }
 
-    context 'when timeout_after, merge, and raise_errors are set' do
-      let(:options_hash) { { timeout_after: 10, merge: true, raise_errors: false } }
+    context 'when timeout_after and raise_errors are set' do
+      let(:options_hash) { { timeout_after: 10, raise_errors: false } }
 
-      it 'should not include the timeout_after, merge, or raise_errors options' do
+      it 'should not include the timeout_after or raise_errors options' do
         aggregate_failures do
           expect(subject).not_to have_key(:timeout_after)
-          expect(subject).not_to have_key(:merge)
           expect(subject).not_to have_key(:raise_errors)
         end
       end

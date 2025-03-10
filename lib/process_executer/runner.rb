@@ -33,12 +33,8 @@ module ProcessExecuter
     #
     def call(command, options)
       options.out = StringIO.new if options.out == :not_set
+      options.err = StringIO.new if options.err == :not_set
 
-      if options.merge
-        options.err = options.out
-      elsif options.err == :not_set
-        options.err = StringIO.new
-      end
       spawn(command, options).tap { |result| process_result(result) }
     end
 
@@ -58,7 +54,7 @@ module ProcessExecuter
     #
     def spawn(command, options)
       options.out = ProcessExecuter::MonitoredPipe.new(options.out)
-      options.err = (options.merge ? options.out : ProcessExecuter::MonitoredPipe.new(options.err))
+      options.err = ProcessExecuter::MonitoredPipe.new(options.err)
 
       ProcessExecuter.spawn_and_wait_with_options(command, options)
     ensure
