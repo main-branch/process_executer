@@ -2,7 +2,7 @@
 
 require 'stringio'
 
-RSpec.describe ProcessExecuter::RunOptions do
+RSpec.describe ProcessExecuter::Options::RunOptions do
   let(:options) { described_class.new(**options_hash) }
   let(:options_hash) { {} }
 
