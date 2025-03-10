@@ -25,6 +25,62 @@ RSpec.describe ProcessExecuter::Options::SpawnOptions do
         )
       end
     end
+
+    context 'when an unknown option is given' do
+      it 'should raise an ArgumentError' do
+        expect { described_class.new(unknown: true) }.to raise_error(ArgumentError, 'Unknown option: unknown')
+      end
+    end
+  end
+
+  describe 'redirection options' do
+    context 'with an Integer source' do
+      let(:options_hash) { { 1 => File::NULL } }
+
+      it 'should allow the option' do
+        expect { options }.not_to raise_error
+      end
+
+      it 'should include the option in #spawn_options' do
+        expect(options.spawn_options).to include(**options_hash)
+      end
+    end
+
+    context 'with an IO source' do
+      let(:options_hash) { { $stdout => File::NULL } }
+
+      it 'should allow the option' do
+        expect { options }.not_to raise_error
+      end
+
+      it 'should include the option in #spawn_options' do
+        expect(options.spawn_options).to include(**options_hash)
+      end
+    end
+
+    context 'with an array of Integers and IOs' do
+      let(:options_hash) { { [1, $stderr] => File::NULL } }
+
+      it 'should allow the option' do
+        expect { options }.not_to raise_error
+      end
+
+      it 'should include the option in #spawn_options' do
+        expect(options.spawn_options).to include(**options_hash)
+      end
+    end
+
+    context 'with a Symbol source' do
+      let(:options_hash) { { out: File::NULL } }
+
+      it 'allow the option' do
+        expect { options }.not_to raise_error
+      end
+
+      it 'should include the option in #spawn_options' do
+        expect(options.spawn_options).to include(**options_hash)
+      end
+    end
   end
 
   describe '#spawn_options' do

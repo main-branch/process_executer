@@ -136,9 +136,9 @@ module ProcessExecuter
       # @raise [ArgumentError] if any invalid option values are found
       # @api private
       def validate_options
-        options.each_key do |option|
-          validator = allowed_options[option].validator
-          instance_exec(&validator.to_proc) if validator.is_a?(Method) || validator.is_a?(Proc)
+        options.each_key do |option_key|
+          validator = allowed_options[option_key]&.validator
+          instance_exec(&validator.to_proc) unless validator.nil?
         end
       end
 
