@@ -41,8 +41,8 @@ module ProcessExecuter
       #
       def spawn_options
         {}.tap do |spawn_options|
-          options.each do |option, value|
-            spawn_options[option] = value if include_spawn_option?(option, value)
+          options.each do |option_key, value|
+            spawn_options[option_key] = value if include_spawn_option?(option_key, value)
           end
         end
       end
@@ -66,21 +66,48 @@ module ProcessExecuter
       end
 
       # Determine if the given option should be passed to `Process.spawn`
-      # @param option [Symbol, Integer, IO] the option to be tested
+      # @param option_key [Symbol, Integer, IO] the option to be tested
       # @param value [Object] the value of the option
       # @return [Boolean] true if the given option should be passed to `Process.spawn`
       # @api private
-      def include_spawn_option?(option, value)
-        value != :not_set &&
-          (option.is_a?(Integer) || option.is_a?(IO) || SPAWN_OPTIONS.any? { |o| o.name == option })
+      def include_spawn_option?(option_key, value)
+        return false if value == :not_set
+
+        redirection_option?(option_key) || SPAWN_OPTIONS.any? { |o| o.name == option_key }
+      end
+
+      # Determine if the given option key indicates a non-array redirection option
+      # @param option_key [Symbol, Integer, IO, Array] the option key to be tested
+      # @return [Boolean]
+      # @api private
+      def non_array_redirection_option?(option_key)
+        %i[in out err].include?(option_key) ||
+          option_key.is_a?(Integer) ||
+          (option_key.is_a?(IO) && !option_key.fileno.nil?)
+      end
+
+      # Determine if the given option key indicates an array redirection option
+      # @param option_key [Symbol, Integer, IO, Array] the option key to be tested
+      # @return [Boolean]
+      # @api private
+      def array_redirection_option?(option_key)
+        option_key.is_a?(Array) && option_key.all? { |source| non_array_redirection_option?(source) }
+      end
+
+      # Determine if the given option key indicates a redirection option
+      # @param option_key [Symbol, Integer, IO, Array] the option key to be tested
+      # @return [Boolean]
+      # @api private
+      def redirection_option?(option_key)
+        non_array_redirection_option?(option_key) || array_redirection_option?(option_key)
       end
 
       # Spawn allows IO object and integers as options
       # @param option [Symbol] the option to be tested
       # @return [Boolean] true if the given option is a valid option
       # @api private
-      def valid_option?(option)
-        super || option.is_a?(Integer) || option.respond_to?(:fileno)
+      def valid_option?(option_key)
+        super || redirection_option?(option_key)
       end
     end
   end

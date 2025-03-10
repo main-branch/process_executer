@@ -22,7 +22,7 @@ RSpec.describe ProcessExecuter::Options::Base do
       end
     end
 
-    context 'when a multiple unknown option is given' do
+    context 'when multiple unknown options are given' do
       let(:options_hash) { { unknown1: true, unknown2: false } }
       it 'should raise an error' do
         expect { options }.to raise_error(ArgumentError, 'Unknown options: unknown1, unknown2')
