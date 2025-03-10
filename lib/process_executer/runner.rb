@@ -27,7 +27,7 @@ module ProcessExecuter
     #   result.stderr # => ""
     #
     # @param command [Array<String>] The command to run
-    # @param options [ProcessExecuter::RunOptions] Options for running the command
+    # @param options [ProcessExecuter::Options::RunOptions] Options for running the command
     #
     # @return [ProcessExecuter::Result] The result of the completed subprocess
     #
@@ -47,7 +47,7 @@ module ProcessExecuter
     # Wrap the output buffers in pipes and then execute the command
     #
     # @param command [Array<String>] The command to execute
-    # @param options [ProcessExecuter::RunOptions] Options for running the command
+    # @param options [ProcessExecuter::Options::RunOptions] Options for running the command
     #
     # @raise [ProcessExecuter::ProcessIOError] If an exception was raised while collecting subprocess output
     # @raise [ProcessExecuter::TimeoutError] If the command times out

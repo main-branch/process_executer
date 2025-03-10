@@ -7,13 +7,13 @@ RSpec.describe ProcessExecuter do
     context 'when given options is a Hash' do
       let(:given_options) { { out: $stdout } }
       it 'should return a SpawnOptions object with the same options' do
-        expect(subject).to be_a(ProcessExecuter::SpawnOptions)
+        expect(subject).to be_a(ProcessExecuter::Options::SpawnOptions)
         expect(subject.to_h).to include(given_options)
       end
     end
 
-    context 'when given options is a ProcessExecuter::SpawnOptions' do
-      let(:given_options) { ProcessExecuter::SpawnOptions.new(out: $stdout) }
+    context 'when given options is a ProcessExecuter::Options::SpawnOptions' do
+      let(:given_options) { ProcessExecuter::Options::SpawnOptions.new(out: $stdout) }
       it 'should return the given object' do
         expect(subject.object_id).to eq(given_options.object_id)
       end
@@ -33,13 +33,13 @@ RSpec.describe ProcessExecuter do
     context 'when given options is a Hash' do
       let(:given_options) { { timeout_after: 10 } }
       it 'should return a SpawnAndWaitOptions object with the same options' do
-        expect(subject).to be_a(ProcessExecuter::SpawnAndWaitOptions)
+        expect(subject).to be_a(ProcessExecuter::Options::SpawnAndWaitOptions)
         expect(subject.to_h).to include(given_options)
       end
     end
 
-    context 'when given options is a ProcessExecuter::SpawnAndWaitOptions' do
-      let(:given_options) { ProcessExecuter::SpawnAndWaitOptions.new(timeout_after: 10) }
+    context 'when given options is a ProcessExecuter::Options::SpawnAndWaitOptions' do
+      let(:given_options) { ProcessExecuter::Options::SpawnAndWaitOptions.new(timeout_after: 10) }
       it 'should return the given object' do
         expect(subject.object_id).to eq(given_options.object_id)
       end
@@ -59,13 +59,13 @@ RSpec.describe ProcessExecuter do
     context 'when given options is a Hash' do
       let(:given_options) { { merge: true } }
       it 'should return a RunOptions object with the same options' do
-        expect(subject).to be_a(ProcessExecuter::RunOptions)
+        expect(subject).to be_a(ProcessExecuter::Options::RunOptions)
         expect(subject.to_h).to include(given_options)
       end
     end
 
-    context 'when given options is a ProcessExecuter::RunOptions' do
-      let(:given_options) { ProcessExecuter::RunOptions.new(merge: true) }
+    context 'when given options is a ProcessExecuter::Options::RunOptions' do
+      let(:given_options) { ProcessExecuter::Options::RunOptions.new(merge: true) }
       it 'should return the given object' do
         expect(subject.object_id).to eq(given_options.object_id)
       end

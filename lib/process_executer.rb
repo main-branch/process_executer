@@ -8,7 +8,6 @@ require 'process_executer/destinations'
 require 'process_executer/errors'
 require 'process_executer/monitored_pipe'
 require 'process_executer/options'
-require 'process_executer/option_definition'
 require 'process_executer/result'
 require 'process_executer/runner'
 
@@ -83,7 +82,7 @@ module ProcessExecuter
   # @see ProcessExecuter.spawn_and_wait for full documentation
   #
   # @param command [Array<String>] The command to run
-  # @param options [ProcessExecuter::SpawnAndWaitOptions] The options to use when running the command
+  # @param options [ProcessExecuter::Options::SpawnAndWaitOptions] The options to use when running the command
   #
   # @return [ProcessExecuter::Result] The result of the completed subprocess
   # @api private
@@ -309,7 +308,7 @@ module ProcessExecuter
   # @see ProcessExecuter.run for full documentation
   #
   # @param command [Array<String>] The command to run
-  # @param options [ProcessExecuter::RunOptions] The options to use when running the command
+  # @param options [ProcessExecuter::Options::RunOptions] The options to use when running the command
   #
   # @return [ProcessExecuter::Result] The result of the completed subprocess
   #
@@ -364,9 +363,9 @@ module ProcessExecuter
   # @example
   #   options_hash = { out: $stdout }
   #   options = ProcessExecuter.spawn_options(options_hash) # =>
-  #     #<ProcessExecuter::SpawnOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #     #<ProcessExecuter::Options::SpawnOptions:0x00007f8f9b0b3d20 out: $stdout>
   #   ProcessExecuter.spawn_options(options) # =>
-  #     #<ProcessExecuter::SpawnOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #     #<ProcessExecuter::Options::SpawnOptions:0x00007f8f9b0b3d20 out: $stdout>
   #
   # @param obj [Hash, SpawnOptions] the object to be converted
   #
@@ -378,12 +377,12 @@ module ProcessExecuter
   #
   def self.spawn_options(obj)
     case obj
-    when ProcessExecuter::SpawnOptions
+    when ProcessExecuter::Options::SpawnOptions
       obj
     when Hash
-      ProcessExecuter::SpawnOptions.new(**obj)
+      ProcessExecuter::Options::SpawnOptions.new(**obj)
     else
-      raise ArgumentError, "Expected a Hash or ProcessExecuter::SpawnOptions but got a #{obj.class}"
+      raise ArgumentError, "Expected a Hash or ProcessExecuter::Options::SpawnOptions but got a #{obj.class}"
     end
   end
 
@@ -392,9 +391,9 @@ module ProcessExecuter
   # @example
   #   options_hash = { out: $stdout }
   #   options = ProcessExecuter.spawn_and_wait_options(options_hash) # =>
-  #     #<ProcessExecuter::SpawnAndWaitOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #     #<ProcessExecuter::Options::SpawnAndWaitOptions:0x00007f8f9b0b3d20 out: $stdout>
   #   ProcessExecuter.spawn_and_wait_options(options) # =>
-  #     #<ProcessExecuter::SpawnAndWaitOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #     #<ProcessExecuter::Options::SpawnAndWaitOptions:0x00007f8f9b0b3d20 out: $stdout>
   #
   # @param obj [Hash, SpawnAndWaitOptions] the object to be converted
   #
@@ -406,12 +405,12 @@ module ProcessExecuter
   #
   def self.spawn_and_wait_options(obj)
     case obj
-    when ProcessExecuter::SpawnAndWaitOptions
+    when ProcessExecuter::Options::SpawnAndWaitOptions
       obj
     when Hash
-      ProcessExecuter::SpawnAndWaitOptions.new(**obj)
+      ProcessExecuter::Options::SpawnAndWaitOptions.new(**obj)
     else
-      raise ArgumentError, "Expected a Hash or ProcessExecuter::SpawnAndWaitOptions but got a #{obj.class}"
+      raise ArgumentError, "Expected a Hash or ProcessExecuter::Options::SpawnAndWaitOptions but got a #{obj.class}"
     end
   end
 
@@ -420,9 +419,9 @@ module ProcessExecuter
   # @example
   #   options_hash = { out: $stdout }
   #   options = ProcessExecuter.run_options(options_hash) # =>
-  #     #<ProcessExecuter::RunOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #     #<ProcessExecuter::Options::RunOptions:0x00007f8f9b0b3d20 out: $stdout>
   #   ProcessExecuter.run_options(options) # =>
-  #     #<ProcessExecuter::RunOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #     #<ProcessExecuter::Options::RunOptions:0x00007f8f9b0b3d20 out: $stdout>
   #
   # @param obj [Hash, RunOptions] the object to be converted
   #
@@ -434,12 +433,12 @@ module ProcessExecuter
   #
   def self.run_options(obj)
     case obj
-    when ProcessExecuter::RunOptions
+    when ProcessExecuter::Options::RunOptions
       obj
     when Hash
-      ProcessExecuter::RunOptions.new(**obj)
+      ProcessExecuter::Options::RunOptions.new(**obj)
     else
-      raise ArgumentError, "Expected a Hash or ProcessExecuter::RunOptions but got a #{obj.class}"
+      raise ArgumentError, "Expected a Hash or ProcessExecuter::Options::RunOptions but got a #{obj.class}"
     end
   end
 end

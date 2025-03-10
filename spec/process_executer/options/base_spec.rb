@@ -2,8 +2,8 @@
 
 require 'stringio'
 
-RSpec.describe ProcessExecuter::Options do
-  let(:options) { ProcessExecuter::Options.new(**options_hash) }
+RSpec.describe ProcessExecuter::Options::Base do
+  let(:options) { ProcessExecuter::Options::Base.new(**options_hash) }
   let(:options_hash) { {} }
 
   describe '#initialize' do
@@ -71,12 +71,12 @@ RSpec.describe ProcessExecuter::Options do
     end
   end
 
-  context 'with a class derived from ProcessExecuter::Options' do
+  context 'with a class derived from ProcessExecuter::Options::Base' do
     context 'with one defined option "an_option"' do
       let(:described_class) do
         v = validator
 
-        Class.new(ProcessExecuter::Options) do
+        Class.new(ProcessExecuter::Options::Base) do
           private
 
           define_method(:injected_validator) { v }
@@ -84,7 +84,8 @@ RSpec.describe ProcessExecuter::Options do
           def define_options
             [
               *super,
-              ProcessExecuter::OptionDefinition.new(:an_option, default: 'default', validator: injected_validator)
+              ProcessExecuter::Options::OptionDefinition.new(:an_option, default: 'default',
+                                                                         validator: injected_validator)
             ]
           end
         end
@@ -204,13 +205,15 @@ RSpec.describe ProcessExecuter::Options do
 
   context 'with a class which is derived from another class which derives from ProcessExecuter::Options' do
     let(:described_class) do
-      class1 = Class.new(ProcessExecuter::Options) do
+      class1 = Class.new(ProcessExecuter::Options::Base) do
         private
 
         def define_options
           [
             *super,
-            ProcessExecuter::OptionDefinition.new(:option1, default: 'default1', validator: -> { validate_option1 })
+            ProcessExecuter::Options::OptionDefinition.new(:option1, default: 'default1', validator: lambda {
+              validate_option1
+            })
           ]
         end
 
@@ -227,7 +230,7 @@ RSpec.describe ProcessExecuter::Options do
         def define_options
           [
             *super,
-            ProcessExecuter::OptionDefinition.new(:option2, default: 2, validator: -> { validate_option2 })
+            ProcessExecuter::Options::OptionDefinition.new(:option2, default: 2, validator: -> { validate_option2 })
           ]
         end
 
