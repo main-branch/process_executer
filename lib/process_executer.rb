@@ -99,14 +99,11 @@ module ProcessExecuter
   #      which can be accessed via the Result object in `result.options.out`. The
   #      same applies to `err`.
   #
-  #   2. If `merge` is set to `true`, stdout and stderr are captured to the same
-  #      buffer.
-  #
-  #   3. `out` and `err` are automatically wrapped in a
+  #   2. `out` and `err` are automatically wrapped in a
   #      `ProcessExecuter::MonitoredPipe` object so that any object that implements
   #      `#write` (or an Array of such objects) can be given for `out` and `err`.
   #
-  #   4. Raises one of the following errors unless `raise_errors` is explicitly set
+  #   3. Raises one of the following errors unless `raise_errors` is explicitly set
   #      to `false`:
   #
   #      * `ProcessExecuter::FailedError` if the command returns a non-zero
@@ -117,10 +114,10 @@ module ProcessExecuter
   #
   #      If `raise_errors` is false, the returned Result object will contain the error.
   #
-  #   5. Raises a `ProcessExecuter::ProcessIOError` if an exception is raised
+  #   4. Raises a `ProcessExecuter::ProcessIOError` if an exception is raised
   #      while collecting subprocess output. This can not be turned off.
   #
-  #   6. If a `logger` is provided, it will be used to log:
+  #   5. If a `logger` is provided, it will be used to log:
   #
   #      * The command that was executed and its status to `info` level
   #      * The stdout and stderr output to `debug` level
@@ -215,7 +212,7 @@ module ProcessExecuter
   #
   # @example Capture stdout and stderr into a single buffer
   #   command = ['echo "stdout" && echo "stderr" 1>&2']
-  #   result = ProcessExecuter.run(*command, merge: true)
+  #   result = ProcessExecuter.run(*command, [out:, err:]: StringIO.new)
   #   result.stdout #=> "stdout\nstderr\n"
   #   result.stderr #=> "stdout\nstderr\n"
   #   result.stdout.object_id == result.stderr.object_id #=> true
@@ -278,7 +275,6 @@ module ProcessExecuter
   #
   # @option options_hash [#write] :out (nil) The object to write stdout to
   # @option options_hash [#write] :err (nil) The object to write stderr to
-  # @option options_hash [Boolean] :merge (false) If true, stdout and stderr are written to the same capture buffer
   # @option options_hash [Boolean] :raise_errors (true) Raise an exception if the command fails
   # @option options_hash [Boolean] :unsetenv_others (false) If true, unset all environment variables before
   #   applying the new ones

@@ -5,3 +5,8 @@ require_relative 'options/spawn_options'
 require_relative 'options/spawn_and_wait_options'
 require_relative 'options/run_options'
 require_relative 'options/option_definition'
+
+module ProcessExecuter
+  # Options related to spawning or running a command
+  module Options; end
+end

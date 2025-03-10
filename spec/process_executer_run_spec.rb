@@ -252,23 +252,6 @@ RSpec.describe ProcessExecuter do
       end
     end
 
-    context 'merge stdout and stderr' do
-      let(:command) { ruby_command <<~COMMAND }
-        puts 'stdout output'
-        STDERR.puts 'stderr output'
-      COMMAND
-
-      let(:options) { { merge: true } }
-
-      it 'is expected to merge stdout and stderr' do
-        # The order these strings are concatenated is not guaranteed
-        expect(subject.stdout.gsub("\r\n", "\n")).to include("stdout output\n")
-        expect(subject.stdout.gsub("\r\n", "\n")).to include("stderr output\n")
-        expect(subject.stderr.gsub("\r\n", "\n")).to include("stdout output\n")
-        expect(subject.stderr.gsub("\r\n", "\n")).to include("stderr output\n")
-      end
-    end
-
     context 'buffers are given for stdout and stderr' do
       let(:out) { StringIO.new }
       let(:err) { StringIO.new }

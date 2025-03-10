@@ -20,7 +20,6 @@ module ProcessExecuter
       def define_options
         [
           *super,
-          OptionDefinition.new(:merge, default: false, validator: method(:validate_merge)),
           OptionDefinition.new(:raise_errors, default: true, validator: method(:validate_raise_errors)),
           OptionDefinition.new(:logger, default: Logger.new(nil), validator: method(:validate_logger))
         ].freeze
@@ -37,20 +36,6 @@ module ProcessExecuter
         raise(
           ArgumentError,
           "raise_errors must be true or false but was #{raise_errors.inspect}"
-        )
-        # :nocov:
-      end
-
-      # Validate the merge option value
-      # @return [String, nil] the error message if the value is not valid
-      # @api private
-      def validate_merge
-        return if [true, false].include?(merge)
-
-        # :nocov: SimpleCov on JRuby reports the last with the last argument line is not covered
-        raise(
-          ArgumentError,
-          "merge must be true or false but was #{merge.inspect}"
         )
         # :nocov:
       end
