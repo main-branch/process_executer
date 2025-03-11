@@ -121,7 +121,7 @@ module ProcessExecuter
     # @return [String, nil]
     #
     def stdout
-      pipe = options.out
+      pipe = options.stdout_redirection_value
       return nil unless pipe.is_a?(ProcessExecuter::MonitoredPipe)
 
       pipe.destination.string
@@ -141,7 +141,7 @@ module ProcessExecuter
     # @return [String, nil]
     #
     def stderr
-      pipe = options.err
+      pipe = options.stderr_redirection_value
       return nil unless pipe.is_a?(ProcessExecuter::MonitoredPipe)
 
       pipe.destination.string

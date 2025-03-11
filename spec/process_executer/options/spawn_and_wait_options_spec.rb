@@ -12,9 +12,6 @@ RSpec.describe ProcessExecuter::Options::SpawnAndWaitOptions do
     context 'when no options are given' do
       it 'should set all options to their default values' do
         expect(subject).to have_attributes(
-          in: :not_set,
-          out: :not_set,
-          err: :not_set,
           unsetenv_others: :not_set,
           pgroup: :not_set,
           new_pgroup: :not_set,
