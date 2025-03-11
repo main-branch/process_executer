@@ -420,5 +420,122 @@ RSpec.describe ProcessExecuter do
         end
       end
     end
+
+    describe 'capturing stdout and stderr' do
+      context "when given { out: 'stdout.txt' }" do
+        let(:command) { ruby_command "STDOUT.puts 'stdout output'" }
+        let(:options) { { out: 'stdout.txt' } }
+        it 'should capture stdout to the stdout.txt' do
+          Dir.mktmpdir do |dir|
+            Dir.chdir(dir) do
+              ProcessExecuter.run(*command, **options)
+              expect(File.read('stdout.txt').gsub("\r\n", "\n")).to eq("stdout output\n")
+            end
+          end
+        end
+      end
+
+      context "when given { 1: 'stdout.txt' }" do
+        let(:command) { ruby_command "STDOUT.puts 'stdout output'" }
+        let(:options) { { 1 => 'stdout.txt' } }
+        it 'should capture stdout to the stdout.txt' do
+          Dir.mktmpdir do |dir|
+            Dir.chdir(dir) do
+              ProcessExecuter.run(*command, **options)
+              expect(File.read('stdout.txt').gsub("\r\n", "\n")).to eq("stdout output\n")
+            end
+          end
+        end
+      end
+
+      context "when given { STDOUT => 'stdout.txt' }" do
+        let(:command) { ruby_command "STDOUT.puts 'stdout output'" }
+        let(:options) { { $stdout => 'stdout.txt' } }
+        it 'should capture stdout to the stdout.txt' do
+          Dir.mktmpdir do |dir|
+            Dir.chdir(dir) do
+              ProcessExecuter.run(*command, **options)
+              expect(File.read('stdout.txt').gsub("\r\n", "\n")).to eq("stdout output\n")
+            end
+          end
+        end
+      end
+
+      context "when given { err: 'stderr.txt' }" do
+        let(:command) { ruby_command "STDERR.puts 'stderr output'" }
+        let(:options) { { err: 'stderr.txt' } }
+        it 'should capture stderr to the stderr.txt' do
+          Dir.mktmpdir do |dir|
+            Dir.chdir(dir) do
+              ProcessExecuter.run(*command, **options)
+              expect(File.read('stderr.txt').gsub("\r\n", "\n")).to eq("stderr output\n")
+            end
+          end
+        end
+      end
+
+      context "when given { 2 => 'stderr.txt' }" do
+        let(:command) { ruby_command "STDERR.puts 'stderr output'" }
+        let(:options) { { 2 => 'stderr.txt' } }
+        it 'should capture stderr to the stderr.txt' do
+          Dir.mktmpdir do |dir|
+            Dir.chdir(dir) do
+              ProcessExecuter.run(*command, **options)
+              expect(File.read('stderr.txt').gsub("\r\n", "\n")).to eq("stderr output\n")
+            end
+          end
+        end
+      end
+
+      context "when given { STDERR => 'stderr.txt' }" do
+        let(:command) { ruby_command "STDERR.puts 'stderr output'" }
+        let(:options) { { $stderr => 'stderr.txt' } }
+        it 'should capture stderr to the stderr.txt' do
+          Dir.mktmpdir do |dir|
+            Dir.chdir(dir) do
+              ProcessExecuter.run(*command, **options)
+              expect(File.read('stderr.txt').gsub("\r\n", "\n")).to eq("stderr output\n")
+            end
+          end
+        end
+      end
+
+      context "when given { out: 'stdout.txt', err: 'stderr.txt' }" do
+        let(:command) { ruby_command "STDOUT.puts 'stdout output'; STDERR.puts 'stderr output'" }
+        let(:options) { { out: 'stdout.txt', err: 'stderr.txt' } }
+
+        it 'should capture stdout to the stdout.txt' do
+          Dir.mktmpdir do |dir|
+            Dir.chdir(dir) do
+              ProcessExecuter.run(*command, **options)
+              expect(File.read('stdout.txt').gsub("\r\n", "\n")).to eq("stdout output\n")
+            end
+          end
+        end
+
+        it 'should capture stderr to the stderr.txt' do
+          Dir.mktmpdir do |dir|
+            Dir.chdir(dir) do
+              ProcessExecuter.run(*command, **options)
+              expect(File.read('stderr.txt').gsub("\r\n", "\n")).to eq("stderr output\n")
+            end
+          end
+        end
+      end
+
+      context "when given { [1, 2] => 'output.txt' }" do
+        let(:command) { ruby_command "STDOUT.puts 'stdout output'; STDERR.puts 'stderr output'" }
+        let(:options) { { [1, 2] => 'output.txt' } }
+        it 'should capture both stdout and stderr to output.txt' do
+          Dir.mktmpdir do |dir|
+            Dir.chdir(dir) do
+              ProcessExecuter.run(*command, **options)
+              expect(File.read('output.txt').gsub("\r\n", "\n")).to match(/^stdout output\n/)
+              expect(File.read('output.txt').gsub("\r\n", "\n")).to match(/^stderr output\n/)
+            end
+          end
+        end
+      end
+    end
   end
 end

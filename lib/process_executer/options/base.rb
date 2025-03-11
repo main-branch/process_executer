@@ -94,6 +94,32 @@ module ProcessExecuter
         @options.dup
       end
 
+      # Iterate over each option
+      # @example
+      #   options = ProcessExecuter::Options.new(option1: 'value1', option2: 'value2')
+      #   options.each { |option_key, option_value| puts "#{option_key}: #{option_value}" }
+      #   # option1: value1
+      #   # option2: value2
+      #
+      # @yield [option_key, option_value]
+      # @return [void]
+      def each(&)
+        @options.each(&)
+      end
+
+      # Merge the given options into the current options
+      # @example
+      #   options = ProcessExecuter::Options.new(option1: 'value1', option2: 'value2')
+      #   options.merge!(option2: 'new_value2', option3: 'value3')
+      #   options.option2 # => 'new_value2'
+      #   options.option3 # => 'value3'
+      #
+      # @param other_options [Hash] the options to merge into the current options
+      # @return [void]
+      def merge!(**other_options)
+        @options.merge!(other_options)
+      end
+
       protected
 
       # An array of OptionDefinition objects that define the allowed options

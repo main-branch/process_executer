@@ -32,10 +32,17 @@ module ProcessExecuter
     # @return [ProcessExecuter::Result] The result of the completed subprocess
     #
     def call(command, options)
-      options.out = StringIO.new if options.out == :not_set
-      options.err = StringIO.new if options.err == :not_set
-
+      set_default_stdout_stderr(options)
       spawn(command, options).tap { |result| process_result(result) }
+    end
+
+    # Set default values for stdout and stderr if not already set
+    # @param options [ProcessExecuter::Options::RunOptions] Options for running the command
+    # @return [void]
+    # @api private
+    def set_default_stdout_stderr(options) # rubocop:disable Naming/AccessorMethodName
+      options.merge!(out: StringIO.new) unless options.stdout_redirection_key
+      options.merge!(err: StringIO.new) unless options.stderr_redirection_key
     end
 
     private
@@ -53,13 +60,27 @@ module ProcessExecuter
     # @api private
     #
     def spawn(command, options)
-      options.out = ProcessExecuter::MonitoredPipe.new(options.out)
-      options.err = ProcessExecuter::MonitoredPipe.new(options.err)
-
+      opened_pipes = wrap_stdout_stderr(options)
       ProcessExecuter.spawn_and_wait_with_options(command, options)
     ensure
-      close_pipe(command, :stdout, options.out)
-      close_pipe(command, :stderr, options.err)
+      opened_pipes.each { |key, value| close_pipe(command, key, value) }
+    end
+
+    # Wrap the stdout and stderr redirection options with a MonitoredPipe
+    # @param options [ProcessExecuter::Options::RunOptions] Options for running the command
+    # @return [Hash<Object, ProcessExecuter::MonitoredPipe>] The opened pipes (the Object is the option key)
+    # @api private
+    def wrap_stdout_stderr(options)
+      opened_pipes = {}
+
+      options.each do |key, value|
+        next unless options.stdout_redirection?(key) || options.stderr_redirection?(key)
+
+        opened_pipes[key] = ProcessExecuter::MonitoredPipe.new(value)
+        options.merge!(key => opened_pipes[key])
+      end
+
+      opened_pipes
     end
 
     # Close the pipe and raise an error if the pipe raised an exception
@@ -67,9 +88,9 @@ module ProcessExecuter
     # @raise [ProcessExecuter::ProcessIOError] If an exception was raised while
     #   collecting subprocess output
     # @api private
-    def close_pipe(command, pipe_name, pipe)
+    def close_pipe(command, option_key, pipe)
       pipe.close
-      raise_pipe_error(command, pipe_name, pipe) if pipe.exception
+      raise_pipe_error(command, option_key, pipe) if pipe.exception
     end
 
     # Process the result of the command and return a ProcessExecuter::Result
@@ -118,7 +139,7 @@ module ProcessExecuter
     # Raise an error when there was exception while collecting the subprocess output
     #
     # @param command [Array<String>] The command that was executed
-    # @param pipe_name [Symbol] The name of the pipe that raised the exception
+    # @param option_key [Symbol] The name of the pipe that raised the exception
     # @param pipe [ProcessExecuter::MonitoredPipe] The pipe that raised the exception
     #
     # @raise [ProcessExecuter::ProcessIOError]
@@ -127,8 +148,8 @@ module ProcessExecuter
     #
     # @api private
     #
-    def raise_pipe_error(command, pipe_name, pipe)
-      error = ProcessExecuter::ProcessIOError.new("Pipe Exception for #{command}: #{pipe_name}")
+    def raise_pipe_error(command, option_key, pipe)
+      error = ProcessExecuter::ProcessIOError.new("Pipe Exception for #{command}: #{option_key.inspect}")
       raise(error, cause: pipe.exception)
     end
   end
