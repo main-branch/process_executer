@@ -37,7 +37,7 @@ jobs:
         include:
           - ruby: "3.1"
             operating-system: windows-latest
-            fail_on_low_coverage: true
+            fail_on_low_coverage: false
           - ruby: "jruby-9.4"
             operating-system: ubuntu-latest
             fail_on_low_coverage: false

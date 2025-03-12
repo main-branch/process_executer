@@ -179,6 +179,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
             monitored_pipe = ProcessExecuter::MonitoredPipe.new([filepath, 'r'])
             _pid, _status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
             monitored_pipe.close
+            FileUtils.rm(filepath)
 
             # We should try to model what happens in this command:
             #
