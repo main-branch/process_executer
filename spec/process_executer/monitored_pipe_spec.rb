@@ -410,7 +410,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       # redirect the source to the destination fd in the child process
       it 'should raise an error' do
         expect { ProcessExecuter::MonitoredPipe.new([:child, 1]) }.to(
-          raise_error(ArgumentError, 'wrong exec redirect action')
+          raise_error(ArgumentError, 'Destination [:child, 1] is not compatible with MonitoredPipe')
         )
       end
     end

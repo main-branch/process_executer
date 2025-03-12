@@ -94,17 +94,15 @@ module ProcessExecuter
         @options.dup
       end
 
-      # Iterate over each option
+      # Iterate over each option with an object
       # @example
       #   options = ProcessExecuter::Options.new(option1: 'value1', option2: 'value2')
-      #   options.each { |option_key, option_value| puts "#{option_key}: #{option_value}" }
-      #   # option1: value1
-      #   # option2: value2
-      #
-      # @yield [option_key, option_value]
+      #   options.each_with_object({}) { |(option_key, option_value), obj| obj[option_key] = option_value }
+      #   # => { option1: "value1", option2: "value2" }
+      # @yield [option_key, option_value, obj]
       # @return [void]
-      def each(&)
-        @options.each(&)
+      def each_with_object(obj, &)
+        @options.each_with_object(obj, &)
       end
 
       # Merge the given options into the current options

@@ -71,16 +71,25 @@ module ProcessExecuter
     # @return [Hash<Object, ProcessExecuter::MonitoredPipe>] The opened pipes (the Object is the option key)
     # @api private
     def wrap_stdout_stderr(options)
-      opened_pipes = {}
+      options.each_with_object({}) do |key_value, opened_pipes|
+        key, value = key_value
 
-      options.each do |key, value|
-        next unless options.stdout_redirection?(key) || options.stderr_redirection?(key)
+        next unless should_wrap?(options, key, value)
 
-        opened_pipes[key] = ProcessExecuter::MonitoredPipe.new(value)
-        options.merge!(key => opened_pipes[key])
+        wrapped_destination = ProcessExecuter::MonitoredPipe.new(value)
+        opened_pipes[key] = wrapped_destination
+        options.merge!(key => wrapped_destination)
       end
+    end
 
-      opened_pipes
+    # Should the redirection option be wrapped by a MonitoredPipe
+    # @param key [Object] The option key
+    # @param value [Object] The option value
+    # @return [Boolean] Whether the option should be wrapped
+    # @api private
+    def should_wrap?(options, key, value)
+      (options.stdout_redirection?(key) || options.stderr_redirection?(key)) &&
+        ProcessExecuter::Destinations.compatible_with_monitored_pipe?(value)
     end
 
     # Close the pipe and raise an error if the pipe raised an exception

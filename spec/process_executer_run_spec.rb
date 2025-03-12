@@ -537,5 +537,49 @@ RSpec.describe ProcessExecuter do
         end
       end
     end
+
+    describe 'when the destination is [:child, fd]' do
+      it 'should capture the redirected output', skip: Gem.win_platform? ? 'Not supported on Windows' : false do
+        command = ruby_command(<<~RUBY)
+          STDOUT.puts 'stdout output'
+          STDERR.puts 'stderr output'
+        RUBY
+
+        Dir.mktmpdir do |dir|
+          Dir.chdir(dir) do
+            file = File.open('output.txt', 'w')
+            options = { out: [:child, 6], err: [:child, 6], 6 => file }
+            ProcessExecuter.run(*command, **options)
+            file.close
+
+            expect(File.read('output.txt').gsub("\r\n", "\n")).to match(/^stdout output\n/)
+            expect(File.read('output.txt').gsub("\r\n", "\n")).to match(/^stderr output\n/)
+          end
+        end
+      end
+    end
+
+    describe 'when the destination is [:close]' do
+      it 'should capture the redirected output',
+         skip: RUBY_ENGINE == 'jruby' ? 'Not supported on JRuby' : false do
+        command = ruby_command(<<~RUBY)
+          STDOUT.puts 'stdout output'
+          STDERR.puts 'stderr output'
+        RUBY
+
+        Dir.mktmpdir do |dir|
+          Dir.chdir(dir) do
+            file = File.open('output.txt', 'w')
+            options = { out: :close, err: file }
+
+            result = ProcessExecuter.run(*command, **options)
+            file.close
+
+            expect(result.stdout).to be_nil
+            expect(File.read('output.txt').gsub("\r\n", "\n")).to match(/^stderr output\n/)
+          end
+        end
+      end
+    end
   end
 end
