@@ -55,6 +55,9 @@ module ProcessExecuter
     #
     def initialize(redirection_destination, chunk_size: 100_000)
       @destination = Destinations.factory(redirection_destination)
+
+      assert_destination_is_compatible_with_monitored_pipe
+
       @chunk_size = chunk_size
       @pipe_reader, @pipe_writer = IO.pipe
       @state = :open
@@ -251,6 +254,16 @@ module ProcessExecuter
     attr_reader :exception
 
     private
+
+    # Raise an error if the destination is not compatible with MonitoredPipe
+    # @return [void]
+    # @raise [ArgumentError] if the destination is not compatible with MonitoredPipe
+    # @api private
+    def assert_destination_is_compatible_with_monitored_pipe
+      return if destination.compatible_with_monitored_pipe?
+
+      raise ArgumentError, "Destination #{destination.destination} is not compatible with MonitoredPipe"
+    end
 
     # Read data from the pipe until `#state` is changed to `:closing`
     #

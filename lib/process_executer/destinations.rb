@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative 'destinations/child_redirection'
 require_relative 'destinations/file_descriptor'
 require_relative 'destinations/file_path'
 require_relative 'destinations/file_path_mode'
@@ -29,16 +30,41 @@ module ProcessExecuter
     #   ProcessExecuter.destination_factory(1) #=> Returns a Stdout instance
     #   ProcessExecuter.destination_factory("output.log") #=> Returns a FilePath instance
     def self.factory(destination)
+      matching_class = matching_destination_class(destination)
+      return matching_class.new(destination) if matching_class
+
+      raise ArgumentError, 'wrong exec redirect action'
+    end
+
+    # Determines if the given destination is compatible with a monitored pipe
+    #
+    # If true, this destination should not be wrapped in a monitored pipe.
+    #
+    # @example
+    #   ProcessExecuter::Destinations.compatible_with_monitored_pipe?(1) #=> true
+    #   ProcessExecuter::Destinations.compatible_with_monitored_pipe?([:child, 6]) #=> false
+    #   ProcessExecuter::Destinations.compatible_with_monitored_pipe?([:close]) #=> false
+    #
+    # @param destination [Object] the destination to check
+    # @return [Boolean, nil] true if the destination is compatible with a monitored pipe
+    # @raise [ArgumentError] if no matching destination class is found
+    # @api public
+    def self.compatible_with_monitored_pipe?(destination)
+      matching_class = matching_destination_class(destination)
+      matching_class&.compatible_with_monitored_pipe?
+    end
+
+    # Determines the destination class that can handle the given destination
+    # @param destination [Object] the destination to check
+    # @return [Class] the destination class that can handle the given destination
+    # @api private
+    def self.matching_destination_class(destination)
       destination_classes =
         ProcessExecuter::Destinations.constants
                                      .map { |const| ProcessExecuter::Destinations.const_get(const) }
                                      .select { |const| const.is_a?(Class) }
 
-      matching_class = destination_classes.find { |klass| klass.handles?(destination) }
-
-      return matching_class.new(destination) if matching_class
-
-      raise ArgumentError, 'wrong exec redirect action'
+      destination_classes.find { |klass| klass.handles?(destination) }
     end
   end
 end

@@ -62,5 +62,22 @@ module ProcessExecuter
     def self.handles?(destination)
       raise NotImplementedError
     end
+
+    # Determines if this destination class can be wrapped by MonitoredPipe
+    #
+    # All destination types can be wrapped by MonitoredPipe unless they explicitly
+    # opt out.
+    #
+    # @return [Boolean]
+    # @api private
+    def self.compatible_with_monitored_pipe? = true
+
+    # Determines if this destination instance can be wrapped by MonitoredPipe
+    #
+    # @return [Boolean]
+    # @api private
+    def compatible_with_monitored_pipe?
+      self.class.compatible_with_monitored_pipe?
+    end
   end
 end
