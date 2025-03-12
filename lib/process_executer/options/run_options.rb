@@ -32,12 +32,7 @@ module ProcessExecuter
       def validate_raise_errors
         return if [true, false].include?(raise_errors)
 
-        # :nocov: SimpleCov on JRuby reports the last with the last argument line is not covered
-        raise(
-          ArgumentError,
-          "raise_errors must be true or false but was #{raise_errors.inspect}"
-        )
-        # :nocov:
+        errors << "raise_errors must be true or false but was #{raise_errors.inspect}"
       end
 
       # Validate the logger option value
@@ -46,12 +41,7 @@ module ProcessExecuter
       def validate_logger
         return if logger.respond_to?(:info) && logger.respond_to?(:debug)
 
-        # :nocov: SimpleCov on JRuby reports the last with the last argument line is not covered
-        raise(
-          ArgumentError,
-          "logger must respond to #info and #debug but was #{logger.inspect}"
-        )
-        # :nocov:
+        errors << "logger must respond to #info and #debug but was #{logger.inspect}"
       end
     end
   end
