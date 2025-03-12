@@ -7,8 +7,8 @@ require 'tmpdir'
 RSpec.describe ProcessExecuter do
   describe '.run' do
     context 'with command given as a single string' do
-      let(:command) { Gem.win_platform? ? 'echo %VAR%' : 'echo $VAR' }
-      subject { ProcessExecuter.run({ 'VAR' => 'test' }, command) }
+      let(:command) { windows? ? 'echo %VAR%' : 'echo $VAR' }
+      subject { ProcessExecuter.run({ 'VAR' => 'test' }, command, out: StringIO.new) }
       it { is_expected.to be_a(ProcessExecuter::Result) }
       it { is_expected.to have_attributes(success?: true, exitstatus: 0, signaled?: false, timed_out?: false) }
       it 'is expected to process the command with the shell and do shell expansions' do
@@ -18,13 +18,79 @@ RSpec.describe ProcessExecuter do
 
     let(:result) { ProcessExecuter.run(*command, logger: logger, **options) }
     let(:logger) { Logger.new(nil) }
-    let(:options) { {} }
+
+    # By default, capture stdout and stderr
+    let(:options) { { out: StringIO.new, err: StringIO.new } }
 
     subject { result }
 
+    # rubocop:disable Style/GlobalStdStream
+
+    context 'with a command that does not redirect stdout' do
+      let(:command) { ruby_command <<~COMMAND }
+        STDOUT.puts 'stdout output'
+        STDERR.puts 'stderr output'
+      COMMAND
+
+      it 'should pass stdout to the parent process' do
+        # Create a pipe
+        reader, writer = IO.pipe
+
+        # Save original stdout IO object
+        original_stdout = STDOUT.dup # This correctly duplicates the IO object
+
+        # Redirect stdout at the file descriptor level
+        STDOUT.reopen(writer)
+
+        # Run the subject of the test
+        ProcessExecuter.run(*ruby_command('STDOUT.puts "stdout output"'))
+
+        # Close write end in parent so read doesn't hang
+        writer.close
+
+        # Restore original stdout
+        STDOUT.reopen(original_stdout)
+        original_stdout.close
+
+        # Read the captured output
+        output = reader.read
+        reader.close
+
+        expect(output).to eq("stdout output\n")
+      end
+
+      it 'should pass stderr to the parent process' do
+        # Create a pipe
+        reader, writer = IO.pipe
+
+        # Save original stderr IO object
+        original_stderr = STDERR.dup # This correctly duplicates the IO object
+        # Redirect stderr at the file descriptor level
+        STDERR.reopen(writer)
+
+        # Run the subject of the test
+        ProcessExecuter.run(*ruby_command('STDERR.puts "stderr output"'))
+
+        # Close write end in parent so read doesn't hang
+        writer.close
+
+        # Restore original stderr
+        STDERR.reopen(original_stderr)
+        original_stderr.close
+
+        # Read the captured output
+        output = reader.read
+        reader.close
+
+        expect(output).to eq("stderr output\n")
+      end
+    end
+
+    # rubocop:enable Style/GlobalStdStream
+
     context 'with a command that returns exitstatus 0' do
       let(:command) { ruby_command <<~COMMAND }
-        puts 'stdout output'
+        STDOUT.puts 'stdout output'
         STDERR.puts 'stderr output'
       COMMAND
 
@@ -76,7 +142,7 @@ RSpec.describe ProcessExecuter do
 
     context 'with a command that times out' do
       let(:command) { 'sleep 1' }
-      let(:options) { { timeout_after: 0.01 } }
+      let(:options) { { timeout_after: 0.01, out: StringIO.new, err: StringIO.new } }
 
       it 'is expected to raise an error' do
         expect { subject }.to raise_error(ProcessExecuter::Error)
@@ -91,11 +157,11 @@ RSpec.describe ProcessExecuter do
           pid = subject.result.pid
           # :nocov: execution of this code is platform dependent
           expected_message =
-            if RUBY_ENGINE == 'jruby'
+            if jruby?
               %(["sleep 1"], status: pid #{pid} KILL (signal 9) timed out after 0.01s, stderr: "")
-            elsif RUBY_ENGINE == 'truffleruby'
+            elsif truffleruby?
               %(["sleep 1"], status: pid #{pid} exit nil timed out after 0.01s, stderr: "")
-            elsif Gem.win_platform?
+            elsif windows?
               %(["sleep 1"], status: pid #{pid} exit 0 timed out after 0.01s, stderr: "")
             else
               %(["sleep 1"], status: pid #{pid} SIGKILL (signal 9) timed out after 0.01s, stderr: "")
@@ -114,7 +180,7 @@ RSpec.describe ProcessExecuter do
       end
     end
 
-    context 'with a command that exits due to an unhandled signal', if: !Gem.win_platform? do
+    context 'with a command that exits due to an unhandled signal', if: !windows? do
       let(:command) { ruby_command <<~COMMAND }
         puts 'Hello world'
         Process.kill('KILL', Process.pid)
@@ -134,9 +200,9 @@ RSpec.describe ProcessExecuter do
 
           # :nocov: execution of this code is platform dependent
           expected_message =
-            if RUBY_ENGINE == 'jruby'
+            if jruby?
               %(#{command.inspect}, status: pid #{pid} KILL (signal 9), stderr: "")
-            elsif RUBY_ENGINE == 'truffleruby'
+            elsif truffleruby?
               %(#{command.inspect}, status: pid #{pid} exit nil, stderr: "")
             else
               %(#{command.inspect}, status: pid #{pid} SIGKILL (signal 9), stderr: "")
@@ -163,7 +229,7 @@ RSpec.describe ProcessExecuter do
           exit 1
         COMMAND
 
-        let(:options) { { raise_errors: false } }
+        let(:options) { { raise_errors: false, out: StringIO.new, err: StringIO.new } }
 
         it 'is not expected to raise an error' do
           expect { subject }.not_to raise_error
@@ -191,9 +257,9 @@ RSpec.describe ProcessExecuter do
         end
       end
 
-      context 'a command that exits due to an unhandled signal', if: !Gem.win_platform? do
+      context 'a command that exits due to an unhandled signal', if: !windows? do
         let(:command) { 'echo "Hello world" && kill -9 $$' }
-        let(:options) { { raise_errors: false } }
+        let(:options) { { raise_errors: false, out: StringIO.new, err: StringIO.new } }
 
         it 'is not expected to raise an error' do
           expect { subject }.not_to raise_error
@@ -234,7 +300,7 @@ RSpec.describe ProcessExecuter do
           print ENV.include?('#{existing_var[0]}')
         COMMAND
 
-        let(:options) { { unsetenv_others: true } }
+        let(:options) { { unsetenv_others: true, out: StringIO.new, err: StringIO.new } }
 
         it 'is expected to remove all existing variables from the environment and add the given variables' do
           expect(subject.stdout.gsub("\r\n", "\n")).to eq('false')
@@ -246,7 +312,7 @@ RSpec.describe ProcessExecuter do
       before { @tmpdir = File.realpath(Dir.mktmpdir) }
       after { FileUtils.remove_entry(@tmpdir) }
       let(:command) { ['ruby', '-e', 'puts Dir.pwd'] }
-      let(:options) { { chdir: @tmpdir } }
+      let(:options) { { chdir: @tmpdir, out: StringIO.new, err: StringIO.new } }
       it 'is expected to run the command in the specified directory' do
         expect(subject.stdout.gsub("\r\n", "\n")).to eq("#{@tmpdir}\n")
       end
@@ -296,7 +362,7 @@ RSpec.describe ProcessExecuter do
         )
       end
 
-      subject { ProcessExecuter.run('echo Hello') }
+      subject { ProcessExecuter.run('echo Hello', out: StringIO.new, err: StringIO.new) }
 
       it 'is expected to raise ProcessExecuter::ProcessIOError' do
         expect { subject }.to raise_error(ProcessExecuter::ProcessIOError)
@@ -344,7 +410,7 @@ RSpec.describe ProcessExecuter do
 
       context 'a command that returns exitstatus 1' do
         let(:command) { 'echo "stdout output" && echo "stderr output" 1>&2 && exit 1' }
-        let(:options) { { raise_errors: false } }
+        let(:options) { { raise_errors: false, out: StringIO.new, err: StringIO.new } }
 
         context 'when log level is WARN' do
           let(:log_level) { Logger::WARN }
@@ -383,11 +449,11 @@ RSpec.describe ProcessExecuter do
 
             # :nocov: execution of this code is platform dependent
             expected_message =
-              if RUBY_ENGINE == 'jruby'
+              if jruby?
                 /INFO -- : \[.*?\] exited with status pid \d+ KILL \(signal 9\) timed out after 0.01s$/
-              elsif RUBY_ENGINE == 'truffleruby'
+              elsif truffleruby?
                 /INFO -- : \[.*?\] exited with status pid \d+ exit nil timed out after 0.01s$/
-              elsif Gem.win_platform?
+              elsif windows?
                 /INFO -- : \[.*?\] exited with status pid \d+ exit 0 timed out after 0.01s$/
               else
                 /INFO -- : \[.*?\] exited with status pid \d+ SIGKILL \(signal 9\) timed out after 0.01s$/
@@ -538,8 +604,8 @@ RSpec.describe ProcessExecuter do
       end
     end
 
-    describe 'when the destination is [:child, fd]' do
-      it 'should capture the redirected output', skip: Gem.win_platform? ? 'Not supported on Windows' : false do
+    describe 'when the destination is [:child, fd]', if: !windows? && !truffleruby? do
+      it 'should capture the redirected output' do
         command = ruby_command(<<~RUBY)
           STDOUT.puts 'stdout output'
           STDERR.puts 'stderr output'
@@ -559,9 +625,8 @@ RSpec.describe ProcessExecuter do
       end
     end
 
-    describe 'when the destination is [:close]' do
-      it 'should capture the redirected output',
-         skip: RUBY_ENGINE == 'jruby' ? 'Not supported on JRuby' : false do
+    describe 'when the destination is [:close]', if: !windows? && !truffleruby? && !jruby? do
+      it 'should capture the redirected output' do
         command = ruby_command(<<~RUBY)
           STDOUT.puts 'stdout output'
           STDERR.puts 'stderr output'

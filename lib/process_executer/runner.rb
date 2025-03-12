@@ -32,17 +32,7 @@ module ProcessExecuter
     # @return [ProcessExecuter::Result] The result of the completed subprocess
     #
     def call(command, options)
-      set_default_stdout_stderr(options)
       spawn(command, options).tap { |result| process_result(result) }
-    end
-
-    # Set default values for stdout and stderr if not already set
-    # @param options [ProcessExecuter::Options::RunOptions] Options for running the command
-    # @return [void]
-    # @api private
-    def set_default_stdout_stderr(options) # rubocop:disable Naming/AccessorMethodName
-      options.merge!(out: StringIO.new) unless options.stdout_redirection_key
-      options.merge!(err: StringIO.new) unless options.stderr_redirection_key
     end
 
     private

@@ -314,27 +314,6 @@ module ProcessExecuter
       @state = :closing
     end
 
-    # # Write data to the given file_descriptor correctly handling stdout and stderr
-    # # @param file_descriptor [Integer, Symbol] the file descriptor to write to (either an integer or :out or :err)
-    # # @param data [String] the data to write
-    # # @return [void]
-    # # @api private
-    # def write_data_to_fd(file_descriptor, data)
-    #   # The case line is not marked as not covered only when using TruffleRuby
-    #   # :nocov:
-    #   case file_descriptor
-    #   # :nocov:
-    #   when :out, 1
-    #     $stdout.write data
-    #   when :err, 2
-    #     $stderr.write data
-    #   else
-    #     io = IO.open(file_descriptor, mode: 'a', autoclose: false)
-    #     io.write(data)
-    #     io.close
-    #   end
-    # end
-
     # Read any remaining data from the pipe and close it
     #
     # @return [void]
