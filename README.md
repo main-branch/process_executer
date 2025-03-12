@@ -11,9 +11,16 @@ Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-%23FE5196?log
 [![Slack](https://img.shields.io/badge/slack-main--branch/process__executer-yellow.svg?logo=slack)](https://main-branch.slack.com/archives/C07NG2BPG8Y)
 
 ProcessExecuter provides an enhanced API for executing commands in subprocesses,
-extending Ruby's built-in `Process.spawn` functionality with additional features like
-capturing output, handling timeouts, streaming output to multiple destinations, and
-providing detailed result information.
+extending Ruby's built-in `Process.spawn` functionality.
+
+It has additional features like capturing output, handling timeouts, streaming output
+to multiple destinations, and providing detailed result information.
+
+This README documents the HEAD version of process_executer which may contain
+unrelease information. To see the README for the version you are using, consult
+RubyGems.org. Go to the [process_executer page in
+RubyGems.org](https://rubygems.org/gems/process_executer), select your version, and
+then click the "Documentation" link.
 
 ## Requirements
 
@@ -30,6 +37,14 @@ providing detailed result information.
     * [ProcessExecuter::Result](#processexecuterresult)
     * [ProcessExecuter.spawn\_and\_wait](#processexecuterspawn_and_wait)
     * [ProcessExecuter.run](#processexecuterrun)
+* [Breaking Changes](#breaking-changes)
+    * [2.x](#2x)
+        * [`ProcessExecuter.spawn`](#processexecuterspawn)
+        * [`ProcessExecuter.run`](#processexecuterrun-1)
+        * [`ProcessExecuter::Result`](#processexecuterresult-1)
+        * [Other](#other)
+    * [3.x](#3x)
+        * [`ProcessExecuter.run`](#processexecuterrun-2)
 * [Installation](#installation)
 * [Contributing](#contributing)
     * [Reporting Issues](#reporting-issues)
@@ -168,6 +183,54 @@ following features:
 result = ProcessExecuter.run('echo "Hello World"', out: StringIO.new)
 result.stdout #=> "Hello World\n"
 ```
+
+## Breaking Changes
+
+### 2.x
+
+This major release focused on changes to the interface to make it more understandable.
+
+#### `ProcessExecuter.spawn`
+
+* This method was renamed to `ProcessExecuter.spawn_and_wait`
+* The `:timeout` option was renamed to `:timeout_after`
+
+#### `ProcessExecuter.run`
+
+* The `:timeout` option was renamed to `:timeout_after`
+
+#### `ProcessExecuter::Result`
+
+* The `#timeout` method was renamed to `#timed_out`
+
+#### Other
+
+* Dropped support for Ruby 3.0
+
+### 3.x
+
+#### `ProcessExecuter.run`
+
+* The `:merge` option was removed
+
+  This was removed because `Process.spawn` already provides this functionality but in
+  a different way. To merge, you will need to define a redirection where the source
+  is an array of the file descriptors you want to merge. For instance:
+
+  ```Ruby
+  [:out, :err] => 'output.txt'
+  ```
+
+  will merge stdout and stderr from the subprocess into the file output.txt.
+
+* Stdout and stderr redirections are no longer default to a new instance of StringIO
+
+  Calls to `ProcessExecuter.run` that do not define a redirection for stdout or
+  stderr will have to add explicit redirection(s) in order to capture the output.
+
+  This is to align with the functionality in `Process.spawn`. In `Process.spawn`, when
+  an explicit redirection is not given for stdout and stderr, this output will be
+  passed through to the parent process's stdout and stderr.
 
 ## Installation
 
