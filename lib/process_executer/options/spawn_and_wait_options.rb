@@ -32,12 +32,7 @@ module ProcessExecuter
         return if timeout_after.nil?
         return if timeout_after.is_a?(Numeric) && timeout_after.real? && !timeout_after.negative?
 
-        # :nocov: SimpleCov on SimpleCov on JRuby reports the last with the last argument line is not covered
-        raise(
-          ArgumentError,
-          "timeout_after must be nil or a non-negative real number but was #{timeout_after.inspect}"
-        )
-        # :nocov:
+        errors << "timeout_after must be nil or a non-negative real number but was #{timeout_after.inspect}"
       end
     end
   end

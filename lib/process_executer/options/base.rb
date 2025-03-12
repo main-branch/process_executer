@@ -43,6 +43,7 @@ module ProcessExecuter
       #
       def initialize(**options)
         @options = allowed_options.transform_values(&:default).merge(options)
+        @errors = []
         assert_no_unknown_options
         define_accessor_methods
         validate_options
@@ -118,6 +119,24 @@ module ProcessExecuter
         @options.merge!(other_options)
       end
 
+      # The list of validation errors
+      #
+      # Validators should add an error messages to this array.
+      #
+      # @example
+      #   options = ProcessExecuter::Options::RunOptions.new(timeout_after: 'not_a_number', raise_errors: 'yes')
+      #   #=> raises an Argument error with the following message:
+      #       timeout_after must be nil or a non-negative real number but was "not_a_number"
+      #       raise_errors must be true or false but was "yes""
+      #    errors # => [
+      #      "timeout_after must be nil or a non-negative real number but was \"not_a_number\"",
+      #      "raise_errors must be true or false but was \"yes\""
+      #    ]
+      #
+      # @return [Array<String>]
+      # @api private
+      attr_reader :errors
+
       protected
 
       # An array of OptionDefinition objects that define the allowed options
@@ -164,6 +183,8 @@ module ProcessExecuter
           validator = allowed_options[option_key]&.validator
           instance_exec(&validator.to_proc) unless validator.nil?
         end
+
+        raise ArgumentError, errors.join("\n") unless errors.empty?
       end
 
       # Define accessor methods for each option

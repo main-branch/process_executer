@@ -218,7 +218,7 @@ RSpec.describe ProcessExecuter::Options::Base do
         end
 
         def validate_option1
-          raise ArgumentError, 'option1 must be a String' unless option1.is_a?(String)
+          errors << 'option1 must be a String' unless option1.is_a?(String)
         end
       end
 
@@ -235,7 +235,7 @@ RSpec.describe ProcessExecuter::Options::Base do
         end
 
         def validate_option2
-          raise ArgumentError, 'option2 must be an Integer' unless option2.is_a?(Integer)
+          errors << 'option2 must be an Integer' unless option2.is_a?(Integer)
         end
       end
     end
@@ -320,6 +320,14 @@ RSpec.describe ProcessExecuter::Options::Base do
 
           it 'should raise an ArgumentError' do
             expect { subject }.to raise_error(ArgumentError, 'option2 must be an Integer')
+          end
+        end
+
+        context 'when given an invalid value for both option1 and option2' do
+          let(:options_hash) { { option1: 123, option2: 'invalid' } }
+
+          it 'should raise an ArgumentError' do
+            expect { subject }.to raise_error(ArgumentError, "option1 must be a String\noption2 must be an Integer")
           end
         end
       end
