@@ -121,10 +121,54 @@ module ProcessExecuter
     # @return [String, nil]
     #
     def stdout
-      pipe = options.stdout_redirection_value
-      return nil unless pipe.is_a?(ProcessExecuter::MonitoredPipe)
+      return @stdout if defined?(@stdout)
 
-      pipe.destination.string
+      @stdout = begin
+        pipe = options.stdout_redirection_value
+        pipe.destination.string if pipe.is_a?(ProcessExecuter::MonitoredPipe)
+      end
+    end
+
+    # Process the captured stdout output
+    #
+    # @example
+    #   result = ProcessExecuter.run('echo hello', out: StringIO.new)
+    #   result.stdout #=> "hello\n"
+    #   result.process_stdout { |stdout| stdout.upcase }
+    #   result.stdout #=> "HELLO\n"
+    #   result.unprocessed_stdout #=> "hello\n"
+    #
+    # @return [String, nil]
+    #
+    # @api public
+    #
+    def process_stdout(&block)
+      return if block.nil?
+
+      @unprocessed_stdout = stdout unless defined?(@unprocessed_stdout)
+
+      @stdout = block.call(stdout, self)
+      self
+    end
+
+    # Returns the original stdout output before it was processed
+    #
+    # @example
+    #   result = ProcessExecuter.run('echo hello', out: StringIO.new)
+    #   result.stdout #=> "hello\n"
+    #   result.unprocessed_stdout #=> "hello\n"
+    #   result.process_stdout { |stdout| stdout.upcase }
+    #   result.stdout #=> "HELLO\n"
+    #   result.unprocessed_stdout #=> "hello\n"
+    #
+    # @return [String, nil]
+    #
+    # @api public
+    #
+    def unprocessed_stdout
+      return @unprocessed_stdout if defined?(@unprocessed_stdout)
+
+      @unprocessed_stdout = stdout
     end
 
     # Return the captured stderr output
@@ -135,16 +179,60 @@ module ProcessExecuter
     # @example
     #   # Note that `ProcessExecuter.run` will wrap the given err: object in a
     #   # ProcessExecuter::MonitoredPipe
-    #   result = ProcessExecuter.run('echo ERROR 1>&2', err: StringIO.new)
-    #   resuilt.stderr #=> "ERROR\n"
+    #   result = ProcessExecuter.run('echo hello': err: StringIO.new)
+    #   result.stderr #=> "hello\n"
     #
     # @return [String, nil]
     #
     def stderr
-      pipe = options.stderr_redirection_value
-      return nil unless pipe.is_a?(ProcessExecuter::MonitoredPipe)
+      return @stderr if defined?(@stderr)
 
-      pipe.destination.string
+      @stderr = begin
+        pipe = options.stderr_redirection_value
+        pipe.destination.string if pipe.is_a?(ProcessExecuter::MonitoredPipe)
+      end
+    end
+
+    # Process the captured stderr output
+    #
+    # @example
+    #   result = ProcessExecuter.run('echo hello', err: StringIO.new)
+    #   result.stderr #=> "hello\n"
+    #   result.process_stderr { |stderr| stderr.upcase }
+    #   result.stderr #=> "HELLO\n"
+    #   result.unprocessed_stderr #=> "hello\n"
+    #
+    # @return [String, nil]
+    #
+    # @api public
+    #
+    def process_stderr(&block)
+      return if block.nil?
+
+      @unprocessed_stderr = stderr unless defined?(@unprocessed_stderr)
+
+      @stderr = block.call(stderr, self)
+      self
+    end
+
+    # Returns the original stderr output before it was processed
+    #
+    # @example
+    #   result = ProcessExecuter.run('echo hello', err: StringIO.new)
+    #   result.stderr #=> "hello\n"
+    #   result.unprocessed_stderr #=> "hello\n"
+    #   result.process_stderr { |stderr| stderr.upcase }
+    #   result.stderr #=> "HELLO\n"
+    #   result.unprocessed_stderr #=> "hello\n"
+    #
+    # @return [String, nil]
+    #
+    # @api public
+    #
+    def unprocessed_stderr
+      return @unprocessed_stderr if defined?(@unprocessed_stderr)
+
+      @unprocessed_stderr = stderr
     end
   end
 end
