@@ -119,6 +119,27 @@ module ProcessExecuter
         @options.merge!(other_options)
       end
 
+      # A shallow copy of self with options copied but not the values they reference
+      #
+      # If any keyword arguments are given, the copy will be created with the
+      # respective option values updated.
+      #
+      # @example
+      #   options_hash = { option1: 'value1', option2: 'value2' }
+      #   options = ProcessExecuter::MyOptions.new(options_hash)
+      #   copy = options.with(option1: 'new_value1')
+      #   copy.option1 # => 'new_value1'
+      #   copy.option2 # => 'value2'
+      #   options.option1 # => 'value1'
+      #   options.option2 # => 'value2'
+      #
+      # @options_hash [Hash] the options to merge into the current options
+      # @return [self.class]
+      #
+      def with(**options_hash)
+        self.class.new(**@options, **options_hash)
+      end
+
       # The list of validation errors
       #
       # Validators should add an error messages to this array.
@@ -194,10 +215,6 @@ module ProcessExecuter
         allowed_options.each_key do |option|
           define_singleton_method(option) do
             @options[option]
-          end
-
-          define_singleton_method("#{option}=") do |value|
-            @options[option] = value
           end
         end
       end

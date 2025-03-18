@@ -71,6 +71,55 @@ RSpec.describe ProcessExecuter::Options::Base do
     end
   end
 
+  describe '#with' do
+    let(:described_class) do
+      Class.new(ProcessExecuter::Options::Base) do
+        private
+
+        def define_options
+          [
+            *super,
+            ProcessExecuter::Options::OptionDefinition.new(:option1, default: 'value1'),
+            ProcessExecuter::Options::OptionDefinition.new(:option2, default: 'value2')
+          ]
+        end
+      end
+    end
+
+    let(:original_options) { described_class.new }
+
+    subject { original_options.with(**new_option_values) }
+
+    context 'when given no options to update' do
+      let(:new_option_values) { {} }
+
+      it 'should return the same instance' do
+        expect(subject.option1).to eq('value1')
+        expect(subject.option2).to eq('value2')
+      end
+    end
+
+    context 'when given one option to update' do
+      let(:new_option_values) { { option1: 'new_value1' } }
+
+      it 'should return a new instance with the new options' do
+        expect(subject).to have_attributes(option1: 'new_value1', option2: 'value2')
+      end
+
+      it 'should not change the original instance' do
+        expect(original_options).to have_attributes(option1: 'value1', option2: 'value2')
+      end
+    end
+
+    context 'when given new options which are the same as the original options' do
+      let(:new_option_values) { { option1: 'new_value1', option2: 'new_value2' } }
+
+      it 'should return a new instance with the new options' do
+        expect(subject).to have_attributes(option1: 'new_value1', option2: 'new_value2')
+      end
+    end
+  end
+
   context 'with a class derived from ProcessExecuter::Options::Base' do
     context 'with one defined option "an_option"' do
       let(:described_class) do
@@ -101,20 +150,12 @@ RSpec.describe ProcessExecuter::Options::Base do
         describe 'option accessors' do
           it 'should have defined accessors for the defined option' do
             expect(subject).to respond_to(:an_option)
-            expect(subject).to respond_to(:an_option=)
           end
 
           describe '#an_option' do
             subject { options.an_option }
             it 'should return the default value' do
               expect(subject).to eq('default')
-            end
-          end
-
-          describe '#an_option=' do
-            subject { options.an_option = 'new_value' }
-            it 'should set the value of the option' do
-              expect { subject }.to change { options.an_option }.to('new_value')
             end
           end
         end
@@ -250,12 +291,10 @@ RSpec.describe ProcessExecuter::Options::Base do
       describe 'option accessors' do
         it 'should have defined accessors for option1' do
           expect(subject).to respond_to(:option1)
-          expect(subject).to respond_to(:option1=)
         end
 
         it 'should have defined accessors for option2' do
           expect(subject).to respond_to(:option2)
-          expect(subject).to respond_to(:option2=)
         end
 
         describe '#option1' do
@@ -265,35 +304,11 @@ RSpec.describe ProcessExecuter::Options::Base do
           end
         end
 
-        describe '#option1=' do
-          subject { options.option1 = 'new_value' }
-
-          it 'should set the value of option1' do
-            expect { subject }.to(change { options.option1 }.to('new_value'))
-          end
-
-          it 'should not change the value of option2' do
-            expect { subject }.not_to(change { options.option2 })
-          end
-        end
-
         describe '#option2' do
           subject { options.option2 }
 
           it 'should return the default value of option2' do
             expect(subject).to eq(2)
-          end
-        end
-
-        describe '#option2=' do
-          subject { options.option2 = 'new_value' }
-
-          it 'should not change the value of option1' do
-            expect { subject }.not_to(change { options.option1 })
-          end
-
-          it 'should set the value of option2' do
-            expect { subject }.to(change { options.option2 }.to('new_value'))
           end
         end
       end
