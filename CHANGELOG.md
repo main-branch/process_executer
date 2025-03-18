@@ -5,6 +5,29 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v3.0.0 (2025-03-18)
+
+[Full Changelog](https://github.com/main-branch/process_executer/compare/v2.0.0..v3.0.0)
+
+Changes since v2.0.0:
+
+* 3d337de feat: remove Options setter methods and add `with` method
+* 706d78a docs: add a list the breaking changes for each major release in the README.md
+* 2903c80 feat: report all option errors instead of just the first one
+* 247150d feat!: do not capture stdout and stderr by default in `ProcessExecuter.run`
+* 4b3ac02 feat: support redirection destinations in the form [:child, fd] and :close
+* ed4620f docs: update README.md to highlight the important parts of this gem
+* 48b4695 fix: allow Integer or IO are used as a redirection source
+* 4424a44 feat!: remove the :merge option from ProcessExecuter.run
+* 7257e5d chore: allow SpawnOptions to accept Integer and IO redirection sources
+* 92441d0 chore: move all options related classes to a new Options module
+* 92c096c chore: remove unneeded test file
+* 91d0db3 feat: implement all possible redirection destinations
+* a58af4a fix: fix complexity error reported by CodeClimate
+* 66d97b7 chore: do not fail the CI build for low coverage on JRuby and TruffleRuby
+* 2fb0ccf feat: refactor options classes
+* bcf35d5 chore: do not fail the CI build for low coverage on JRuby and TruffleRuby
+
 ## v2.0.0 (2025-03-03)
 
 [Full Changelog](https://github.com/main-branch/process_executer/compare/v1.3.0..v2.0.0)
