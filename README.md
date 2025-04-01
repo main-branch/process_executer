@@ -179,6 +179,9 @@ following features:
 * It raises an error if there is any problem with the subprocess. This behavior can
   be turned off with the `raise_errors: false` option.
 
+  ⚠️ `ProcessIOError` and `SpawnError` errors are not suppressed by giving the
+  `raise_errors: false` option.
+
 ```ruby
 result = ProcessExecuter.run('echo "Hello World"', out: StringIO.new)
 result.stdout #=> "Hello World\n"

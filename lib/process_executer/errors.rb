@@ -17,7 +17,8 @@ module ProcessExecuter
   #       │   ├─> FailedError
   #       │   └─> SignaledError
   #       │       └─> TimeoutError
-  #       └─> ProcessIOError
+  #       ├─> ProcessIOError
+  #       └─> SpawnError
   # ```
   #
   # | Error Class | Description |
@@ -28,6 +29,7 @@ module ProcessExecuter
   # | `SignaledError` | Raised when the command is terminated as a result of receiving a signal. This could happen if the process is forcibly terminated or if there is a serious system error. |
   # | `TimeoutError` | This is a specific type of `SignaledError` that is raised when the command times out and is killed via the SIGKILL signal. Raised when the operation takes longer than the specified timeout duration (if provided). |
   # | `ProcessIOError` | Raised when an error was encountered reading or writing to the command's subprocess. |
+  # | `SpawnError` | Raised when the process could not execute. Check the  |
   #
   # @example Rescuing any error
   #   begin
@@ -129,6 +131,14 @@ module ProcessExecuter
   # @api public
   #
   class ProcessIOError < ProcessExecuter::Error; end
+
+  # Raised when spawn could not execute the process
+  #
+  # See the `cause` for the exception that Process.spawn raised.
+  #
+  # @api public
+  #
+  class SpawnError < ProcessExecuter::Error; end
 end
 
 # rubocop:enable Layout/LineLength
