@@ -5,6 +5,15 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v3.1.0 (2025-04-01)
+
+[Full Changelog](https://github.com/main-branch/process_executer/compare/v3.0.0..v3.1.0)
+
+Changes since v3.0.0:
+
+* acb6385 fix: give Windows enough time to release its file lock so tmpdir can be deleted
+* 3fe114a feat: wrap errors raised by `Process.spawn` in a `ProcessExecuter::SpawnError`
+
 ## v3.0.0 (2025-03-18)
 
 [Full Changelog](https://github.com/main-branch/process_executer/compare/v2.0.0..v3.0.0)
