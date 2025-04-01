@@ -181,6 +181,11 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
             monitored_pipe.close
             FileUtils.rm(filepath)
 
+            # Give Windows time to release the file lock
+            # so that Dir.mktmpdir can delete the directory
+            #
+            sleep 0.1 if windows?
+
             # We should try to model what happens in this command:
             #
             #   pid, status = Process.wait2(Process.spawn(*command, out: ['output.txt', 'r']))
@@ -189,7 +194,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
             # fflush: Bad file descriptor" to stderr
             #
             # However, the current implementation does this (which I think is reasonable):
-
+            #
             expect(monitored_pipe.exception.inspect).to eq('#<IOError: not opened for writing>')
           end
         end
