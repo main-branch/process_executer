@@ -87,7 +87,11 @@ module ProcessExecuter
   # @return [ProcessExecuter::Result] The result of the completed subprocess
   # @api private
   def self.spawn_and_wait_with_options(command, options)
-    pid = Process.spawn(*command, **options.spawn_options)
+    begin
+      pid = Process.spawn(*command, **options.spawn_options)
+    rescue StandardError => e
+      raise ProcessExecuter::SpawnError, "Failed to spawn process: #{e.message}"
+    end
     wait_for_process(pid, command, options)
   end
 
@@ -287,10 +291,7 @@ module ProcessExecuter
   # @option options_hash [String] :chdir (nil) The directory to run the command in
   # @option options_hash [Logger] :logger The logger to use
   #
-  # @raise [ProcessExecuter::FailedError] if the command returned a non-zero exit status
-  # @raise [ProcessExecuter::SignaledError] if the command exited because of an unhandled signal
-  # @raise [ProcessExecuter::TimeoutError] if the command timed out
-  # @raise [ProcessExecuter::ProcessIOError] if an exception was raised while collecting subprocess output
+  # @raise [ProcessExecuter::Error] if the command could not be executed or failed
   #
   # @return [ProcessExecuter::Result] The result of the completed subprocess
   #

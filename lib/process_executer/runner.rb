@@ -42,8 +42,7 @@ module ProcessExecuter
     # @param command [Array<String>] The command to execute
     # @param options [ProcessExecuter::Options::RunOptions] Options for running the command
     #
-    # @raise [ProcessExecuter::ProcessIOError] If an exception was raised while collecting subprocess output
-    # @raise [ProcessExecuter::TimeoutError] If the command times out
+    # @raise [ProcessExecuter::Error] if the command could not be executed or failed
     #
     # @return [ProcessExecuter::Result] The result of the completed subprocess
     #
@@ -100,10 +99,7 @@ module ProcessExecuter
     #
     # @return [Void]
     #
-    # @raise [ProcessExecuter::FailedError] If the command failed
-    # @raise [ProcessExecuter::SignaledError] If the command was signaled
-    # @raise [ProcessExecuter::TimeoutError] If the command times out
-    # @raise [ProcessExecuter::ProcessIOError] If an exception was raised while collecting subprocess output
+    # @raise [ProcessExecuter::Error] if the command could not be executed or failed
     #
     # @api private
     #

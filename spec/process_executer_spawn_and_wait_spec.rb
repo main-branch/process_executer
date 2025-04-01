@@ -8,6 +8,16 @@ RSpec.describe ProcessExecuter do
   describe '.spawn_and_wait' do
     subject { ProcessExecuter.spawn_and_wait(*command, **options) }
 
+    context 'when an invalid command is given' do
+      let(:command) { 'invalid_command' }
+      let(:options) { {} }
+      it 'should raise an ProcessExecuter::SpawnError with the cause set' do
+        expect { subject }.to(
+          raise_error(ProcessExecuter::SpawnError) { |e| expect(e.cause).to be_a Errno::ENOENT }
+        )
+      end
+    end
+
     context 'when :timeout_after is specified' do
       context 'when :timeout_after is a String' do
         let(:command) { %w[echo hello] }
