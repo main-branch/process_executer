@@ -58,14 +58,12 @@ module ProcessExecuter
 
       assert_destination_is_compatible_with_monitored_pipe
 
+      @mutex = Mutex.new
+      @condition_variable = ConditionVariable.new
       @chunk_size = chunk_size
       @pipe_reader, @pipe_writer = IO.pipe
       @state = :open
-      @thread = Thread.new do
-        Thread.current.report_on_exception = false
-        Thread.current.abort_on_exception = false
-        monitor
-      end
+      @thread = start_monitoring_thread
     end
 
     # Set the state to `:closing` and wait for the state to be set to `:closed`
@@ -84,10 +82,17 @@ module ProcessExecuter
     # @return [void]
     #
     def close
-      return unless state == :open
+      mutex.synchronize do
+        return unless state == :open
 
-      @state = :closing
-      sleep 0.001 until state == :closed
+        @state = :closing
+      end
+
+      mutex.synchronize do
+        condition_variable.wait(mutex) while @state != :closed
+      end
+
+      thread.join
 
       destination.close
     end
@@ -152,9 +157,11 @@ module ProcessExecuter
     # @api private
     #
     def write(data)
-      raise IOError, 'closed stream' unless state == :open
+      mutex.synchronize do
+        raise IOError, 'closed stream' unless state == :open
 
-      pipe_writer.write(data)
+        pipe_writer.write(data)
+      end
     end
 
     # @!attribute [r]
@@ -255,6 +262,28 @@ module ProcessExecuter
 
     private
 
+    # @!attribute [r]
+    #
+    # The mutex used to synchronize access to the state variable
+    #
+    # @return [Mutex]
+    #
+    # @api private
+    #
+    attr_reader :mutex
+
+    # @!attribute [r]
+    #
+    # The condition variable used to synchronize access to the state
+    #
+    # In particular, it is used while waiting for the state to change to :closed
+    #
+    # @return [ConditionVariable]
+    #
+    # @api private
+    #
+    attr_reader :condition_variable
+
     # Raise an error if the destination is not compatible with MonitoredPipe
     # @return [void]
     # @raise [ArgumentError] if the destination is not compatible with MonitoredPipe
@@ -263,6 +292,17 @@ module ProcessExecuter
       return if destination.compatible_with_monitored_pipe?
 
       raise ArgumentError, "Destination #{destination.destination} is not compatible with MonitoredPipe"
+    end
+
+    # Start the thread to monitor the pipe and write data to the destination
+    # @return [void]
+    # @api private
+    def start_monitoring_thread
+      Thread.new do
+        Thread.current.report_on_exception = false
+        Thread.current.abort_on_exception = false
+        monitor
+      end
     end
 
     # Read data from the pipe until `#state` is changed to `:closing`
@@ -275,8 +315,12 @@ module ProcessExecuter
     # @api private
     def monitor
       monitor_pipe until state == :closing
+    ensure
       close_pipe
-      @state = :closed
+      mutex.synchronize do
+        @state = :closed
+        condition_variable.signal
+      end
     end
 
     # Read data from the pipe until `#state` is changed to `:closing`
@@ -310,8 +354,10 @@ module ProcessExecuter
     def write_data(data)
       destination.write(data)
     rescue StandardError => e
-      @exception = e
-      @state = :closing
+      mutex.synchronize do
+        @exception = e
+        @state = :closing
+      end
     end
 
     # Read any remaining data from the pipe and close it
