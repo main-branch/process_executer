@@ -184,7 +184,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
             # Give Windows time to release the file lock
             # so that Dir.mktmpdir can delete the directory
             #
-            sleep 0.1 if windows?
+            sleep 0.5 if windows?
 
             # We should try to model what happens in this command:
             #
