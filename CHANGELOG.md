@@ -5,6 +5,16 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v3.2.0 (2025-04-04)
+
+[Full Changelog](https://github.com/main-branch/process_executer/compare/v3.1.0..v3.2.0)
+
+Changes since v3.1.0:
+
+* 272d246 test: fix flaky test that fails on windows
+* 1e121d8 test: add test for raising a SpawnError when Process.spawn raises an error
+* 2a2aaac refactor: improve synchronization of the monitored pipe state
+
 ## v3.1.0 (2025-04-01)
 
 [Full Changelog](https://github.com/main-branch/process_executer/compare/v3.0.0..v3.1.0)
