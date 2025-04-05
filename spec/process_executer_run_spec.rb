@@ -646,5 +646,58 @@ RSpec.describe ProcessExecuter do
         end
       end
     end
+
+    describe 'Raises a SpawnError if Process.spawn raises an error' do
+      subject { ProcessExecuter.run(*command, **options, out: StringIO.new, err: StringIO.new) }
+      let(:command) { ['echo hello'] }
+      let(:options) { {} }
+
+      context 'with an invalid command' do
+        let(:command) { ['invalid_command'] }
+
+        it 'should raise a ProcessExecuter::SpawnError' do
+          expect { subject }.to raise_error(ProcessExecuter::SpawnError)
+        end
+      end
+
+      context 'when the chdir option is a path to a non-existant directory' do
+        let(:options) { { chdir: '/invalid/path/to/dir' } }
+
+        context 'when run with MRI, non-Windows', if: mri? && !windows? do
+          it 'is expected to raise an error' do
+            expect { subject }.to raise_error(ProcessExecuter::SpawnError)
+          end
+        end
+
+        context 'when run with MRI on Windows', if: mri? && windows? do
+          # For Windoes MRI, when ProcessExecuter.run is given bad path for the
+          # `chdir:` option, the test hangs when Process.spawn is called.
+
+          # This only happens when out or err is redirected and wrapped in a
+          # MonitoredPipe.
+
+          it 'is expected to raise an error', skip: 'this test hangs, see comment' do
+            expect { subject }.to raise_error(ProcessExecuter::SpawnError)
+          end
+        end
+
+        # TruffleRuby does not raise errors in the same cases as MRI (see
+        # oracle/truffleruby#3825)
+        #
+        context 'when run with TruffleRuby', if: truffleruby? do
+          it 'is expected to return a Result with exitstatus 1 (which raises a FailedError)' do
+            expect { subject }.to raise_error(ProcessExecuter::FailedError)
+          end
+        end
+
+        # JRuby silently ignores the chdir option
+        #
+        context 'when run with JRuby', if: jruby? do
+          it 'is expected to ignore the invalid chdir path' do
+            expect(subject).to be_a(ProcessExecuter::Result).and have_attributes(exitstatus: 0)
+          end
+        end
+      end
+    end
   end
 end
