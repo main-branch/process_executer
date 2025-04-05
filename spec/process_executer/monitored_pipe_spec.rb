@@ -177,14 +177,11 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
             filepath = File.join(dir, 'output.txt')
             File.write(filepath, 'initial content')
             monitored_pipe = ProcessExecuter::MonitoredPipe.new([filepath, 'r'])
-            _pid, _status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
-            monitored_pipe.close
-            FileUtils.rm(filepath)
-
-            # Give Windows time to release the file lock
-            # so that Dir.mktmpdir can delete the directory
-            #
-            sleep 0.5 if windows?
+            begin
+              _pid, _status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+            ensure
+              monitored_pipe.close
+            end
 
             # We should try to model what happens in this command:
             #
