@@ -169,6 +169,14 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
 
     context 'when the output destination is an array in the form [filepath, mode]' do
       context 'when mode is "r"' do
+        # before do
+        #   ProcessExecuter::MonitoredPipe.assert_no_open_instances
+        # end
+
+        # after do
+        #   ProcessExecuter::MonitoredPipe.assert_no_open_instances
+        # end
+
         it 'should raise an ArgumentError' do
           command = ruby_command(<<~COMMAND)
             puts 'stdout output'
