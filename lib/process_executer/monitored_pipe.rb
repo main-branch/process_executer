@@ -2,6 +2,7 @@
 
 require 'stringio'
 require 'io/wait'
+require 'track_open_instances'
 
 module ProcessExecuter
   # Write data sent through a pipe to a destination
@@ -41,6 +42,8 @@ module ProcessExecuter
   # @api public
   #
   class MonitoredPipe
+    include TrackOpenInstances
+
     # Create a new monitored pipe
     #
     # Creates a IO.pipe and starts a monitoring thread to read data written to the pipe.
@@ -64,6 +67,8 @@ module ProcessExecuter
       @pipe_reader, @pipe_writer = IO.pipe
       @state = :open
       @thread = start_monitoring_thread
+
+      self.class.add_open_instance(self)
     end
 
     # Set the state to `:closing` and wait for the state to be set to `:closed`
@@ -95,6 +100,8 @@ module ProcessExecuter
       thread.join
 
       destination.close
+
+      self.class.remove_open_instance(self)
     end
 
     # Return the write end of the pipe so that data can be written to it
@@ -315,6 +322,8 @@ module ProcessExecuter
     # @api private
     def monitor
       monitor_pipe until state == :closing
+    # rescue StandardError => e
+    #   # Close everything as if `close` was called
     ensure
       close_pipe
       mutex.synchronize do
