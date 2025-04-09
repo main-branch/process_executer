@@ -42,6 +42,7 @@ RSpec.describe ProcessExecuter do
         let(:options) { { out: output_pipe, timeout_after: nil } }
         it 'should NOT raise an error' do
           expect { subject }.not_to raise_error
+          output_pipe.close
         end
       end
 
@@ -52,6 +53,7 @@ RSpec.describe ProcessExecuter do
         let(:options) { { out: output_pipe, timeout_after: Integer(1) } }
         it 'should NOT raise an error' do
           expect { subject }.not_to raise_error
+          output_pipe.close
         end
       end
 
@@ -62,6 +64,7 @@ RSpec.describe ProcessExecuter do
         let(:options) { { out: output_pipe, timeout_after: Float(1.0) } }
         it 'should NOT raise an error' do
           expect { subject }.not_to raise_error
+          output_pipe.close
         end
       end
     end

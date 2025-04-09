@@ -356,13 +356,15 @@ RSpec.describe ProcessExecuter do
     end
 
     context 'when a pipe exception occurs' do
+      let(:stdout_buffer) { double('stdout') }
+      let(:stderr_buffer) { double('stderr') }
+
       before do
-        allow_any_instance_of(ProcessExecuter::MonitoredPipe).to(
-          receive(:exception).and_return(StandardError.new('pipe error'))
-        )
+        allow(stdout_buffer).to receive(:write).and_raise(IOError)
+        allow(stderr_buffer).to receive(:write).and_raise(IOError)
       end
 
-      subject { ProcessExecuter.run('echo Hello', out: StringIO.new, err: StringIO.new) }
+      subject { ProcessExecuter.run('echo Hello', out: stdout_buffer, err: stderr_buffer) }
 
       it 'is expected to raise ProcessExecuter::ProcessIOError' do
         expect { subject }.to raise_error(ProcessExecuter::ProcessIOError)

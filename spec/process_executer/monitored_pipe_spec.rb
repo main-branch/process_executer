@@ -169,13 +169,13 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
 
     context 'when the output destination is an array in the form [filepath, mode]' do
       context 'when mode is "r"' do
-        # before do
-        #   ProcessExecuter::MonitoredPipe.assert_no_open_instances
-        # end
+        before do
+          ProcessExecuter::MonitoredPipe.assert_no_open_instances
+        end
 
-        # after do
-        #   ProcessExecuter::MonitoredPipe.assert_no_open_instances
-        # end
+        after do
+          ProcessExecuter::MonitoredPipe.assert_no_open_instances
+        end
 
         it 'should raise an ArgumentError' do
           command = ruby_command(<<~COMMAND)
@@ -610,6 +610,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         expect do
           monitored_pipe.write("hello world\n")
           sleep 0.01
+          monitored_pipe.close
         end.to output("hello world\n").to_stdout
       end
     end
@@ -621,6 +622,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         expect do
           monitored_pipe.write("hello world\n")
           sleep 0.01
+          monitored_pipe.close
         end.to output("hello world\n").to_stdout
       end
     end
@@ -632,6 +634,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         expect do
           monitored_pipe.write("hello world\n")
           sleep 0.01
+          monitored_pipe.close
         end.to output("hello world\n").to_stderr
       end
     end
@@ -643,6 +646,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         expect do
           monitored_pipe.write("hello world\n")
           sleep 0.01
+          monitored_pipe.close
         end.to output("hello world\n").to_stderr
       end
     end
@@ -704,18 +708,21 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       it 'should eventually kill the monitoring thread' do
         monitored_pipe.write('hello')
         sleep(0.01)
+        monitored_pipe.close
         expect(monitored_pipe.thread.alive?).to eq(false)
       end
 
       it 'should eventually set the state to :closed' do
         monitored_pipe.write('hello')
         sleep(0.01)
+        monitored_pipe.close
         expect(monitored_pipe.state).to eq(:closed)
       end
 
       it 'should eventually save the exception raised to #exception' do
         monitored_pipe.write('hello')
         sleep(0.01)
+        monitored_pipe.close
         expect(monitored_pipe.exception).to be_a(Encoding::UndefinedConversionError)
         expect(monitored_pipe.exception.message).to eq('UTF-8 conversion error')
       end
@@ -723,6 +730,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       it 'should raise an exception if #write is called after the pipe is closed' do
         monitored_pipe.write('hello')
         sleep(0.01)
+        monitored_pipe.close
         expect { monitored_pipe.write('world') }.to raise_error(IOError, 'closed stream')
       end
     end
