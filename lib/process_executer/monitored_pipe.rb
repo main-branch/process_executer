@@ -88,19 +88,14 @@ module ProcessExecuter
     #
     def close
       mutex.synchronize do
-        return unless state == :open
-
-        @state = :closing
-      end
-
-      mutex.synchronize do
-        condition_variable.wait(mutex) while @state != :closed
+        if state == :open
+          @state = :closing
+          condition_variable.wait(mutex) while @state != :closed
+        end
       end
 
       thread.join
-
       destination.close
-
       self.class.remove_open_instance(self)
     end
 
@@ -322,8 +317,6 @@ module ProcessExecuter
     # @api private
     def monitor
       monitor_pipe until state == :closing
-    # rescue StandardError => e
-    #   # Close everything as if `close` was called
     ensure
       close_pipe
       mutex.synchronize do
