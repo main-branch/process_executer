@@ -52,7 +52,8 @@ module ProcessExecuter
       opened_pipes = wrap_stdout_stderr(options)
       ProcessExecuter.spawn_and_wait_with_options(command, options)
     ensure
-      opened_pipes.each { |key, value| close_pipe(command, key, value) }
+      opened_pipes.each_value(&:close)
+      opened_pipes.each { |option_key, pipe| raise_pipe_error(command, option_key, pipe) }
     end
 
     # Wrap the stdout and stderr redirection options with a MonitoredPipe
@@ -79,16 +80,6 @@ module ProcessExecuter
     def should_wrap?(options, key, value)
       (options.stdout_redirection?(key) || options.stderr_redirection?(key)) &&
         ProcessExecuter::Destinations.compatible_with_monitored_pipe?(value)
-    end
-
-    # Close the pipe and raise an error if the pipe raised an exception
-    # @return [void]
-    # @raise [ProcessExecuter::ProcessIOError] If an exception was raised while
-    #   collecting subprocess output
-    # @api private
-    def close_pipe(command, option_key, pipe)
-      pipe.close
-      raise_pipe_error(command, option_key, pipe) if pipe.exception
     end
 
     # Process the result of the command and return a ProcessExecuter::Result
@@ -144,6 +135,8 @@ module ProcessExecuter
     # @api private
     #
     def raise_pipe_error(command, option_key, pipe)
+      return unless pipe.exception
+
       error = ProcessExecuter::ProcessIOError.new("Pipe Exception for #{command}: #{option_key.inspect}")
       raise(error, cause: pipe.exception)
     end
