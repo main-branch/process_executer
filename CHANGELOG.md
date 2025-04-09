@@ -5,6 +5,19 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v3.2.1 (2025-04-08)
+
+[Full Changelog](https://github.com/main-branch/process_executer/compare/v3.2.0..v3.2.1)
+
+Changes since v3.2.0:
+
+* d1e19a5 test: assert that MonitoredPipe has no open instances after each test
+* aa71f8e test: ensure MonitoredPipe cleans up open instances in specs
+* 987b0c9 fix: ensure that all pipes are closed even when there is an IOError
+* 65e8db0 fix: ensure that MonitoredPipe cleans up after itself even when there is IOError
+* ed2454e chore: integrate track_open_instances gem to report on leaked MonitoredPipe instances
+* f25c87d chore: release v3.2.0
+
 ## v3.2.0 (2025-04-04)
 
 [Full Changelog](https://github.com/main-branch/process_executer/compare/v3.1.0..v3.2.0)
