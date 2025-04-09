@@ -12,6 +12,12 @@ RSpec.configure do |config|
   config.expect_with :rspec do |c|
     c.syntax = :expect
   end
+
+  config.after(:each) do
+    # Make sure there are no open instance of ProcessExecuter::MonitoredPipe
+    # after each test
+    ProcessExecuter::MonitoredPipe.assert_no_open_instances
+  end
 end
 
 # Check if the Ruby interpreter is JRuby or TruffleRuby
