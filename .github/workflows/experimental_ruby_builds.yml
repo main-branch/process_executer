@@ -1,9 +1,6 @@
 name: Experimental Ruby Builds
 
 on:
-  push:
-    branches: [main]
-
   workflow_dispatch:
 
 env:
