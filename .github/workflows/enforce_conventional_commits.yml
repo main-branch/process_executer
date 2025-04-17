@@ -1,25 +1,30 @@
-name: Conventional Commits
+---
+  name: Conventional Commits
 
-on:
-  pull_request:
-    branches:
-      - main
+  permissions:
+    contents: read
 
-jobs:
-  commit-lint:
-    name: Verify Conventional Commits
+  on:
+    pull_request:
+      branches:
+        - main
 
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && !startsWith(github.event.pull_request.head.ref, 'release-please--'))
+  jobs:
+    commit-lint:
+      name: Verify Conventional Commits
 
-    runs-on: ubuntu-latest
+      # Skip this job if this is a release PR
+      if: >-
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'pull_request' && !startsWith(github.event.pull_request.head.ref, 'release-please--'))
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+      runs-on: ubuntu-latest
 
-      - name: Check Commit Messages
-        uses: wagoid/commitlint-github-action@v6
-        with: { configFile: .commitlintrc.yml }
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+          with: { fetch-depth: 0 }
+
+        - name: Check Commit Messages
+          uses: wagoid/commitlint-github-action@v6
+          with: { configFile: .commitlintrc.yml }
