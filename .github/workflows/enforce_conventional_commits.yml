@@ -9,6 +9,10 @@ jobs:
   commit-lint:
     name: Verify Conventional Commits
 
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && !startsWith(github.event.pull_request.head.ref, 'release-please--'))
+
     runs-on: ubuntu-latest
 
     steps:
