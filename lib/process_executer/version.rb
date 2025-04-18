@@ -2,5 +2,5 @@
 
 module ProcessExecuter
   # The current Gem version
-  VERSION = '3.2.3'
+  VERSION = '3.2.4'
 end
