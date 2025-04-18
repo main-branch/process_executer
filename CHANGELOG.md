@@ -5,6 +5,14 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.4](https://github.com/main-branch/process_executer/compare/v3.2.3...v3.2.4) (2025-04-18)
+
+
+### Other Changes
+
+* Configure release-please to includes all changes in the CHANGELOG ([41acdbc](https://github.com/main-branch/process_executer/commit/41acdbcee8bc6e7ebef5e45356bb9197b652a498))
+* Do not enforce conventional commits for release PR ([080f3ff](https://github.com/main-branch/process_executer/commit/080f3ff0b131bb4c91f5798bb6e57fe964091f8c))
+
 ## [3.2.3](https://github.com/main-branch/process_executer/compare/v3.2.2...v3.2.3) (2025-04-17)
 
 
