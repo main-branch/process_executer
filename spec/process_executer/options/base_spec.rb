@@ -17,15 +17,15 @@ RSpec.describe ProcessExecuter::Options::Base do
 
     context 'when a single unknown option is given' do
       let(:options_hash) { { unknown: true } }
-      it 'should raise an error' do
-        expect { options }.to raise_error(ArgumentError, 'Unknown option: unknown')
+      it 'should raise a ProcessExecuter::ArgumentError' do
+        expect { options }.to raise_error(ProcessExecuter::ArgumentError, 'Unknown option: unknown')
       end
     end
 
     context 'when multiple unknown options are given' do
       let(:options_hash) { { unknown1: true, unknown2: false } }
-      it 'should raise an error' do
-        expect { options }.to raise_error(ArgumentError, 'Unknown options: unknown1, unknown2')
+      it 'should raise a ProcessExecuter::ArugmentError' do
+        expect { options }.to raise_error(ProcessExecuter::ArgumentError, 'Unknown options: unknown1, unknown2')
       end
     end
   end
@@ -218,7 +218,7 @@ RSpec.describe ProcessExecuter::Options::Base do
           lambda {
             unless an_option.is_a?(String)
               raise(
-                ArgumentError,
+                ProcessExecuter::ArgumentError,
                 "an_option must be a string but was #{an_option.inspect}"
               )
             end
@@ -236,8 +236,10 @@ RSpec.describe ProcessExecuter::Options::Base do
         context 'when the option is set to an invalid value' do
           let(:options_hash) { { an_option: 123 } }
 
-          it 'should raise an ArgumentError' do
-            expect { subject }.to raise_error(ArgumentError, 'an_option must be a string but was 123')
+          it 'should raise an ProcessExecuter::ArgumentError' do
+            expect { subject }.to(
+              raise_error(ProcessExecuter::ArgumentError, 'an_option must be a string but was 123')
+            )
           end
         end
       end
@@ -325,24 +327,26 @@ RSpec.describe ProcessExecuter::Options::Base do
         context 'when given an invalid value for option1' do
           let(:options_hash) { { option1: 123, option2: 2 } }
 
-          it 'should raise an ArgumentError' do
-            expect { subject }.to raise_error(ArgumentError, 'option1 must be a String')
+          it 'should raise an ProcessExecuter::ArgumentError' do
+            expect { subject }.to raise_error(ProcessExecuter::ArgumentError, 'option1 must be a String')
           end
         end
 
         context 'when given an invalid value for option2' do
           let(:options_hash) { { option1: 'value1', option2: 'invalid' } }
 
-          it 'should raise an ArgumentError' do
-            expect { subject }.to raise_error(ArgumentError, 'option2 must be an Integer')
+          it 'should raise an ProcessExecuter::ArgumentError' do
+            expect { subject }.to raise_error(ProcessExecuter::ArgumentError, 'option2 must be an Integer')
           end
         end
 
         context 'when given an invalid value for both option1 and option2' do
           let(:options_hash) { { option1: 123, option2: 'invalid' } }
 
-          it 'should raise an ArgumentError' do
-            expect { subject }.to raise_error(ArgumentError, "option1 must be a String\noption2 must be an Integer")
+          it 'should raise an ProcessExecuter::ArgumentError' do
+            expect do
+              subject
+            end.to raise_error(ProcessExecuter::ArgumentError, "option1 must be a String\noption2 must be an Integer")
           end
         end
       end

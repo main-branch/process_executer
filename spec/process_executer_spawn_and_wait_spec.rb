@@ -22,16 +22,16 @@ RSpec.describe ProcessExecuter do
       context 'when :timeout_after is a String' do
         let(:command) { %w[echo hello] }
         let(:options) { { timeout_after: 'a string' } }
-        it 'should raise an ArgumentError' do
-          expect { subject }.to raise_error(ArgumentError, /timeout_after must be/)
+        it 'should raise an ProcessExecuter::ArgumentError' do
+          expect { subject }.to raise_error(ProcessExecuter::ArgumentError, /timeout_after must be/)
         end
       end
 
       context 'when :timeout_after is a Complex' do
         let(:command) { %w[echo hello] }
         let(:options) { { timeout_after: Complex(3, 4) } }
-        it 'should raise an ArgumentError' do
-          expect { subject }.to raise_error(ArgumentError, /timeout_after must be/)
+        it 'should raise an ProcessExecuter::ArgumentError' do
+          expect { subject }.to raise_error(ProcessExecuter::ArgumentError, /timeout_after must be/)
         end
       end
 

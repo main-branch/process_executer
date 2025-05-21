@@ -46,10 +46,10 @@ RSpec.describe ProcessExecuter::Options::RunOptions do
     context 'when giving -1 for timeout_after' do
       let(:options_hash) { { timeout_after: -1 } }
 
-      it 'should raise an error' do
+      it 'should raise a ProcessExecuter::ArgumentError' do
         expect { subject }.to(
           raise_error(
-            ArgumentError,
+            ProcessExecuter::ArgumentError,
             'timeout_after must be nil or a non-negative real number but was -1'
           )
         )
@@ -59,10 +59,10 @@ RSpec.describe ProcessExecuter::Options::RunOptions do
     context 'when given an invalid logger value' do
       let(:options_hash) { { logger: 'invalid' } }
 
-      it 'should raise an error' do
+      it 'should raise a ProcessExecuter::ArgumentError' do
         expect { subject }.to(
           raise_error(
-            ArgumentError,
+            ProcessExecuter::ArgumentError,
             'logger must respond to #info and #debug but was "invalid"'
           )
         )
@@ -80,10 +80,10 @@ RSpec.describe ProcessExecuter::Options::RunOptions do
     context 'when given an invalid raise_errors value' do
       let(:options_hash) { { raise_errors: nil } }
 
-      it 'should raise an error' do
+      it 'should raise a ProcessExecuter::ArgumentError' do
         expect { subject }.to(
           raise_error(
-            ArgumentError,
+            ProcessExecuter::ArgumentError,
             'raise_errors must be true or false but was nil'
           )
         )
@@ -101,10 +101,10 @@ RSpec.describe ProcessExecuter::Options::RunOptions do
     context 'when given timeout_after "invalid"' do
       let(:options_hash) { { timeout_after: 'invalid' } }
 
-      it 'should raise an error' do
+      it 'should raise a ProcessExecuter::ArgumentError' do
         expect { subject }.to(
           raise_error(
-            ArgumentError,
+            ProcessExecuter::ArgumentError,
             'timeout_after must be nil or a non-negative real number but was "invalid"'
           )
         )

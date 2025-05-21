@@ -21,8 +21,8 @@ RSpec.describe ProcessExecuter do
 
     context 'when given options any other kind of option' do
       let(:given_options) { Object.new }
-      it 'should raise an ArgumentError' do
-        expect { subject }.to raise_error(ArgumentError)
+      it 'should raise an ProcessExecuter::ArgumentError' do
+        expect { subject }.to raise_error(ProcessExecuter::ArgumentError)
       end
     end
   end
@@ -47,8 +47,8 @@ RSpec.describe ProcessExecuter do
 
     context 'when given options any other kind of option' do
       let(:given_options) { Object.new }
-      it 'should raise an ArgumentError' do
-        expect { subject }.to raise_error(ArgumentError)
+      it 'should raise an ProcessExecuter::ArgumentError' do
+        expect { subject }.to raise_error(ProcessExecuter::ArgumentError)
       end
     end
   end
@@ -73,8 +73,8 @@ RSpec.describe ProcessExecuter do
 
     context 'when given options any other kind of option' do
       let(:given_options) { Object.new }
-      it 'should raise an ArgumentError' do
-        expect { subject }.to raise_error(ArgumentError)
+      it 'should raise a ProcessExecuter::ArgumentError' do
+        expect { subject }.to raise_error(ProcessExecuter::ArgumentError)
       end
     end
   end

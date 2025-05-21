@@ -43,10 +43,10 @@ RSpec.describe ProcessExecuter::Options::SpawnAndWaitOptions do
     context 'when given timeout_after "invalid"' do
       let(:options_hash) { { timeout_after: 'invalid' } }
 
-      it 'should raise an error' do
+      it 'should raise a ProcessExecuter::ArgumentError' do
         expect { subject }.to(
           raise_error(
-            ArgumentError,
+            ProcessExecuter::ArgumentError,
             'timeout_after must be nil or a non-negative real number but was "invalid"'
           )
         )
