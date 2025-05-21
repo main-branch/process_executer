@@ -14,7 +14,6 @@ module ProcessExecuter
     # @api public
     #
     class SpawnOptions < Base
-      # :nocov: SimpleCov on JRuby reports hashes declared on multiple lines as not covered
       SPAWN_OPTIONS = [
         OptionDefinition.new(:unsetenv_others, default: :not_set),
         OptionDefinition.new(:pgroup, default: :not_set),
@@ -24,7 +23,6 @@ module ProcessExecuter
         OptionDefinition.new(:close_others, default: :not_set),
         OptionDefinition.new(:chdir, default: :not_set)
       ].freeze
-      # :nocov:
 
       # Returns the options to be passed to Process.spawn
       #

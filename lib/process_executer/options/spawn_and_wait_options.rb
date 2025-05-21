@@ -16,12 +16,10 @@ module ProcessExecuter
       # @return [Array<OptionDefinition>]
       # @api private
       def define_options
-        # :nocov: SimpleCov on JRuby reports the last with the last argument line is not covered
         [
           *super,
           OptionDefinition.new(:timeout_after, default: nil, validator: method(:validate_timeout_after))
         ].freeze
-        # :nocov:
       end
 
       # Raise an error unless timeout_after is nil or a non-negative real number
