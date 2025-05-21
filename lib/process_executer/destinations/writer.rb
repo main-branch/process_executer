@@ -23,6 +23,9 @@ module ProcessExecuter
 
       # Determines if this class can handle the given destination
       #
+      # Don't answer true if the destination has a file descriptor so it can be
+      # handled by the IO class.
+      #
       # @param destination [Object] the destination to check
       # @return [Boolean] true if destination responds to write but is not an IO with fileno
       def self.handles?(destination)

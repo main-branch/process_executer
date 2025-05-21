@@ -49,7 +49,7 @@ RSpec.describe ProcessExecuter::Options::RunOptions do
       it 'should raise an error' do
         expect { subject }.to(
           raise_error(
-            ArgumentError,
+            ProcessExecuter::ArgumentError,
             'timeout_after must be nil or a non-negative real number but was -1'
           )
         )
@@ -62,7 +62,7 @@ RSpec.describe ProcessExecuter::Options::RunOptions do
       it 'should raise an error' do
         expect { subject }.to(
           raise_error(
-            ArgumentError,
+            ProcessExecuter::ArgumentError,
             'logger must respond to #info and #debug but was "invalid"'
           )
         )
@@ -83,7 +83,7 @@ RSpec.describe ProcessExecuter::Options::RunOptions do
       it 'should raise an error' do
         expect { subject }.to(
           raise_error(
-            ArgumentError,
+            ProcessExecuter::ArgumentError,
             'raise_errors must be true or false but was nil'
           )
         )
@@ -104,7 +104,7 @@ RSpec.describe ProcessExecuter::Options::RunOptions do
       it 'should raise an error' do
         expect { subject }.to(
           raise_error(
-            ArgumentError,
+            ProcessExecuter::ArgumentError,
             'timeout_after must be nil or a non-negative real number but was "invalid"'
           )
         )

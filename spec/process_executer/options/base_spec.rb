@@ -18,14 +18,14 @@ RSpec.describe ProcessExecuter::Options::Base do
     context 'when a single unknown option is given' do
       let(:options_hash) { { unknown: true } }
       it 'should raise an error' do
-        expect { options }.to raise_error(ArgumentError, 'Unknown option: unknown')
+        expect { options }.to raise_error(ProcessExecuter::ArgumentError, 'Unknown option: unknown')
       end
     end
 
     context 'when multiple unknown options are given' do
       let(:options_hash) { { unknown1: true, unknown2: false } }
       it 'should raise an error' do
-        expect { options }.to raise_error(ArgumentError, 'Unknown options: unknown1, unknown2')
+        expect { options }.to raise_error(ProcessExecuter::ArgumentError, 'Unknown options: unknown1, unknown2')
       end
     end
   end
@@ -326,7 +326,7 @@ RSpec.describe ProcessExecuter::Options::Base do
           let(:options_hash) { { option1: 123, option2: 2 } }
 
           it 'should raise an ArgumentError' do
-            expect { subject }.to raise_error(ArgumentError, 'option1 must be a String')
+            expect { subject }.to raise_error(ProcessExecuter::ArgumentError, 'option1 must be a String')
           end
         end
 
@@ -334,7 +334,7 @@ RSpec.describe ProcessExecuter::Options::Base do
           let(:options_hash) { { option1: 'value1', option2: 'invalid' } }
 
           it 'should raise an ArgumentError' do
-            expect { subject }.to raise_error(ArgumentError, 'option2 must be an Integer')
+            expect { subject }.to raise_error(ProcessExecuter::ArgumentError, 'option2 must be an Integer')
           end
         end
 
@@ -342,7 +342,9 @@ RSpec.describe ProcessExecuter::Options::Base do
           let(:options_hash) { { option1: 123, option2: 'invalid' } }
 
           it 'should raise an ArgumentError' do
-            expect { subject }.to raise_error(ArgumentError, "option1 must be a String\noption2 must be an Integer")
+            expect do
+              subject
+            end.to raise_error(ProcessExecuter::ArgumentError, "option1 must be a String\noption2 must be an Integer")
           end
         end
       end

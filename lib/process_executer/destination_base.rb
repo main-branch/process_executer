@@ -14,24 +14,12 @@ module ProcessExecuter
     # @return [DestinationBase] a new destination handler instance
     def initialize(destination)
       @destination = destination
-      @data_written = []
     end
 
     # The destination object this handler manages
     #
     # @return [Object] the destination object
     attr_reader :destination
-
-    # The data written to the destination
-    #
-    # @return [Array<String>] the data written to the destination
-    attr_reader :data_written
-
-    # The data written to the destination as a single string
-    # @return [String]
-    def string
-      data_written.join
-    end
 
     # Writes data to the destination
     #
@@ -40,9 +28,7 @@ module ProcessExecuter
     # @param data [String] the data to write
     # @return [void]
     # @raise [NotImplementedError] if the subclass doesn't implement this method
-    def write(data)
-      @data_written << data
-    end
+    def write(data); end
 
     # Closes the destination if necessary
     #

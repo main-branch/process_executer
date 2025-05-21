@@ -8,8 +8,6 @@ module ProcessExecuter
   # * `command`: the command that was used to spawn the process
   # * `options`: the options that were used to spawn the process
   # * `elapsed_time`: the secs the command ran
-  # * `stdout`: the captured stdout output
-  # * `stderr`: the captured stderr output
   # * `timed_out?`: true if the process timed out
   #
   # @api public
@@ -105,46 +103,6 @@ module ProcessExecuter
     # @return [String]
     def to_s
       "#{super}#{timed_out? ? " timed out after #{options.timeout_after}s" : ''}"
-    end
-
-    # Return the captured stdout output
-    #
-    # This output is only returned if the `:out` option value is a
-    # `ProcessExecuter::MonitoredPipe`.
-    #
-    # @example
-    #   # Note that `ProcessExecuter.run` will wrap the given out: object in a
-    #   # ProcessExecuter::MonitoredPipe
-    #   result = ProcessExecuter.run('echo hello': out: StringIO.new)
-    #   result.stdout #=> "hello\n"
-    #
-    # @return [String, nil]
-    #
-    def stdout
-      pipe = options.stdout_redirection_value
-      return nil unless pipe.is_a?(ProcessExecuter::MonitoredPipe)
-
-      pipe.destination.string
-    end
-
-    # Return the captured stderr output
-    #
-    # This output is only returned if the `:err` option value is a
-    # `ProcessExecuter::MonitoredPipe`.
-    #
-    # @example
-    #   # Note that `ProcessExecuter.run` will wrap the given err: object in a
-    #   # ProcessExecuter::MonitoredPipe
-    #   result = ProcessExecuter.run('echo ERROR 1>&2', err: StringIO.new)
-    #   resuilt.stderr #=> "ERROR\n"
-    #
-    # @return [String, nil]
-    #
-    def stderr
-      pipe = options.stderr_redirection_value
-      return nil unless pipe.is_a?(ProcessExecuter::MonitoredPipe)
-
-      pipe.destination.string
     end
   end
 end

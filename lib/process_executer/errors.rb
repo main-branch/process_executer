@@ -13,6 +13,7 @@ module ProcessExecuter
   # ```text
   # ::StandardError
   #   └─> Error
+  #       ├─> ArgumentError
   #       ├─> CommandError
   #       │   ├─> FailedError
   #       │   └─> SignaledError
@@ -24,6 +25,7 @@ module ProcessExecuter
   # | Error Class | Description |
   # | --- | --- |
   # | `Error` | This catch-all error serves as the base class for other custom errors. |
+  # | `ArgumentError` | Raised when an invalid argument is passed to a method. |
   # | `CommandError` | A subclass of this error is raised when there is a problem executing a command. |
   # | `FailedError` | Raised when the command exits with a non-zero status code. |
   # | `SignaledError` | Raised when the command is terminated as a result of receiving a signal. This could happen if the process is forcibly terminated or if there is a serious system error. |
@@ -51,6 +53,18 @@ module ProcessExecuter
   # @api public
   #
   class Error < ::StandardError; end
+
+  # Raised when an invalid argument is passed to a method
+  #
+  # @example
+  #   begin
+  #     # Command should not be an array
+  #     ProcessExecuter.run(nil, timeout_after: -1)
+  #   rescue ProcessExecuter::ArgumentError => e
+  #     e.message #=> "Command elements must be a String"
+  #   end
+  #
+  class ArgumentError < ProcessExecuter::Error; end
 
   # Raised when a command fails or exits because of an uncaught signal
   #
@@ -90,7 +104,7 @@ module ProcessExecuter
     # @return [String]
     #
     def error_message
-      "#{result.command}, status: #{result}, stderr: #{result.stderr.inspect}"
+      "#{result.command}, status: #{result}"
     end
 
     # @attribute [r] result

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative 'spawn_and_wait_options'
+require_relative 'spawn_with_timeout_options'
 require_relative 'option_definition'
 
 module ProcessExecuter
@@ -9,10 +9,8 @@ module ProcessExecuter
     #
     # @api public
     #
-    class RunOptions < SpawnAndWaitOptions
+    class RunOptions < SpawnWithTimeoutOptions
       private
-
-      # :nocov: SimpleCov on JRuby reports the last with the last argument line is not covered
 
       # The options allowed for objects of this class
       # @return [Array<OptionDefinition>]
@@ -24,7 +22,6 @@ module ProcessExecuter
           OptionDefinition.new(:logger, default: Logger.new(nil), validator: method(:validate_logger))
         ].freeze
       end
-      # :nocov:
 
       # Validate the raise_errors option value
       # @return [String, nil] the error message if the value is not valid

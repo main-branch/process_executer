@@ -50,7 +50,7 @@ module ProcessExecuter
     #
     def spawn(command, options)
       opened_pipes = wrap_stdout_stderr(options)
-      ProcessExecuter.spawn_and_wait_with_options(command, options)
+      ProcessExecuter.spawn_with_timeout(*command, options)
     ensure
       opened_pipes.each_value(&:close)
       opened_pipes.each { |option_key, pipe| raise_pipe_error(command, option_key, pipe) }
@@ -119,7 +119,6 @@ module ProcessExecuter
     # @api private
     def log_result(result)
       result.options.logger.info { "#{result.command} exited with status #{result}" }
-      result.options.logger.debug { "stdout:\n#{result.stdout.inspect}\nstderr:\n#{result.stderr.inspect}" }
     end
 
     # Raise an error when there was exception while collecting the subprocess output

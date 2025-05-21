@@ -14,7 +14,7 @@ module ProcessExecuter
     # @api public
     #
     class SpawnOptions < Base
-      # :nocov: SimpleCov on JRuby reports hashes declared on multiple lines as not covered
+      # The allowed options for Process.spawn
       SPAWN_OPTIONS = [
         OptionDefinition.new(:unsetenv_others, default: :not_set),
         OptionDefinition.new(:pgroup, default: :not_set),
@@ -24,7 +24,6 @@ module ProcessExecuter
         OptionDefinition.new(:close_others, default: :not_set),
         OptionDefinition.new(:chdir, default: :not_set)
       ].freeze
-      # :nocov:
 
       # Returns the options to be passed to Process.spawn
       #
@@ -68,19 +67,19 @@ module ProcessExecuter
       # @api private
       def stdout_redirection?(option_key) = std_redirection?(option_key, :out, 1)
 
-      # Determine the option key that indicates a redirection option for stdout
-      # @return [Symbol, Integer, IO, Array, nil] nil if not found
-      # @api private
-      def stdout_redirection_key
-        options.keys.find { |option_key| option_key if stdout_redirection?(option_key) }
-      end
+      # # Determine the option key that indicates a redirection option for stdout
+      # # @return [Symbol, Integer, IO, Array, nil] nil if not found
+      # # @api private
+      # def stdout_redirection_key
+      #   options.keys.find { |option_key| option_key if stdout_redirection?(option_key) }
+      # end
 
-      # Determine the value of the redirection option for stdout
-      # @return [Object]
-      # @api private
-      def stdout_redirection_value
-        options[stdout_redirection_key]
-      end
+      # # Determine the value of the redirection option for stdout
+      # # @return [Object]
+      # # @api private
+      # def stdout_redirection_value
+      #   options[stdout_redirection_key]
+      # end
 
       # Determine if the given option key indicates a redirection option for stderr
       # @param option_key [Symbol, Integer, IO, Array] the option key to be tested
@@ -88,19 +87,19 @@ module ProcessExecuter
       # @api private
       def stderr_redirection?(option_key) = std_redirection?(option_key, :err, 2)
 
-      # Determine the option key that indicates a redirection option for stderr
-      # @return [Symbol, Integer, IO, Array, nil] nil if not found
-      # @api private
-      def stderr_redirection_key
-        options.keys.find { |option_key| option_key if stderr_redirection?(option_key) }
-      end
+      # # Determine the option key that indicates a redirection option for stderr
+      # # @return [Symbol, Integer, IO, Array, nil] nil if not found
+      # # @api private
+      # def stderr_redirection_key
+      #   options.keys.find { |option_key| option_key if stderr_redirection?(option_key) }
+      # end
 
-      # Determine the value of the redirection option for stderr
-      # @return [Object]
-      # @api private
-      def stderr_redirection_value
-        options[stderr_redirection_key]
-      end
+      # # Determine the value of the redirection option for stderr
+      # # @return [Object]
+      # # @api private
+      # def stderr_redirection_value
+      #   options[stderr_redirection_key]
+      # end
 
       private
 

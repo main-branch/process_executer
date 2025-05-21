@@ -5,12 +5,12 @@ require 'logger'
 require 'tmpdir'
 
 RSpec.describe ProcessExecuter do
-  describe '.spawn_and_wait' do
-    subject { ProcessExecuter.spawn_and_wait(*command, **options) }
+  describe '.spawn_with_timeout' do
+    subject { ProcessExecuter.spawn_with_timeout(*command, **options_hash) }
 
     context 'when an invalid command is given' do
       let(:command) { 'invalid_command' }
-      let(:options) { {} }
+      let(:options_hash) { {} }
       it 'should raise an ProcessExecuter::SpawnError with the cause set' do
         expect { subject }.to(
           raise_error(ProcessExecuter::SpawnError) { |e| expect(e.cause).to be_a Errno::ENOENT }
@@ -18,20 +18,61 @@ RSpec.describe ProcessExecuter do
       end
     end
 
+    describe 'options' do
+      context 'when options are not given' do
+        let(:command) { ['sleep 0'] }
+        let(:options_hash) { {} }
+        it 'should not raise an error' do
+          expect { subject }.not_to raise_error
+          expect(subject).to be_a(ProcessExecuter::Result)
+          expect(subject).to have_attributes(options: be_a(ProcessExecuter::Options::SpawnWithTimeoutOptions))
+        end
+      end
+
+      context 'when an options hash is given' do
+        let(:command) { ['sleep 0'] }
+        let(:options_hash) { { timeout_after: 10 } }
+        it 'should not raise an error' do
+          expect { subject }.not_to raise_error
+          expect(subject).to be_a(ProcessExecuter::Result)
+          expect(subject).to(
+            have_attributes(
+              options: be_a(ProcessExecuter::Options::SpawnWithTimeoutOptions).and(having_attributes(timeout_after: 10))
+            )
+          )
+        end
+      end
+
+      context 'when an options object is given' do
+        let(:command) { ['sleep 0', options] }
+        let(:options) { ProcessExecuter::Options::SpawnWithTimeoutOptions.new(timeout_after: 10) }
+        let(:options_hash) { {} }
+        it 'should not raise an error' do
+          expect { subject }.not_to raise_error
+          expect(subject).to be_a(ProcessExecuter::Result)
+          expect(subject).to(
+            have_attributes(
+              options: be_a(ProcessExecuter::Options::SpawnWithTimeoutOptions).and(having_attributes(timeout_after: 10))
+            )
+          )
+        end
+      end
+    end
+
     context 'when :timeout_after is specified' do
       context 'when :timeout_after is a String' do
         let(:command) { %w[echo hello] }
-        let(:options) { { timeout_after: 'a string' } }
-        it 'should raise an ArgumentError' do
-          expect { subject }.to raise_error(ArgumentError, /timeout_after must be/)
+        let(:options_hash) { { timeout_after: 'a string' } }
+        it 'should raise an ProcessExecuter::ArgumentError' do
+          expect { subject }.to raise_error(ProcessExecuter::ArgumentError, /timeout_after must be/)
         end
       end
 
       context 'when :timeout_after is a Complex' do
         let(:command) { %w[echo hello] }
-        let(:options) { { timeout_after: Complex(3, 4) } }
-        it 'should raise an ArgumentError' do
-          expect { subject }.to raise_error(ArgumentError, /timeout_after must be/)
+        let(:options_hash) { { timeout_after: Complex(3, 4) } }
+        it 'should raise an ProcessExecuter::ArgumentError' do
+          expect { subject }.to raise_error(ProcessExecuter::ArgumentError, /timeout_after must be/)
         end
       end
 
@@ -39,7 +80,7 @@ RSpec.describe ProcessExecuter do
         let(:command) { %w[echo hello] }
         let(:output_writer) { StringIO.new }
         let(:output_pipe) { ProcessExecuter::MonitoredPipe.new(output_writer) }
-        let(:options) { { out: output_pipe, timeout_after: nil } }
+        let(:options_hash) { { out: output_pipe, timeout_after: nil } }
         it 'should NOT raise an error' do
           expect { subject }.not_to raise_error
           output_pipe.close
@@ -50,7 +91,7 @@ RSpec.describe ProcessExecuter do
         let(:command) { %w[echo hello] }
         let(:output_writer) { StringIO.new }
         let(:output_pipe) { ProcessExecuter::MonitoredPipe.new(output_writer) }
-        let(:options) { { out: output_pipe, timeout_after: Integer(1) } }
+        let(:options_hash) { { out: output_pipe, timeout_after: Integer(1) } }
         it 'should NOT raise an error' do
           expect { subject }.not_to raise_error
           output_pipe.close
@@ -61,7 +102,7 @@ RSpec.describe ProcessExecuter do
         let(:command) { %w[echo hello] }
         let(:output_writer) { StringIO.new }
         let(:output_pipe) { ProcessExecuter::MonitoredPipe.new(output_writer) }
-        let(:options) { { out: output_pipe, timeout_after: Float(1.0) } }
+        let(:options_hash) { { out: output_pipe, timeout_after: Float(1.0) } }
         it 'should NOT raise an error' do
           expect { subject }.not_to raise_error
           output_pipe.close
@@ -71,7 +112,7 @@ RSpec.describe ProcessExecuter do
 
     context 'for a command that does not time out' do
       let(:command) { %w[false] }
-      let(:options) { {} }
+      let(:options_hash) { {} }
       it { is_expected.to be_a(ProcessExecuter::Result) }
       it { is_expected.to have_attributes(timed_out?: false, exitstatus: 1) }
     end
@@ -86,7 +127,7 @@ RSpec.describe ProcessExecuter do
 
     context 'for a command that times out' do
       let(:command) { %w[sleep 1] }
-      let(:options) { { timeout_after: 0.01 } }
+      let(:options_hash) { { timeout_after: 0.01 } }
 
       it { is_expected.to be_a(ProcessExecuter::Result) }
 

@@ -133,7 +133,7 @@ module ProcessExecuter
       #   options.option1 # => 'value1'
       #   options.option2 # => 'value2'
       #
-      # @options_hash [Hash] the options to merge into the current options
+      # @param options_hash [Hash] the options to merge into the current options
       # @return [self.class]
       #
       def with(**options_hash)
@@ -197,7 +197,7 @@ module ProcessExecuter
 
       # Raise an argument error for invalid option values
       # @return [void]
-      # @raise [ArgumentError] if any invalid option values are found
+      # @raise [ProcessExecuter::ArgumentError] if any invalid option values are found
       # @api private
       def validate_options
         options.each_key do |option_key|
@@ -205,7 +205,7 @@ module ProcessExecuter
           instance_exec(&validator.to_proc) unless validator.nil?
         end
 
-        raise ArgumentError, errors.join("\n") unless errors.empty?
+        raise ProcessExecuter::ArgumentError, errors.join("\n") unless errors.empty?
       end
 
       # Define accessor methods for each option
@@ -221,19 +221,17 @@ module ProcessExecuter
 
       # Determine if the options hash contains any unknown options
       # @return [void]
-      # @raise [ArgumentError] if the options hash contains any unknown options
+      # @raise [ProcessExecuter::ArgumentError] if the options hash contains any unknown options
       # @api private
       def assert_no_unknown_options
         unknown_options = options.keys.reject { |key| valid_option?(key) }
 
         return if unknown_options.empty?
 
-        # :nocov: SimpleCov on JRuby reports the last with the last argument line is not covered
         raise(
-          ArgumentError,
+          ProcessExecuter::ArgumentError,
           "Unknown option#{unknown_options.count > 1 ? 's' : ''}: #{unknown_options.join(', ')}"
         )
-        # :nocov:
       end
     end
   end

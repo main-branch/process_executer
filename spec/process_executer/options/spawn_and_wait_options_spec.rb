@@ -2,7 +2,7 @@
 
 require 'stringio'
 
-RSpec.describe ProcessExecuter::Options::SpawnAndWaitOptions do
+RSpec.describe ProcessExecuter::Options::SpawnWithTimeoutOptions do
   let(:options) { described_class.new(**options_hash) }
   let(:options_hash) { {} }
 
@@ -46,7 +46,7 @@ RSpec.describe ProcessExecuter::Options::SpawnAndWaitOptions do
       it 'should raise an error' do
         expect { subject }.to(
           raise_error(
-            ArgumentError,
+            ProcessExecuter::ArgumentError,
             'timeout_after must be nil or a non-negative real number but was "invalid"'
           )
         )
