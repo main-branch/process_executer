@@ -24,8 +24,10 @@ RSpec.describe ProcessExecuter::Options::SpawnOptions do
     end
 
     context 'when an unknown option is given' do
-      it 'should raise an ArgumentError' do
-        expect { described_class.new(unknown: true) }.to raise_error(ArgumentError, 'Unknown option: unknown')
+      it 'should raise a ProcessExecuter::ArgumentError' do
+        expect { described_class.new(unknown: true) }.to(
+          raise_error(ProcessExecuter::ArgumentError, 'Unknown option: unknown')
+        )
       end
     end
   end

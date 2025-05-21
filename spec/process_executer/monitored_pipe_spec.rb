@@ -10,8 +10,10 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
   context 'when used to wrap an output destination for Process.spawn' do
     context 'when the output destination is nil' do
       let(:destination) { nil }
-      it 'should raise an ArgumentError' do
-        expect { ProcessExecuter::MonitoredPipe.new(nil) }.to raise_error(ArgumentError, 'wrong exec redirect action')
+      it 'should raise an ProcessExecuter::ArgumentError' do
+        expect { ProcessExecuter::MonitoredPipe.new(nil) }.to(
+          raise_error(ProcessExecuter::ArgumentError, 'wrong exec redirect action')
+        )
       end
     end
 
@@ -160,9 +162,9 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
 
     context 'when the output destination is an array in the form [filepath]' do
       # [filepath] only works for stdin
-      it 'should raise an ArgumentError' do
+      it 'should raise an ProcessExecuter::ArgumentError' do
         expect { ProcessExecuter::MonitoredPipe.new(['filepath']) }.to(
-          raise_error(ArgumentError, 'wrong exec redirect action')
+          raise_error(ProcessExecuter::ArgumentError, 'wrong exec redirect action')
         )
       end
     end
@@ -177,7 +179,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
           ProcessExecuter::MonitoredPipe.assert_no_open_instances
         end
 
-        it 'should raise an ArgumentError' do
+        it 'the exception methods should note that an IOError was raised' do
           command = ruby_command(<<~COMMAND)
             puts 'stdout output'
           COMMAND
@@ -419,18 +421,18 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
 
     context 'when the output destination is an array in the form [:child, fd]' do
       # redirect the source to the destination fd in the child process
-      it 'should raise an error' do
+      it 'should raise a ProcessExecuter::ArgumentError' do
         expect { ProcessExecuter::MonitoredPipe.new([:child, 1]) }.to(
-          raise_error(ArgumentError, 'Destination [:child, 1] is not compatible with MonitoredPipe')
+          raise_error(ProcessExecuter::ArgumentError, 'Destination [:child, 1] is not compatible with MonitoredPipe')
         )
       end
     end
 
     context 'when the output destination is :close' do
       # close the fd in the child process
-      it 'should raise an error' do
+      it 'should raise a ProcessExecuter::ArgumentError' do
         expect { ProcessExecuter::MonitoredPipe.new(:close) }.to(
-          raise_error(ArgumentError, 'wrong exec redirect action')
+          raise_error(ProcessExecuter::ArgumentError, 'wrong exec redirect action')
         )
       end
     end
