@@ -228,12 +228,10 @@ module ProcessExecuter
 
         return if unknown_options.empty?
 
-        # :nocov: SimpleCov on JRuby reports the last with the last argument line is not covered
         raise(
           ArgumentError,
           "Unknown option#{unknown_options.count > 1 ? 's' : ''}: #{unknown_options.join(', ')}"
         )
-        # :nocov:
       end
     end
   end
