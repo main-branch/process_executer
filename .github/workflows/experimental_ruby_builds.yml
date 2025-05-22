@@ -26,6 +26,8 @@ jobs:
       fail-fast: false
       matrix:
         fail_on_low_coverage: [true]
+        java_version: [""]
+
         include:
           - ruby: head
             operating-system: ubuntu-latest
@@ -42,18 +44,28 @@ jobs:
           - ruby: jruby-9.4
             operating-system: windows-latest
             fail_on_low_coverage: false
+            java_version: "21"
 
           - ruby: jruby-head
             operating-system: ubuntu-latest
             fail_on_low_coverage: false
+            java_version: "21"
 
           - ruby: jruby-head
             operating-system: windows-latest
             fail_on_low_coverage: false
+            java_version: "21"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Initialize Java
+        if: matrix.java_version != ''
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java_version }}
 
       - name: Initialize Ruby
         uses: ruby/setup-ruby@v1

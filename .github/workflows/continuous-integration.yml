@@ -35,6 +35,7 @@ jobs:
         ruby: ["3.1", "3.4"]
         operating-system: [ubuntu-latest]
         fail_on_low_coverage: [true]
+        java_version: [""]
         include:
           - ruby: "3.1"
             operating-system: windows-latest
@@ -42,6 +43,10 @@ jobs:
           - ruby: "jruby-9.4"
             operating-system: ubuntu-latest
             fail_on_low_coverage: false
+          - ruby: "jruby-10.0"
+            operating-system: ubuntu-latest
+            fail_on_low_coverage: false
+            java_version: "21"
           - ruby: "truffleruby-24"
             operating-system: ubuntu-latest
             fail_on_low_coverage: false
@@ -49,6 +54,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Install updated version of Java if matrix.java_version is set
+      - name: Initialize Java
+        if: matrix.java_version != ''
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java_version }}
 
       - name: Initialize Ruby
         uses: ruby/setup-ruby@v1
