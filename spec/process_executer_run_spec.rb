@@ -8,11 +8,13 @@ RSpec.describe ProcessExecuter do
   describe '.run' do
     context 'with command given as a single string' do
       let(:command) { windows? ? 'echo %VAR%' : 'echo $VAR' }
-      subject { ProcessExecuter.run({ 'VAR' => 'test' }, command, out: StringIO.new) }
+      subject { ProcessExecuter.run({ 'VAR' => 'test' }, command, out: stdout_buffer) }
+      let(:stdout_buffer) { StringIO.new }
       it { is_expected.to be_a(ProcessExecuter::Result) }
       it { is_expected.to have_attributes(success?: true, exitstatus: 0, signaled?: false, timed_out?: false) }
       it 'is expected to process the command with the shell and do shell expansions' do
-        expect(subject.stdout.gsub("\r\n", "\n")).to eq("test\n")
+        subject
+        expect(stdout_buffer.string.gsub("\r\n", "\n")).to eq("test\n")
       end
     end
 
@@ -20,7 +22,9 @@ RSpec.describe ProcessExecuter do
     let(:logger) { Logger.new(nil) }
 
     # By default, capture stdout and stderr
-    let(:options) { { out: StringIO.new, err: StringIO.new } }
+    let(:options) { { out: stdout_buffer, err: stderr_buffer } }
+    let(:stdout_buffer) { StringIO.new }
+    let(:stderr_buffer) { StringIO.new }
 
     subject { result }
 
@@ -98,8 +102,9 @@ RSpec.describe ProcessExecuter do
       it { is_expected.to have_attributes(success?: true, exitstatus: 0, signaled?: false, timed_out?: false) }
 
       it 'is expected to capture the command output' do
-        expect(subject.stdout.gsub("\r\n", "\n")).to eq("stdout output\n")
-        expect(subject.stderr.gsub("\r\n", "\n")).to eq("stderr output\n")
+        subject
+        expect(stdout_buffer.string.gsub("\r\n", "\n")).to eq("stdout output\n")
+        expect(stderr_buffer.string.gsub("\r\n", "\n")).to eq("stderr output\n")
       end
     end
 
@@ -111,7 +116,7 @@ RSpec.describe ProcessExecuter do
       COMMAND
 
       it 'is expected to raise an command error' do
-        expect { result }.to raise_error(ProcessExecuter::Error)
+        expect { subject }.to raise_error(ProcessExecuter::Error)
       end
 
       context 'the error raised' do
@@ -123,7 +128,7 @@ RSpec.describe ProcessExecuter do
           pid = subject.result.pid
           # SimpleCov gives a false positive on the following line under JRuby
           expect(subject.message.gsub('\\r\\n', '\\n')).to eq(
-            %(#{command.inspect}, status: pid #{pid} exit 1, stderr: "stderr output\\n")
+            %(#{command.inspect}, status: pid #{pid} exit 1)
           )
         end
 
@@ -132,10 +137,6 @@ RSpec.describe ProcessExecuter do
 
           it { is_expected.to be_a(ProcessExecuter::Result) }
           it { is_expected.to have_attributes(success?: false, exitstatus: 1) }
-          it 'is expected have the output from the command' do
-            expect(subject.stdout.gsub("\r\n", "\n")).to eq("stdout output\n")
-            expect(subject.stderr.gsub("\r\n", "\n")).to eq("stderr output\n")
-          end
         end
       end
     end
@@ -158,13 +159,13 @@ RSpec.describe ProcessExecuter do
           # :nocov: execution of this code is platform dependent
           expected_message =
             if jruby?
-              %(["sleep 1"], status: pid #{pid} KILL (signal 9) timed out after 0.01s, stderr: "")
+              %(["sleep 1"], status: pid #{pid} KILL (signal 9) timed out after 0.01s)
             elsif truffleruby?
-              %(["sleep 1"], status: pid #{pid} exit nil timed out after 0.01s, stderr: "")
+              %(["sleep 1"], status: pid #{pid} exit nil timed out after 0.01s)
             elsif windows?
-              %(["sleep 1"], status: pid #{pid} exit 0 timed out after 0.01s, stderr: "")
+              %(["sleep 1"], status: pid #{pid} exit 0 timed out after 0.01s)
             else
-              %(["sleep 1"], status: pid #{pid} SIGKILL (signal 9) timed out after 0.01s, stderr: "")
+              %(["sleep 1"], status: pid #{pid} SIGKILL (signal 9) timed out after 0.01s)
             end
           # :nocov:
 
@@ -201,11 +202,11 @@ RSpec.describe ProcessExecuter do
           # :nocov: execution of this code is platform dependent
           expected_message =
             if jruby?
-              %(#{command.inspect}, status: pid #{pid} KILL (signal 9), stderr: "")
+              %(#{command.inspect}, status: pid #{pid} KILL (signal 9))
             elsif truffleruby?
-              %(#{command.inspect}, status: pid #{pid} exit nil, stderr: "")
+              %(#{command.inspect}, status: pid #{pid} exit nil)
             else
-              %(#{command.inspect}, status: pid #{pid} SIGKILL (signal 9), stderr: "")
+              %(#{command.inspect}, status: pid #{pid} SIGKILL (signal 9))
             end
           # :nocov:
 
@@ -229,7 +230,7 @@ RSpec.describe ProcessExecuter do
           exit 1
         COMMAND
 
-        let(:options) { { raise_errors: false, out: StringIO.new, err: StringIO.new } }
+        let(:options) { { raise_errors: false, out: stdout_buffer, err: stderr_buffer } }
 
         it 'is not expected to raise an error' do
           expect { subject }.not_to raise_error
@@ -238,8 +239,8 @@ RSpec.describe ProcessExecuter do
         it 'is expected to return an a Result' do
           expect(subject).to be_a(ProcessExecuter::Result)
           expect(subject).to have_attributes(success?: false, exitstatus: 1)
-          expect(subject.stdout.gsub("\r\n", "\n")).to eq("stdout output\n")
-          expect(subject.stderr.gsub("\r\n", "\n")).to eq("stderr output\n")
+          expect(stdout_buffer.string.gsub("\r\n", "\n")).to eq("stdout output\n")
+          expect(stderr_buffer.string.gsub("\r\n", "\n")).to eq("stderr output\n")
         end
       end
 
@@ -284,14 +285,16 @@ RSpec.describe ProcessExecuter do
 
       context 'when adding environment variables' do
         it 'is expected to add those variables in the environment' do
-          expect(subject.stdout.gsub("\r\n", "\n")).to eq("val1 #{existing_var[1]}\n")
+          subject
+          expect(stdout_buffer.string.gsub("\r\n", "\n")).to eq("val1 #{existing_var[1]}\n")
         end
       end
 
       context 'when removing environment variables' do
         let(:env) { { 'VAR1' => 'val1', existing_var[0] => nil } }
         it 'is expected to remove those variables from the environment' do
-          expect(subject.stdout.gsub("\r\n", "\n")).to eq("val1 \n")
+          subject
+          expect(stdout_buffer.string.gsub("\r\n", "\n")).to eq("val1 \n")
         end
       end
 
@@ -300,10 +303,11 @@ RSpec.describe ProcessExecuter do
           print ENV.include?('#{existing_var[0]}')
         COMMAND
 
-        let(:options) { { unsetenv_others: true, out: StringIO.new, err: StringIO.new } }
+        let(:options) { { unsetenv_others: true, out: stdout_buffer, err: stderr_buffer } }
 
         it 'is expected to remove all existing variables from the environment and add the given variables' do
-          expect(subject.stdout.gsub("\r\n", "\n")).to eq('false')
+          subject
+          expect(stdout_buffer.string.gsub("\r\n", "\n")).to eq('false')
         end
       end
     end
@@ -312,9 +316,10 @@ RSpec.describe ProcessExecuter do
       before { @tmpdir = File.realpath(Dir.mktmpdir) }
       after { FileUtils.remove_entry(@tmpdir) }
       let(:command) { ['ruby', '-e', 'puts Dir.pwd'] }
-      let(:options) { { chdir: @tmpdir, out: StringIO.new, err: StringIO.new } }
+      let(:options) { { chdir: @tmpdir, out: stdout_buffer, err: stderr_buffer } }
       it 'is expected to run the command in the specified directory' do
-        expect(subject.stdout.gsub("\r\n", "\n")).to eq("#{@tmpdir}\n")
+        subject
+        expect(stdout_buffer.string.gsub("\r\n", "\n")).to eq("#{@tmpdir}\n")
       end
     end
 
@@ -403,9 +408,6 @@ RSpec.describe ProcessExecuter do
           it 'is expected to log the command and its status AND the command stdout and stderr' do
             subject
             expect(log_buffer.string).to match(/INFO -- : \[.*?\] exited with status pid \d+ exit 0$/)
-            expect(log_buffer.string.gsub("\r\n", "\n").gsub('\r\n', '\n')).to(
-              match(/DEBUG -- : stdout:\n"stdout output\\n"\nstderr:\n"stderr output\\n"$/)
-            )
           end
         end
       end
@@ -627,24 +629,21 @@ RSpec.describe ProcessExecuter do
       end
     end
 
-    describe 'when the destination is [:close]', if: !windows? && !truffleruby? && !jruby? do
-      it 'should capture the redirected output' do
-        command = ruby_command(<<~RUBY)
-          STDOUT.puts 'stdout output'
-          STDERR.puts 'stderr output'
-        RUBY
+    describe 'when the out: destination is :close' do
+      context 'when nothing is output to stdout' do
+        it 'should not raise an error' do
+          command = %w[sleep 0]
+          options = { out: :close, err: :close }
+          expect { ProcessExecuter.run(*command, **options) }.not_to raise_error
+        end
+      end
 
-        Dir.mktmpdir do |dir|
-          Dir.chdir(dir) do
-            file = File.open('output.txt', 'w')
-            options = { out: :close, err: file }
-
-            result = ProcessExecuter.run(*command, **options)
-            file.close
-
-            expect(result.stdout).to be_nil
-            expect(File.read('output.txt').gsub("\r\n", "\n")).to match(/^stderr output\n/)
-          end
+      context 'when something is output to stdout', if: !windows? do
+        # On Windows, closing stdout and then writing to it does not raise an error
+        it 'should raise a ProcessExecuter::FailedError' do
+          command = %w[echo hello]
+          options = { out: :close, err: :close }
+          expect { ProcessExecuter.run(*command, **options) }.to raise_error(ProcessExecuter::FailedError)
         end
       end
     end

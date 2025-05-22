@@ -3,19 +3,21 @@
 require_relative 'errors'
 
 module ProcessExecuter
-  # The `Runner` class executes subprocess commands and captures their status and output.
+  # `Runner` runs a subprocess, blocks until it completes, and returns the result
   #
-  # It does the following:
-  # - Run commands (`call`) with options for capturing output, handling timeouts, and merging stdout/stderr.
-  # - Process command results, including logging and error handling.
-  # - Raise detailed exceptions for common command failures, such as timeouts or subprocess errors.
+  # This class is a wrapper around {ProcessExecuter.spawn_with_timeout} which itself is
+  # a wrapper around `Process.spawn`. It takes the same options as both of these methodds
+  # plus `raise_errors:` and `logger:`.
   #
-  # This class is used internally by {ProcessExecuter.run}.
+  # This class wraps any stdout or stderr redirection destinations in a {MonitoredPipe}.
+  # This allows any class that implements `#write` to be use as an output redirection
+  # destination. This means that you can redirect to a StringIO which is not possible
+  # with `Process.spawn`.
   #
   # @api public
   #
   class Runner
-    # Run a command and return the status including stdout and stderr output
+    # Run a command and return the status
     #
     # @example
     #   runner = ProcessExecuter::Runner.new()
@@ -23,8 +25,6 @@ module ProcessExecuter
     #   result = ProcessExecuter.run('echo hello')
     #   result.success? # => true
     #   result.exitstatus # => 0
-    #   result.stdout # => "hello\n"
-    #   result.stderr # => ""
     #
     # @param command [Array<String>] The command to run
     # @param options [ProcessExecuter::Options::RunOptions] Options for running the command
@@ -114,12 +114,11 @@ module ProcessExecuter
 
     # Log the result of running the command
     # @param result [ProcessExecuter::Result] the result of the command including
-    #   the command, status, stdout, and stderr
+    #   the command, options, and status
     # @return [void]
     # @api private
     def log_result(result)
       result.options.logger.info { "#{result.command} exited with status #{result}" }
-      result.options.logger.debug { "stdout:\n#{result.stdout.inspect}\nstderr:\n#{result.stderr.inspect}" }
     end
 
     # Raise an error when there was exception while collecting the subprocess output

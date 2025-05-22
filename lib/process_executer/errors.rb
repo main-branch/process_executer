@@ -104,7 +104,7 @@ module ProcessExecuter
     # @return [String]
     #
     def error_message
-      "#{result.command}, status: #{result}, stderr: #{result.stderr.inspect}"
+      "#{result.command}, status: #{result}"
     end
 
     # @attribute [r] result
