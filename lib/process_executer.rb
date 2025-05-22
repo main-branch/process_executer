@@ -19,33 +19,67 @@ require 'process_executer/runner'
 #
 # * {spawn_with_timeout}: a thin wrapper around `Process.spawn` that blocks until the
 #   command finishes
-# * {run}: Executes a command and returns the result which includes the process
-#   status and output
+# * {run}: Executes a command and returns the result including more flexible
+#   redirection options, error handling, and logging.
 #
 # Features:
 #
-# * Supports executing commands via a shell or directly.
-# * Captures stdout and stderr to buffers, files, or custom objects.
-# * Optionally enforces timeouts and terminates long-running commands.
+# * Supports executing commands via a shell or directly
+# * Ability to redirect output to buffers or any object with a @write method
+# * Optionally enforces timeouts and terminates long-running commands
 # * Provides detailed status information, including the command that was run, the
-#   options that were given, and success, failure, or timeout states.
+#   options that were given, success, failure, or timeout states, and elapsed time
 #
 # @api public
 module ProcessExecuter
-  # Run a command in a subprocess, wait for it to finish, then return the result
+  # Define shortcuts for SpawnWithTimeoutOptions
+  SpawnWithTimeoutOptions = ProcessExecuter::Options::SpawnWithTimeoutOptions
+  # Define shortcuts for RunOptions
+  RunOptions = ProcessExecuter::Options::RunOptions
+
+  # Spawn a command, wait for it to finish, then return the result
   #
-  # This method is a thin wrapper around
-  # [Process.spawn](https://docs.ruby-lang.org/en/3.3/Process.html#method-c-spawn)
-  # and blocks until the command terminates.
+  # This command is a wrapper around Process.spawn and Process.waitpid2.
   #
-  # A timeout may be specified with the `:timeout_after` option. The command will be
-  # sent the SIGKILL signal if it does not terminate within the specified timeout.
+  # A {ProcessExecuter::ArgumentError} will be raised if both options and
+  # options_hash are given.
   #
-  # @example
-  #   result = ProcessExecuter.spawn_with_timeout('echo hello')
+  # A timeout may be specified with the :timeout_after option. The command will be
+  # sent the SIGKILL signal if it does not end before the specified timeout.
+  #
+  # @overload spawn_with_timeout(*command, **options_hash)
+  #
+  #   @param command [Array<String>] see [Process modulem, Argument `command_line` or `exe_path`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Argument+command_line)
+  #     and [Process module, Argument `args`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Arguments+args)
+  #
+  #     If the first value is a Hash, it is treated as the environment hash. See
+  #     [Process module, Execution Environment](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Execution+Environment).
+  #
+  #   @param options_hash [Hash] In addition to the options documented in [Process module, Execution Options](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Execution+Options),
+  #     the following options are supported: `:timeout_after`
+  #
+  #   @option options_hash [Numeric] :timeout_after the amount of time (in seconds) to
+  #     wait before signaling the process with SIGKILL
+  #
+  # @overload spawn_with_timeout(*command, options)
+  #
+  #   @param command [Array<String>] see [Process modulem, Argument `command_line` or `exe_path`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Argument+command_line)
+  #     and [Process module, Argument `args`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Arguments+args)
+  #
+  #     If the first value is a Hash, it is treated as the environment hash. See
+  #     [Process module, Execution Environment](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Execution+Environment).
+  #
+  #   @param options [ProcessExecuter::Options::SpawnWithTimeoutOptions]
+  #
+  # @example command line given as a single string
+  #   result = ProcessExecuter.spawn_with_timeout('echo "3\n2\n1" | sort')
   #   result.exited? # => true
   #   result.success? # => true
+  #   result.exitstatus # => 0
   #   result.timed_out? # => false
+  #
+  # @example command given as an exe_path and args
+  #   result = ProcessExecuter.spawn_with_timeout('ping', '-c', '1', 'localhost')
   #
   # @example with a timeout
   #   result = ProcessExecuter.spawn_with_timeout('sleep 10', timeout_after: 0.01)
@@ -55,262 +89,141 @@ module ProcessExecuter
   #   result.termsig # => 9
   #   result.timed_out? # => true
   #
-  # @example capturing stdout to a string
+  # @example with a env hash
+  #   env = { 'EXITSTATUS' => '1' }
+  #   result = ProcessExecuter.spawn_and_wait(env, 'exit $EXITSTATUS')
+  #   result.success? # => false
+  #   result.exitstatus # => 1
+  #
+  # @example capture stdout to a StringIO buffer
   #   stdout_buffer = StringIO.new
   #   stdout_pipe = ProcessExecuter::MonitoredPipe.new(stdout_buffer)
-  #   result = ProcessExecuter.spawn_with_timeout('echo hello', out: stdout_pipe)
-  #   stdout_buffer.string # => "hello\n"
+  #   begin
+  #     result = ProcessExecuter.spawn_and_wait(env, 'echo "3\n2\n1" | sort', out: stdout_pipe)
+  #     stdout_buffer.string # => "1\n2\n3\n"
+  #   ensure
+  #     stdout_pipe.close
+  #   end
   #
-  # @see https://ruby-doc.org/core-3.1.2/Kernel.html#method-i-spawn Kernel.spawn
-  #   documentation for valid command and options
+  # @raise [ProcessExecuter::SpawnError] If Process.spawn raises an error before the command is run
+  # @raise [ProcessExecuter::ArgumentError] If the command or an option is not valid
   #
-  # @see ProcessExecuter::Options#initialize ProcessExecuter::Options#initialize for
-  #   options that may be specified
+  # @return [ProcessExecuter::Result]
   #
-  # @param command [Array<String>] The command to execute
-  # @param options_hash [Hash] The options to use when executing the command
-  #
-  # @return [ProcessExecuter::Result] The result of the completed subprocess
+  # @api public
   #
   def self.spawn_with_timeout(*command, **options_hash)
-    options = ProcessExecuter.spawn_with_timeout_options(options_hash)
-    spawn_with_timeout_with_options(command, options)
-  end
+    command, options = command_and_options(SpawnWithTimeoutOptions, command, options_hash)
 
-  # Run a command in a subprocess, wait for it to finish, then return the result
-  #
-  # @see ProcessExecuter.spawn_with_timeout for full documentation
-  #
-  # @param command [Array<String>] The command to run
-  # @param options [ProcessExecuter::Options::SpawnWithTimeoutOptions] The options to use when running the command
-  #
-  # @return [ProcessExecuter::Result] The result of the completed subprocess
-  # @api private
-  def self.spawn_with_timeout_with_options(command, options)
     begin
       pid = Process.spawn(*command, **options.spawn_options)
     rescue StandardError => e
       raise ProcessExecuter::SpawnError, "Failed to spawn process: #{e.message}"
     end
+
     wait_for_process(pid, command, options)
   end
 
-  # Execute the given command as a subprocess blocking until it finishes
+  # Wraps {spawn_with_timeout} adding more flexible redirection and other options
   #
-  # Works just like {ProcessExecuter.spawn}, but does the following in addition:
+  # This method wraps all option redirection destinations with a MonitoredPipe.
+  # Normally an output redirection destination must be a pipe. When the destination
+  # is wrapped by a MonitoredPipe, any object that implements #write can be given as
+  # a output redirection destination (such as StringIO which normally isn't allowed).
   #
-  #   1. If nothing is specified for `out`, stdout is captured to a `StringIO` object
-  #      which can be accessed via the Result object in `result.options.out`. The
-  #      same applies to `err`.
+  # Accepts the same options as {spawn_with_timeout} and adds the following options:
   #
-  #   2. `out` and `err` are automatically wrapped in a
-  #      `ProcessExecuter::MonitoredPipe` object so that any object that implements
-  #      `#write` (or an Array of such objects) can be given for `out` and `err`.
+  # * `:raise_errors` to make execution errors an exception (default is `true`)
+  # * `:logger` to log the command and its result at `:info` level.
   #
-  #   3. Raises one of the following errors unless `raise_errors` is explicitly set
-  #      to `false`:
+  # One of the following errors will be raised unless `raise_errors` is explicitly
+  # set to `false`:
   #
-  #      * `ProcessExecuter::FailedError` if the command returns a non-zero
-  #        exitstatus
-  #      * `ProcessExecuter::SignaledError` if the command exits because of
-  #        an unhandled signal
-  #      * `ProcessExecuter::TimeoutError` if the command times out
+  # * `ProcessExecuter::FailedError` if the command returns a non-zero
+  #   exitstatus
+  # * `ProcessExecuter::SignaledError` if the command exits because of
+  #   an unhandled signal
+  # * `ProcessExecuter::TimeoutError` if the command times out
   #
-  #      If `raise_errors` is false, the returned Result object will contain the error.
+  # If `raise_errors` is false and there was an error, the returned Result object
+  # indicate what the error .
   #
-  #   4. Raises a `ProcessExecuter::ProcessIOError` if an exception is raised
-  #      while collecting subprocess output. This can not be turned off.
+  # `ProcessExecuter::ProcessIOError` is raised if an exception is occurs while
+  # collecting subprocess output. The `raise_errors` option is ignored in this case.
   #
-  #   5. If a `logger` is provided, it will be used to log:
+  # If a `logger` is provided, it will be used to log:
   #
-  #      * The command that was executed and its status to `info` level
-  #      * The stdout and stderr output to `debug` level
+  # * The command that was executed and its status to `info` level
+  # * The stdout and stderr output to `debug` level
   #
-  #     By default, Logger.new(nil) is used for the logger.
+  # By default, Logger.new(nil) is used for the logger.
   #
-  # This method takes two forms:
+  # It is an error to give both options and options_hash.
   #
-  # 1. The command is executed via a shell when the command is given as a single
-  #    string:
-  #
-  #     `ProcessExecuter.run([env, ] command_line, options = {}) ->` {ProcessExecuter::Result}
-  #
-  # 2. The command is executed directly (bypassing the shell) when the command and it
-  #    arguments are given as an array of strings:
-  #
-  #     `ProcessExecuter.run([env, ] exe_path, *args, options = {}) ->` {ProcessExecuter::Result}
-  #
-  # Optional argument `env` is a hash that affects ENV for the new process; see
-  # [Execution
-  # Environment](https://docs.ruby-lang.org/en/3.3/Process.html#module-Process-label-Execution+Environment).
-  #
-  # Argument `options` is a hash of options for the new process. See the options listed below.
-  #
-  # @example Run a command given as a single string (uses shell)
-  #   # The command must be properly shell escaped when passed as a single string.
-  #   command = 'echo "stdout: `pwd`" && echo "stderr: $HOME" 1>&2'
-  #   result = ProcessExecuter.run(command)
-  #   result.success? #=> true
-  #   result.stdout #=> "stdout: /Users/james/projects/main-branch/process_executer\n"
-  #   result.stderr #=> "stderr: /Users/james\n"
-  #
-  # @example Run a command given as an array of strings (does not use shell)
-  #   # The command and its args must be provided as separate strings in the array.
-  #   # Shell expansions and redirections are not supported.
-  #   command = ['git', 'clone', 'https://github.com/main-branch/process_executer']
-  #   result = ProcessExecuter.run(*command)
-  #   result.success? #=> true
-  #   result.stdout #=> ""
-  #   result.stderr #=> "Cloning into 'process_executer'...\n"
-  #
-  # @example Run a command with a timeout
-  #   command = ['sleep', '1']
-  #   result = ProcessExecuter.run(*command, timeout_after: 0.01)
-  #   #=> raises ProcessExecuter::TimeoutError which contains the command result
-  #
-  # @example Run a command which fails
-  #   command = ['exit 1']
-  #   result = ProcessExecuter.run(*command)
-  #   #=> raises ProcessExecuter::FailedError which contains the command result
-  #
-  # @example Run a command which exits due to an unhandled signal
-  #   command = ['kill -9 $$']
-  #   result = ProcessExecuter.run(*command)
-  #   #=> raises ProcessExecuter::SignaledError which contains the command result
-  #
-  # @example Do not raise an error when the command fails
-  #   command = ['echo "Some error" 1>&2 && exit 1']
-  #   result = ProcessExecuter.run(*command, raise_errors: false)
-  #   result.success? #=> false
-  #   result.exitstatus #=> 1
-  #   result.stdout #=> ""
-  #   result.stderr #=> "Some error\n"
-  #
-  # @example Set environment variables
-  #   env = { 'FOO' => 'foo', 'BAR' => 'bar' }
-  #   command = 'echo "$FOO$BAR"'
-  #   result = ProcessExecuter.run(env, *command)
-  #   result.stdout #=> "foobar\n"
-  #
-  # @example Set environment variables when using a command array
-  #   env = { 'FOO' => 'foo', 'BAR' => 'bar' }
-  #   command = ['ruby', '-e', 'puts ENV["FOO"] + ENV["BAR"]']
-  #   result = ProcessExecuter.run(env, *command)
-  #   result.stdout #=> "foobar\n"
-  #
-  # @example Unset environment variables
-  #   env = { 'FOO' => nil } # setting to nil unsets the variable in the environment
-  #   command = ['echo "FOO: $FOO"']
-  #   result = ProcessExecuter.run(env, *command)
-  #   result.stdout #=> "FOO: \n"
-  #
-  # @example Reset existing environment variables and add new ones
-  #   env = { 'PATH' => '/bin' }
-  #   result = ProcessExecuter.run(env, 'echo "Home: $HOME" && echo "Path: $PATH"', unsetenv_others: true)
-  #   result.stdout #=> "Home: \n/Path: /bin\n"
-  #
-  # @example Run command in a different directory
-  #   command = ['pwd']
-  #   result = ProcessExecuter.run(*command, chdir: '/tmp')
-  #   result.stdout #=> "/tmp\n"
-  #
-  # @example Capture stdout and stderr into a single buffer
-  #   command = ['echo "stdout" && echo "stderr" 1>&2']
-  #   result = ProcessExecuter.run(*command, [out:, err:]: StringIO.new)
-  #   result.stdout #=> "stdout\nstderr\n"
-  #   result.stderr #=> "stdout\nstderr\n"
-  #   result.stdout.object_id == result.stderr.object_id #=> true
-  #
-  # @example Capture to an explicit buffer
-  #   out = StringIO.new
-  #   err = StringIO.new
-  #   command = ['echo "stdout" && echo "stderr" 1>&2']
-  #   result = ProcessExecuter.run(*command, out: out, err: err)
-  #   out.string #=> "stdout\n"
-  #   err.string #=> "stderr\n"
-  #
-  # @example Capture to a file
-  #   # Same technique can be used for stderr
-  #   out = File.open('stdout.txt', 'w')
-  #   err = StringIO.new
-  #   command = ['echo "stdout" && echo "stderr" 1>&2']
-  #   result = ProcessExecuter.run(*command, out: out, err: err)
-  #   out.close
-  #   File.read('stdout.txt') #=> "stdout\n"
-  #   # stderr is still captured to a StringIO buffer internally
-  #   result.stderr #=> "stderr\n"
-  #
-  # @example Capture to multiple destinations (e.g. files, buffers, STDOUT, etc.)
-  #   # Same technique can be used for stderr
+  # @example capture stdout to a StringIO buffer
   #   out_buffer = StringIO.new
-  #   out_file = File.open('stdout.txt', 'w')
-  #   command = ['echo "stdout" && echo "stderr" 1>&2']
-  #   result = ProcessExecuter.run(*command, out: [:tee, out_buffer, out_file])
-  #   # You must manage closing resources you create yourself
-  #   out_file.close
-  #   out_buffer.string #=> "stdout\n"
-  #   File.read('stdout.txt') #=> "stdout\n"
-  #   result.stdout #=> "stdout\n"
+  #   result = ProcessExecuter.run('echo HELLO', out: out_buffer)
+  #   out_buffer.string #=> "HELLO\n"
   #
-  # @param command [Array<String>] The command to run
+  # @example with :raise_errors set to true
+  #   begin
+  #     result = ProcessExecuter.run('exit 1', raise_errors: true)
+  #   rescue ProcessExecuter::FailedError => e
+  #     e.result.exitstatus #=> 1
+  #   end
   #
-  #   If the first element of command is a Hash, it is added to the ENV of
-  #   the new process. See [Execution Environment](https://ruby-doc.org/3.3.6/Process.html#module-Process-label-Execution+Environment)
-  #   for more details. The env hash is then removed from the command array.
+  # @example with :raise_errors set to false
+  #   result = ProcessExecuter.run('exit 1', raise_errors: false)
+  #   result.exitstatus #=> 1
   #
-  #   If the first and only (remaining) command element is a string, it is passed to
-  #   a subshell if it begins with a shell reserved word, contains special built-ins,
-  #   or includes shell metacharacters.
+  # @example with a logger
+  #   logger_buffer = StringIO.new
+  #   logger = Logger.new(logger_buffer, level: :info)
+  #   result = ProcessExecuter.run('echo HELLO', logger: logger)
+  #   logger_buffer.string #=>
+  #     "INFO -- : Running command: echo HELLO\nDEUBG -- : Command completed with exit status 0\n"
   #
-  #   Care must be taken to properly escape shell metacharacters in the command string.
+  # @overload run(*command, **options_hash)
   #
-  #   Otherwise, the command is run bypassing the shell. When bypassing the shell, shell expansions
-  #   and redirections are not supported.
+  #   @param command [Array<String>] see [Process modulem, Argument `command_line` or `exe_path`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Argument+command_line)
+  #     and [Process module, Argument `args`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Arguments+args)
   #
-  # @param options_hash [Hash] Additional options
-  # @option options_hash [Numeric] :timeout_after The maximum seconds to wait for the
-  #   command to complete
+  #     If the first value is a Hash, it is treated as the environment hash. See
+  #     [Process module, Execution Environment](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Execution+Environment).
   #
-  #     If zero or nil, the command will not time out. If the command
-  #     times out, it is killed via a SIGKILL signal. A {ProcessExecuter::TimeoutError}
-  #     will be raised if the `:raise_errors` option is true.
+  #   @param [Hash] options_hash in addition to the options supported by
+  #     {spawn_with_timeout}, the following options may be given: `:raise_errors` and `:logger`
   #
-  #     If the command does not exit when receiving the SIGKILL signal, this method may hang indefinitely.
+  #   @option options_hash [Boolean] :raise_errors if true, an error will be raised if the command fails
   #
-  # @option options_hash [#write] :out (nil) The object to write stdout to
-  # @option options_hash [#write] :err (nil) The object to write stderr to
-  # @option options_hash [Boolean] :raise_errors (true) Raise an exception if the command fails
-  # @option options_hash [Boolean] :unsetenv_others (false) If true, unset all environment variables before
-  #   applying the new ones
-  # @option options_hash [true, Integer, nil] :pgroup (nil) true or 0: new process group; non-zero: join
-  #   the group, nil: existing group
-  # @option options_hash [Boolean] :new_pgroup (nil) Create a new process group (Windows only)
-  # @option options_hash [Integer] :rlimit_resource_name (nil) Set resource limits (see Process.setrlimit)
-  # @option options_hash [Integer] :umask (nil) Set the umask (see File.umask)
-  # @option options_hash [Boolean] :close_others (false) If true, close non-standard file descriptors
-  # @option options_hash [String] :chdir (nil) The directory to run the command in
-  # @option options_hash [Logger] :logger The logger to use
+  #   @option options_hash [Logger] :logger a logger to use for logging the command and its result at the info level
   #
-  # @raise [ProcessExecuter::Error] if the command could not be executed or failed
+  #   @option options_hash [Numeric] :timeout_after the amount of time (in seconds) to
+  #     wait before signaling the process with SIGKILL
   #
-  # @return [ProcessExecuter::Result] The result of the completed subprocess
+  # @overload run(*command, options)
+  #
+  #   @param command [Array<String>] see [Process modulem, Argument `command_line` or `exe_path`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Argument+command_line)
+  #     and [Process module, Argument `args`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Arguments+args)
+  #
+  #     If the first value is a Hash, it is treated as the environment hash. See
+  #     [Process module, Execution Environment](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Execution+Environment).
+  #
+  #   @param options [ProcessExecuter::Options::RunOptions]
+  #
+  # @raise [ProcessExecuter::SpawnError] If spawn raises an error before the command is run
+  # @raise [ProcessExecuter::ArgumentError] If the command or an option is not valid
+  # @raise [ProcessExecuter::FailedError] If the command runs and returns a non-zero exit code
+  # @raise [ProcessExecuter::SignaledError] If the command runs and exits because of an uncaught signal
+  # @raise [ProcessExecuter::TimeoutError] If the command runs and takes longer than the configured timeout_after
+  # @raise [ProcessExecuter::ProcessIOError] If the command runs and the output can not be read
+  #
+  # @return [ProcessExecuter::Result]
+  #
+  # @api public
   #
   def self.run(*command, **options_hash)
-    options = ProcessExecuter.run_options(options_hash)
-    run_with_options(command, options)
-  end
-
-  # Run a command with the given options
-  #
-  # @see ProcessExecuter.run for full documentation
-  #
-  # @param command [Array<String>] The command to run
-  # @param options [ProcessExecuter::Options::RunOptions] The options to use when running the command
-  #
-  # @return [ProcessExecuter::Result] The result of the completed subprocess
-  #
-  # @api private
-  def self.run_with_options(command, options)
+    command, options = command_and_options(RunOptions, command, options_hash)
     ProcessExecuter::Runner.new.call(command, options)
   end
 
@@ -355,87 +268,56 @@ module ProcessExecuter
     [process_status, timed_out]
   end
 
-  # Convert a hash to a SpawnOptions object
+  # Takes a comamnd and options_hash to determine the options object
   #
-  # @example
+  # To support either passing an options object or an options_hash, this method
+  # takes a command and an options_hash and returns the command (with the trailing
+  # options object removed if one is given) and and options object.
+  #
+  # @example options hash not empty
+  #   SpawnWithTimeoutOptions = ProcessExecuter::Options::SpawnWithTimeoutOptions
+  #   command = %w[echo hello]
   #   options_hash = { out: $stdout }
-  #   options = ProcessExecuter.spawn_options(options_hash) # =>
-  #     #<ProcessExecuter::Options::SpawnOptions:0x00007f8f9b0b3d20 out: $stdout>
-  #   ProcessExecuter.spawn_options(options) # =>
-  #     #<ProcessExecuter::Options::SpawnOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #   command_out, options_out = ProcessExecuter.command_and_options(SpawnWithTimeoutOptions, command, options_hash)
+  #   command_out #=> %w[echo hello]
+  #   options_out #=> an options_class instance initialized with the options_hash
   #
-  # @param obj [Hash, SpawnOptions] the object to be converted
+  # @example option hash empty, command DOES NOT end with an options object
+  #   SpawnWithTimeoutOptions = ProcessExecuter::Options::SpawnWithTimeoutOptions
+  #   command = %w[echo hello]
+  #   options_hash = {}
+  #   command_out, options_out = ProcessExecuter.command_and_options(SpawnWithTimeoutOptions, command, options_hash)
+  #   command_out #=> %w[echo hello]
+  #   options_out #=> # options_class instance with all default values is returned
   #
-  # @return [SpawnOptions]
+  # @example options_hash empty, command ends with an options object
+  #   SpawnWithTimeoutOptions = ProcessExecuter::Options::SpawnWithTimeoutOptions
+  #   options = ProcessExecuter::Options::SpawnWithTimeoutOptions.new(out: $stdout)
+  #   command = ['echo', 'hello', options]
+  #   options_hash = {}
+  #   command_out, options_out = ProcessExecuter.spawn_and_wait_options(command, options_hash)
+  #   command_out #=> %w[echo hello] # options removed from command
+  #   options_out #=> what was previously command[-1]
   #
-  # @raise [ArgumentError] if obj is not a Hash or SpawnOptions
+  # @param options_class [Class] the class of the options object
+  #
+  # @param command [Array] the command to be executed (possibly with an instance of
+  #   options_class at the end)
+  #
+  # @param options_hash [Hash] the (possibly empty) hash of options
+  #
+  # @return [Array, options_class] the command (possible with the options
+  #   removed) and an instance of options_class
   #
   # @api public
   #
-  def self.spawn_options(obj)
-    case obj
-    when ProcessExecuter::Options::SpawnOptions
-      obj
-    when Hash
-      ProcessExecuter::Options::SpawnOptions.new(**obj)
+  def self.command_and_options(options_class, command, options_hash)
+    if !options_hash.empty?
+      [command, options_class.new(**options_hash)]
+    elsif command[-1].is_a?(options_class)
+      [command[..-2], command[-1]]
     else
-      raise ArgumentError, "Expected a Hash or ProcessExecuter::Options::SpawnOptions but got a #{obj.class}"
-    end
-  end
-
-  # Convert a hash to a SpawnWithTimeoutOptions object
-  #
-  # @example
-  #   options_hash = { out: $stdout }
-  #   options = ProcessExecuter.spawn_with_timeout_options(options_hash) # =>
-  #     #<ProcessExecuter::Options::SpawnWithTimeoutOptions:0x00007f8f9b0b3d20 out: $stdout>
-  #   ProcessExecuter.spawn_with_timeout_options(options) # =>
-  #     #<ProcessExecuter::Options::SpawnWithTimeoutOptions:0x00007f8f9b0b3d20 out: $stdout>
-  #
-  # @param obj [Hash, SpawnWithTimeoutOptions] the object to be converted
-  #
-  # @return [SpawnWithTimeoutOptions]
-  #
-  # @raise [ArgumentError] if obj is not a Hash or SpawnOptions
-  #
-  # @api public
-  #
-  def self.spawn_with_timeout_options(obj)
-    case obj
-    when ProcessExecuter::Options::SpawnWithTimeoutOptions
-      obj
-    when Hash
-      ProcessExecuter::Options::SpawnWithTimeoutOptions.new(**obj)
-    else
-      raise ArgumentError, "Expected a Hash or ProcessExecuter::Options::SpawnWithTimeoutOptions but got a #{obj.class}"
-    end
-  end
-
-  # Convert a hash to a RunOptions object
-  #
-  # @example
-  #   options_hash = { out: $stdout }
-  #   options = ProcessExecuter.run_options(options_hash) # =>
-  #     #<ProcessExecuter::Options::RunOptions:0x00007f8f9b0b3d20 out: $stdout>
-  #   ProcessExecuter.run_options(options) # =>
-  #     #<ProcessExecuter::Options::RunOptions:0x00007f8f9b0b3d20 out: $stdout>
-  #
-  # @param obj [Hash, RunOptions] the object to be converted
-  #
-  # @return [RunOptions]
-  #
-  # @raise [ArgumentError] if obj is not a Hash or SpawnOptions
-  #
-  # @api public
-  #
-  def self.run_options(obj)
-    case obj
-    when ProcessExecuter::Options::RunOptions
-      obj
-    when Hash
-      ProcessExecuter::Options::RunOptions.new(**obj)
-    else
-      raise ArgumentError, "Expected a Hash or ProcessExecuter::Options::RunOptions but got a #{obj.class}"
+      [command, options_class.new]
     end
   end
 end
