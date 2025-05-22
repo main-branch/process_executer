@@ -28,29 +28,29 @@ then click the "Documentation" link.
 
 ## Table of Contents
 
-* [Requirements](#requirements)
-* [Table of Contents](#table-of-contents)
-* [Usage](#usage)
-    * [ProcessExecuter::MonitoredPipe](#processexecutermonitoredpipe)
-    * [ProcessExecuter::Result](#processexecuterresult)
-    * [ProcessExecuter.spawn\_and\_wait](#processexecuterspawn_and_wait)
-    * [ProcessExecuter.run](#processexecuterrun)
-* [Breaking Changes](#breaking-changes)
-    * [2.x](#2x)
-        * [`ProcessExecuter.spawn`](#processexecuterspawn)
-        * [`ProcessExecuter.run`](#processexecuterrun-1)
-        * [`ProcessExecuter::Result`](#processexecuterresult-1)
-        * [Other](#other)
-    * [3.x](#3x)
-        * [`ProcessExecuter.run`](#processexecuterrun-2)
-* [Installation](#installation)
-* [Contributing](#contributing)
-    * [Reporting Issues](#reporting-issues)
-    * [Developing](#developing)
-    * [Commit message guidelines](#commit-message-guidelines)
-    * [Pull request guidelines](#pull-request-guidelines)
-    * [Releasing](#releasing)
-* [License](#license)
+- [Requirements](#requirements)
+- [Table of Contents](#table-of-contents)
+- [Usage](#usage)
+  - [ProcessExecuter::MonitoredPipe](#processexecutermonitoredpipe)
+  - [ProcessExecuter::Result](#processexecuterresult)
+  - [ProcessExecuter.spawn\_with\_timeout](#processexecuterspawn_with_timeout)
+  - [ProcessExecuter.run](#processexecuterrun)
+- [Breaking Changes](#breaking-changes)
+  - [2.x](#2x)
+    - [`ProcessExecuter.spawn`](#processexecuterspawn)
+    - [`ProcessExecuter.run`](#processexecuterrun-1)
+    - [`ProcessExecuter::Result`](#processexecuterresult-1)
+    - [Other](#other)
+  - [3.x](#3x)
+    - [`ProcessExecuter.run`](#processexecuterrun-2)
+- [Installation](#installation)
+- [Contributing](#contributing)
+  - [Reporting Issues](#reporting-issues)
+  - [Developing](#developing)
+  - [Commit message guidelines](#commit-message-guidelines)
+  - [Pull request guidelines](#pull-request-guidelines)
+  - [Releasing](#releasing)
+- [License](#license)
 
 ## Usage
 
@@ -70,9 +70,9 @@ Classes:
 
 Methods:
 
-* `ProcessExecuter.spawn_and_wait`: execute a subprocess and wait for it to exit with
+* `ProcessExecuter.spawn_with_timeout`: execute a subprocess and wait for it to exit with
   an optional timeout. Supports the same interface and features as `Process.spawn`.
-* `ProcessExecuter.run`: builds upon `.spawn_and_wait` adding (1) automatically
+* `ProcessExecuter.run`: builds upon `.spawn_with_timeout` adding (1) automatically
   wrapping stdout and stderr destinations (if given) in a `MonitoredPipe` and (2)
   raises errors for any problem executing the subprocess (can be turned off).
 
@@ -125,14 +125,14 @@ File.read('process.out') #=> "Hello World\n"
 
 ### ProcessExecuter::Result
 
-An instance of this class is returned from both `.spawn_and_wait` and `.run`.
+An instance of this class is returned from both `.spawn_with_timeout` and `.run`.
 
 This class is an extension of
 [Process::Status](https://docs.ruby-lang.org/en/3.3/Process/Status.html) so it
 supports the same interface with the following additions:
 
-* `#command`: the command given to `.spawn_and_wait` or `.run`
-* `#options`: the options given to `.spawn_and_wait` or `.run` (possibly with some
+* `#command`: the command given to `.spawn_with_timeout` or `.run`
+* `#options`: the options given to `.spawn_with_timeout` or `.run` (possibly with some
   changes)
 * `#timed_out?`: true if the process was killed after running for `:timeout_after`
   seconds
@@ -142,9 +142,9 @@ supports the same interface with the following additions:
 * `#stderr`: the captured stderr from the subprocess (if the stderr destination was
   wrapped by a `MonitoredPipe`)
 
-### ProcessExecuter.spawn_and_wait
+### ProcessExecuter.spawn_with_timeout
 
-`ProcessExecuter.spawn_and_wait` has the same interface and features as
+`ProcessExecuter.spawn_with_timeout` has the same interface and features as
 [Process.spawn](https://docs.ruby-lang.org/en/3.3/Process.html#method-c-spawn)
 with the following differences:
 
@@ -157,7 +157,7 @@ If the command does not terminate before the number of seconds specified by
 returned Result object's `timed_out?` attribute will return `true`. For example:
 
 ```ruby
-result = ProcessExecuter.spawn_and_wait('sleep 10', timeout_after: 0.01)
+result = ProcessExecuter.spawn_with_timeout('sleep 10', timeout_after: 0.01)
 result.signaled? #=> true
 result.termsig #=> 9
 result.timed_out? #=> true
@@ -169,7 +169,7 @@ subprocess output from its `#stdout` and `#stderr` methods.
 
 ### ProcessExecuter.run
 
-`ProcessExecuter.run` builds upon `ProcessExecuter.spawn_and_wait` adding the
+`ProcessExecuter.run` builds upon `ProcessExecuter.spawn_with_timeout` adding the
 following features:
 
 * It automatically wraps any given stdout and stderr destination with a
@@ -193,7 +193,7 @@ This major release focused on changes to the interface to make it more understan
 
 #### `ProcessExecuter.spawn`
 
-* This method was renamed to `ProcessExecuter.spawn_and_wait`
+* This method was renamed to `ProcessExecuter.spawn_with_timeout`
 * The `:timeout` option was renamed to `:timeout_after`
 
 #### `ProcessExecuter.run`

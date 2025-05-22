@@ -17,10 +17,10 @@ require 'process_executer/runner'
 #
 # Methods:
 #
+# * {spawn_with_timeout}: a thin wrapper around `Process.spawn` that blocks until the
+#   command finishes
 # * {run}: Executes a command and returns the result which includes the process
 #   status and output
-# * {spawn_and_wait}: a thin wrapper around `Process.spawn` that blocks until the
-#   command finishes
 #
 # Features:
 #
@@ -42,13 +42,13 @@ module ProcessExecuter
   # sent the SIGKILL signal if it does not terminate within the specified timeout.
   #
   # @example
-  #   result = ProcessExecuter.spawn_and_wait('echo hello')
+  #   result = ProcessExecuter.spawn_with_timeout('echo hello')
   #   result.exited? # => true
   #   result.success? # => true
   #   result.timed_out? # => false
   #
   # @example with a timeout
-  #   result = ProcessExecuter.spawn_and_wait('sleep 10', timeout_after: 0.01)
+  #   result = ProcessExecuter.spawn_with_timeout('sleep 10', timeout_after: 0.01)
   #   result.exited? # => false
   #   result.success? # => nil
   #   result.signaled? # => true
@@ -58,7 +58,7 @@ module ProcessExecuter
   # @example capturing stdout to a string
   #   stdout_buffer = StringIO.new
   #   stdout_pipe = ProcessExecuter::MonitoredPipe.new(stdout_buffer)
-  #   result = ProcessExecuter.spawn_and_wait('echo hello', out: stdout_pipe)
+  #   result = ProcessExecuter.spawn_with_timeout('echo hello', out: stdout_pipe)
   #   stdout_buffer.string # => "hello\n"
   #
   # @see https://ruby-doc.org/core-3.1.2/Kernel.html#method-i-spawn Kernel.spawn
@@ -72,21 +72,21 @@ module ProcessExecuter
   #
   # @return [ProcessExecuter::Result] The result of the completed subprocess
   #
-  def self.spawn_and_wait(*command, **options_hash)
-    options = ProcessExecuter.spawn_and_wait_options(options_hash)
-    spawn_and_wait_with_options(command, options)
+  def self.spawn_with_timeout(*command, **options_hash)
+    options = ProcessExecuter.spawn_with_timeout_options(options_hash)
+    spawn_with_timeout_with_options(command, options)
   end
 
   # Run a command in a subprocess, wait for it to finish, then return the result
   #
-  # @see ProcessExecuter.spawn_and_wait for full documentation
+  # @see ProcessExecuter.spawn_with_timeout for full documentation
   #
   # @param command [Array<String>] The command to run
-  # @param options [ProcessExecuter::Options::SpawnAndWaitOptions] The options to use when running the command
+  # @param options [ProcessExecuter::Options::SpawnWithTimeoutOptions] The options to use when running the command
   #
   # @return [ProcessExecuter::Result] The result of the completed subprocess
   # @api private
-  def self.spawn_and_wait_with_options(command, options)
+  def self.spawn_with_timeout_with_options(command, options)
     begin
       pid = Process.spawn(*command, **options.spawn_options)
     rescue StandardError => e
@@ -383,31 +383,31 @@ module ProcessExecuter
     end
   end
 
-  # Convert a hash to a SpawnAndWaitOptions object
+  # Convert a hash to a SpawnWithTimeoutOptions object
   #
   # @example
   #   options_hash = { out: $stdout }
-  #   options = ProcessExecuter.spawn_and_wait_options(options_hash) # =>
-  #     #<ProcessExecuter::Options::SpawnAndWaitOptions:0x00007f8f9b0b3d20 out: $stdout>
-  #   ProcessExecuter.spawn_and_wait_options(options) # =>
-  #     #<ProcessExecuter::Options::SpawnAndWaitOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #   options = ProcessExecuter.spawn_with_timeout_options(options_hash) # =>
+  #     #<ProcessExecuter::Options::SpawnWithTimeoutOptions:0x00007f8f9b0b3d20 out: $stdout>
+  #   ProcessExecuter.spawn_with_timeout_options(options) # =>
+  #     #<ProcessExecuter::Options::SpawnWithTimeoutOptions:0x00007f8f9b0b3d20 out: $stdout>
   #
-  # @param obj [Hash, SpawnAndWaitOptions] the object to be converted
+  # @param obj [Hash, SpawnWithTimeoutOptions] the object to be converted
   #
-  # @return [SpawnAndWaitOptions]
+  # @return [SpawnWithTimeoutOptions]
   #
   # @raise [ArgumentError] if obj is not a Hash or SpawnOptions
   #
   # @api public
   #
-  def self.spawn_and_wait_options(obj)
+  def self.spawn_with_timeout_options(obj)
     case obj
-    when ProcessExecuter::Options::SpawnAndWaitOptions
+    when ProcessExecuter::Options::SpawnWithTimeoutOptions
       obj
     when Hash
-      ProcessExecuter::Options::SpawnAndWaitOptions.new(**obj)
+      ProcessExecuter::Options::SpawnWithTimeoutOptions.new(**obj)
     else
-      raise ArgumentError, "Expected a Hash or ProcessExecuter::Options::SpawnAndWaitOptions but got a #{obj.class}"
+      raise ArgumentError, "Expected a Hash or ProcessExecuter::Options::SpawnWithTimeoutOptions but got a #{obj.class}"
     end
   end
 

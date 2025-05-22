@@ -5,8 +5,8 @@ require 'logger'
 require 'tmpdir'
 
 RSpec.describe ProcessExecuter do
-  describe '.spawn_and_wait' do
-    subject { ProcessExecuter.spawn_and_wait(*command, **options) }
+  describe '.spawn_with_timeout' do
+    subject { ProcessExecuter.spawn_with_timeout(*command, **options) }
 
     context 'when an invalid command is given' do
       let(:command) { 'invalid_command' }

@@ -2,7 +2,7 @@
 
 require 'stringio'
 
-RSpec.describe ProcessExecuter::Options::SpawnAndWaitOptions do
+RSpec.describe ProcessExecuter::Options::SpawnWithTimeoutOptions do
   let(:options) { described_class.new(**options_hash) }
   let(:options_hash) { {} }
 
