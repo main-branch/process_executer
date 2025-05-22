@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative 'spawn_and_wait_options'
+require_relative 'spawn_with_timeout_options'
 require_relative 'option_definition'
 
 module ProcessExecuter
@@ -9,7 +9,7 @@ module ProcessExecuter
     #
     # @api public
     #
-    class RunOptions < SpawnAndWaitOptions
+    class RunOptions < SpawnWithTimeoutOptions
       private
 
       # The options allowed for objects of this class

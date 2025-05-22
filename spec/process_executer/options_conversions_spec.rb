@@ -27,19 +27,19 @@ RSpec.describe ProcessExecuter do
     end
   end
 
-  describe '.spawn_and_wait_options' do
-    subject { ProcessExecuter.spawn_and_wait_options(given_options) }
+  describe '.spawn_with_timeout_options' do
+    subject { ProcessExecuter.spawn_with_timeout_options(given_options) }
 
     context 'when given options is a Hash' do
       let(:given_options) { { timeout_after: 10 } }
-      it 'should return a SpawnAndWaitOptions object with the same options' do
-        expect(subject).to be_a(ProcessExecuter::Options::SpawnAndWaitOptions)
+      it 'should return a SpawnWithTimeoutOptions object with the same options' do
+        expect(subject).to be_a(ProcessExecuter::Options::SpawnWithTimeoutOptions)
         expect(subject.to_h).to include(given_options)
       end
     end
 
-    context 'when given options is a ProcessExecuter::Options::SpawnAndWaitOptions' do
-      let(:given_options) { ProcessExecuter::Options::SpawnAndWaitOptions.new(timeout_after: 10) }
+    context 'when given options is a ProcessExecuter::Options::SpawnWithTimeoutOptions' do
+      let(:given_options) { ProcessExecuter::Options::SpawnWithTimeoutOptions.new(timeout_after: 10) }
       it 'should return the given object' do
         expect(subject.object_id).to eq(given_options.object_id)
       end

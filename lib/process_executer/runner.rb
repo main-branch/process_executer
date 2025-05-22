@@ -50,7 +50,7 @@ module ProcessExecuter
     #
     def spawn(command, options)
       opened_pipes = wrap_stdout_stderr(options)
-      ProcessExecuter.spawn_and_wait_with_options(command, options)
+      ProcessExecuter.spawn_with_timeout_with_options(command, options)
     ensure
       opened_pipes.each_value(&:close)
       opened_pipes.each { |option_key, pipe| raise_pipe_error(command, option_key, pipe) }

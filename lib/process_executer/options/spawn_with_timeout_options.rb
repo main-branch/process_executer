@@ -5,11 +5,11 @@ require_relative 'option_definition'
 
 module ProcessExecuter
   module Options
-    # Define options for the `ProcessExecuter.spawn_and_wait`
+    # Define options for the `ProcessExecuter.spawn_with_timeout`
     #
     # @api public
     #
-    class SpawnAndWaitOptions < SpawnOptions
+    class SpawnWithTimeoutOptions < SpawnOptions
       private
 
       # The options allowed for objects of this class
