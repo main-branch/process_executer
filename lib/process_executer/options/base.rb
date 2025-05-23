@@ -133,7 +133,8 @@ module ProcessExecuter
       #   options.option1 # => 'value1'
       #   options.option2 # => 'value2'
       #
-      # @options_hash [Hash] the options to merge into the current options
+      # @param options_hash [Hash] the options to merge into the current options
+      #
       # @return [self.class]
       #
       def with(**options_hash)

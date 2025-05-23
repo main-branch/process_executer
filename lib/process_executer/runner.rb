@@ -3,7 +3,7 @@
 require_relative 'errors'
 
 module ProcessExecuter
-  # `Runner` runs a subprocess, blocks until it completes, and returns the result
+  # Run a command and return the result
   #
   # This class is a wrapper around {ProcessExecuter.spawn_with_timeout} which itself is
   # a wrapper around `Process.spawn`. It takes the same options as both of these methodds
