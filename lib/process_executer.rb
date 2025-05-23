@@ -9,7 +9,9 @@ require 'process_executer/errors'
 require 'process_executer/monitored_pipe'
 require 'process_executer/options'
 require 'process_executer/result'
+require 'process_executer/result_with_capture'
 require 'process_executer/runner'
+require 'process_executer/runner_with_capture'
 
 # The `ProcessExecuter` module provides methods to execute subprocess commands
 # with enhanced features such as output capture, timeout handling, and custom
@@ -36,6 +38,8 @@ module ProcessExecuter
   SpawnWithTimeoutOptions = ProcessExecuter::Options::SpawnWithTimeoutOptions
   # Define shortcuts for RunOptions
   RunOptions = ProcessExecuter::Options::RunOptions
+  # Define shortcuts for RunWithCaptureOptions
+  RunWithCaptureOptions = ProcessExecuter::Options::RunWithCaptureOptions
 
   # Spawn a command, wait for it to finish, then return the result
   #
@@ -227,6 +231,69 @@ module ProcessExecuter
     ProcessExecuter::Runner.new.call(command, options)
   end
 
+  # Wraps {run} and automatically captures stdout and stderr
+  #
+  # The captured output is accessed in the returned object's stdout and stderr
+  # methods. Merged output (if the `merged_output: true` option is given) is
+  # accessed in the stdout method.
+  #
+  # stdout and stderr redirection options may be given by the caller. This will
+  # override the capture if given. This means that if an stdout redirection is given,
+  # the result.stdout will be empty and if a stderr redirection is given, the
+  # result.stderr will be empty. A `ProcessExecuter::ArgumentError` will be raised if
+  # both a stderr redirection and the `merge_output: true` option are given.
+  #
+  # Accepts the same options as {run} and adds the following options:
+  #
+  # * `:merge_output` to merge stdout and stderr into a single capture buffer (default is false)
+  #
+  # A `ProcessExecuter::ArgumentError` will be raised if both an options object and
+  # an options_hash are given.
+  #
+  # @example capture stdout and stderr
+  #   result = ProcessExecuter.run_and_capture('echo HELLO; echo ERROR >&2')
+  #   result.stdout #=> "HELLO\n"
+  #   result.stderr #=> "ERROR\n"
+  #
+  # @example merge stdout and stderr
+  #   result = ProcessExecuter.run_and_capture('echo HELLO; echo ERROR >&2', merge_output: true)
+  #   # order of output is not guaranteed
+  #   result.stdout #=> "HELLO\nERROR\n"
+  #   result.stderr #=> ""
+  #
+  # @overload run_and_capture(*command, **options_hash)
+  #
+  #   @param command [Array<String>] see [Process modulem, Argument `command_line` or `exe_path`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Argument+command_line)
+  #     and [Process module, Argument `args`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Arguments+args)
+  #
+  #     If the first value is a Hash, it is treated as the environment hash. See
+  #     [Process module, Execution Environment](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Execution+Environment).
+  #
+  #   @param options_hash [Hash] in addition to the options supported by {run},
+  #     `merge_output` may be given
+  #
+  #   @option options_hash [Boolean] :merge_output if true, stdout and stderr will be
+  #     merged into a single capture buffer
+  #
+  # @overload run_and_capture(*command, options)
+  #
+  #   @param command [Array<String>] see [Process modulem, Argument `command_line` or `exe_path`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Argument+command_line)
+  #     and [Process module, Argument `args`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Arguments+args)
+  #
+  #     If the first value is a Hash, it is treated as the environment hash. See
+  #     [Process module, Execution Environment](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Execution+Environment).
+  #
+  #   @param options [ProcessExecuter::Options::RunAndCaptureOptions]
+  #
+  # @return [ProcessExecuter::ResultWithCapture]
+  #
+  # @api public
+  #
+  def self.run_with_capture(*command, **options_hash)
+    command, options = command_and_options(RunWithCaptureOptions, command, options_hash)
+    ProcessExecuter::RunnerWithCapture.new.call(command, options)
+  end
+
   # Wait for process to terminate
   #
   # If a `:timeout_after` is specified in options, terminate the process after the
@@ -309,9 +376,9 @@ module ProcessExecuter
   # @return [Array, options_class] the command (possible with the options
   #   removed) and an instance of options_class
   #
-  # @api public
+  # @api private
   #
-  def self.command_and_options(options_class, command, options_hash)
+  private_class_method def self.command_and_options(options_class, command, options_hash)
     if !options_hash.empty?
       [command, options_class.new(**options_hash)]
     elsif command[-1].is_a?(options_class)
