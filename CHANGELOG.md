@@ -5,6 +5,32 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0](https://github.com/main-branch/process_executer/compare/v3.2.4...v4.0.0) (2025-05-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* Users depending on `Result#stdout` or `Result#stderr` will either have to capture this output manually themselves or change from `spawn_and_wait`/`run` to `run_with_capture`.
+* calls to `ProcessExecuter.spawn_with_timeout_with_options` and `ProcessExecuter.run_with_options` have been removed. Use `ProcessExecuter.spawn_with_timeout` and `ProcessExecuter.run` instead.
+* Users who use ProcessExecuter.spawn_and_wait will need to update their calls to spawn_with_timeout. In addition, the following items will need to be updated if used by the user of this gem:
+    * ProcessExecuter.spawn_and_wait_with_options
+    * ProcessExecuter::SpawnAndWaitOptions
+* In places where users of this gem rescued ::ArgumentError, they will have to change the rescued class to ProcessExecuter::ArgumentError.
+
+### Features
+
+* Add `ProcessExecuter.run_with_capture` ([d9e97fe](https://github.com/main-branch/process_executer/commit/d9e97fe7728a0c7fce9520ad5ba9568782243f70))
+* Add ProcessExecuter::ArgumentError and raise it instead of ::ArgumentError ([860fc5a](https://github.com/main-branch/process_executer/commit/860fc5a224f86dd4ff525de32b643fc261e456f6))
+* Remove #spawn_with_timeout_with_options and #run_with_options methods ([446cb51](https://github.com/main-branch/process_executer/commit/446cb510a634ff5171df6b0fcb2d426cb3f9ed9e))
+* Remove Result#stdout and Result#stderr ([2dcad47](https://github.com/main-branch/process_executer/commit/2dcad47bb921170070f8d4bae1ce07244547db5c))
+* Rename ProcessExecuter.spawn_and_wait to spawn_with_timeout ([b9d19e7](https://github.com/main-branch/process_executer/commit/b9d19e792234996f78c7cd63b22047bb7474a06d))
+
+
+### Other Changes
+
+* Add a JRuby 10 build to the continuous integration workflow ([7a939ba](https://github.com/main-branch/process_executer/commit/7a939ba5bf7b291555a4259db7040b6cb96f494b))
+* Remove unneeded :nocov: blocks ([7a1fcf5](https://github.com/main-branch/process_executer/commit/7a1fcf500b89d7fe8e7254ba4fa20e38f0b46d45))
+
 ## [3.2.4](https://github.com/main-branch/process_executer/compare/v3.2.3...v3.2.4) (2025-04-18)
 
 
