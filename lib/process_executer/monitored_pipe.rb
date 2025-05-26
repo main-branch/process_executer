@@ -19,7 +19,7 @@ module ProcessExecuter
   # `Process.spawn`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-File+Redirection+-28File+Descriptor-29).
   #
   # In addition to the standard redirection destinations, {ProcessExecuter::MonitoredPipe} also
-  # supports the additional types of destinations:
+  # supports these additional types of destinations:
   #
   # - **Arbitrary Writers**
   #
@@ -31,7 +31,7 @@ module ProcessExecuter
   #     - processing with streaming parser to parse and process command output as
   #       the command is running.
   #
-  # - **Teeing Output**
+  # - **Multiple Destinations**
   #
   #   MonitoredPipe supports duplicating (or "teeing") output to multiple
   #   destinations simultaneously. This is achieved by providing an redirection

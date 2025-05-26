@@ -91,8 +91,8 @@ See the `ProcessExecuter::Error` class for the error architecture for this modul
 ### ProcessExecuter::MonitoredPipe
 
 ℹ️ See [the ProcessExecuter::MonitoredPipe class
-  documentation](https://rubydoc.info/gems/process_executer/ProcessExecuter/MonitoredPipe) for
-  more details and examples of using this class.
+  documentation](https://rubydoc.info/gems/process_executer/ProcessExecuter/MonitoredPipe)
+  for more details and examples of using this class.
 
 `ProcessExecuter::MonitoredPipe` was created to expand the output redirection options
 for `Process.spawn` and methods derived from it within the `ProcessExecuter` module.
@@ -103,25 +103,25 @@ described in [the File Redirection section of
 `Process.spawn`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-File+Redirection+-28File+Descriptor-29).
 
 In addition to the standard redirection destinations, `MonitoredPipe` also
-supports the additional types of destinations:
+supports these additional types of destinations:
 
 - **Arbitrary Writers**
 
-You can redirect subprocess output to any Ruby object that implements the
-`#write` method. This is particularly useful for:
+  You can redirect subprocess output to any Ruby object that implements the
+  `#write` method. This is particularly useful for:
 
-- capturing command output in in-memory buffers like `StringIO`,
-- sending command output to custom logging objects that do not have a file descriptor, and
-- processing with streaming parser to parse and process command output as
-  the command is running.
+  - capturing command output in in-memory buffers like `StringIO`,
+  - sending command output to custom logging objects that do not have a file descriptor, and
+  - processing with streaming parser to parse and process command output as
+    the command is running.
 
-- **Teeing Output**
+- **Multiple Destinations**
 
-MonitoredPipe supports duplicating (or "teeing") output to multiple
-destinations simultaneously. This is achieved by providing an array in the
-format `[:tee, destination1, destination2, ...]`, where each `destination` can
-be any value that `MonitoredPipe` itself supports (including another tee or
-MonitoredPipe).
+  MonitoredPipe supports duplicating (or "teeing") output to multiple
+  destinations simultaneously. This is achieved by providing an array in the
+  format `[:tee, destination1, destination2, ...]`, where each `destination` can
+  be any value that `MonitoredPipe` itself supports (including another tee or
+  MonitoredPipe).
 
 ## Breaking Changes
 
