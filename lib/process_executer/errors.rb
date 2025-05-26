@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
-# rubocop:disable Layout/LineLength
-
 module ProcessExecuter
-  # Base class for all ProcessExecuter::Command errors
+  # rubocop:disable Layout/LineLength
+
+  # Base class for all {ProcessExecuter} errors
   #
-  # It is recommended to rescue `ProcessExecuter::Error` to catch any
-  # runtime error raised by this gem unless you need more specific error handling.
+  # It is recommended to rescue {ProcessExecuter::Error} to catch any runtime error
+  # raised by this gem unless you need more specific error handling.
   #
   # Custom errors are arranged in the following class hierarchy:
   #
@@ -53,6 +53,8 @@ module ProcessExecuter
   # @api public
   #
   class Error < ::StandardError; end
+
+  # rubocop:enable Layout/LineLength
 
   # Raised when an invalid argument is passed to a method
   #
@@ -154,5 +156,3 @@ module ProcessExecuter
   #
   class SpawnError < ProcessExecuter::Error; end
 end
-
-# rubocop:enable Layout/LineLength

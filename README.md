@@ -22,27 +22,31 @@ then click the "Documentation" link.
 
 ## Requirements
 
-* Ruby 3.1.0 or later
-* Compatible with MRI 3.1+, TruffleRuby 24+, and JRuby 9.4+
-* Works on Mac, Linux, and Windows platforms
+- Ruby 3.1.0 or later
+- Compatible with MRI 3.1+, TruffleRuby 24+, and JRuby 9.4+
+- Works on Mac, Linux, and Windows platforms
 
 ## Table of Contents
 
 - [Requirements](#requirements)
 - [Table of Contents](#table-of-contents)
 - [Usage](#usage)
+  - [Key Methods](#key-methods)
   - [ProcessExecuter::MonitoredPipe](#processexecutermonitoredpipe)
-  - [ProcessExecuter::Result](#processexecuterresult)
-  - [ProcessExecuter.spawn\_with\_timeout](#processexecuterspawn_with_timeout)
-  - [ProcessExecuter.run](#processexecuterrun)
 - [Breaking Changes](#breaking-changes)
   - [2.x](#2x)
     - [`ProcessExecuter.spawn`](#processexecuterspawn)
-    - [`ProcessExecuter.run`](#processexecuterrun-1)
-    - [`ProcessExecuter::Result`](#processexecuterresult-1)
+    - [`ProcessExecuter.run`](#processexecuterrun)
+    - [`ProcessExecuter::Result`](#processexecuterresult)
     - [Other](#other)
   - [3.x](#3x)
-    - [`ProcessExecuter.run`](#processexecuterrun-2)
+    - [`ProcessExecuter.run`](#processexecuterrun-1)
+  - [4.x](#4x)
+    - [`ProcessExecuter.spawn_and_wait`](#processexecuterspawn_and_wait)
+    - [`ProcessExecuter::Result`](#processexecuterresult-1)
+    - [`ProcessExecuter.spawn_and_wait_with_options`](#processexecuterspawn_and_wait_with_options)
+    - [`ProcessExecuter.run_with_options`](#processexecuterrun_with_options)
+    - [Other](#other-1)
 - [Installation](#installation)
 - [Contributing](#contributing)
   - [Reporting Issues](#reporting-issues)
@@ -57,133 +61,67 @@ then click the "Documentation" link.
 [Full YARD documentation](https://rubydoc.info/gems/process_executer/) for this gem
 is hosted on RubyGems.org. Read below for an overview and several examples.
 
-This gem contains two public classes and two public methods:
+### Key Methods
 
-Classes:
+ℹ️ See [the ProcessExecuter module
+  documentation](https://rubydoc.info/gems/process_executer/ProcessExecuter) for
+  more details and examples of using the methods described here.
 
-* `ProcessExecuter::MonitoredPipe`: allows use of any object with a `#write` method
-  or an array of objects as a redirection destination in `Process.spawn`
-* `ProcessExecuter::Result`: an extension of `Process::Status` that includes more
-  information about the subprocess including timeout status, the command that was
-  run, the subprocess options given, and (in some cases) stdout and stderr captured
-  from the subprocess.
+The `ProcessExecuter` module provides extended versions of
+[Process.spawn](https://docs.ruby-lang.org/en/3.4/Process.html#method-c-spawn) that
+block while the command is executing. These methods provide enhanced features such as
+timeout handling, more flexible redirection options, logging, error raising, and
+output capturing.
 
-Methods:
+The interface of these methods is the same as the standard library
+[Process.spawn](https://docs.ruby-lang.org/en/3.4/Process.html#method-c-spawn)
+method but with additional options.
 
-* `ProcessExecuter.spawn_with_timeout`: execute a subprocess and wait for it to exit with
-  an optional timeout. Supports the same interface and features as `Process.spawn`.
-* `ProcessExecuter.run`: builds upon `.spawn_with_timeout` adding (1) automatically
-  wrapping stdout and stderr destinations (if given) in a `MonitoredPipe` and (2)
-  raises errors for any problem executing the subprocess (can be turned off).
+These methods are:
+
+- `spawn_with_timeout`: Wraps
+  [Process.spawn](https://docs.ruby-lang.org/en/3.4/Process.html#method-c-spawn) to
+  run a command and wait (with timeout) for it to finish
+- `run`: Wraps `spawn_with_timeout` adding more flexible redirection and other
+  options
+- `run_with_capture`: Wraps `run` and automatically captures stdout and stderr
+
+See the `ProcessExecuter::Error` class for the error architecture for this module.
 
 ### ProcessExecuter::MonitoredPipe
 
-`ProcessExecuter::MonitoredPipe` objects can be used as a redirection destination for
-`Process.spawn` to stream output from a subprocess to one or more destinations.
-Destinations are given in this class's initializer.
+ℹ️ See [the ProcessExecuter::MonitoredPipe class
+  documentation](https://rubydoc.info/gems/process_executer/ProcessExecuter/MonitoredPipe) for
+  more details and examples of using this class.
 
-The destinations are all the redirection destinations allowed by `Process.spawn` plus
-the following:
+`ProcessExecuter::MonitoredPipe` was created to expand the output redirection options
+for `Process.spawn` and methods derived from it within the `ProcessExecuter` module.
 
-* Any object with a #write method even if it does not have a file descriptor (like
-  instances of StringIO)
-* An array of destinations so that output can be tee'd to several sources
+This class's initializer accepts any redirection destination supported by
+`Process.spawn` (this is the `value` part of the file redirection option
+described in [the File Redirection section of
+`Process.spawn`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-File+Redirection+-28File+Descriptor-29).
 
-Example of capturing stdout to a StringIO (which is not directly possible with
-`Process.spawn`):
+In addition to the standard redirection destinations, `MonitoredPipe` also
+supports the additional types of destinations:
 
-```ruby
-require 'stringio'
-require 'process_executer'
+- **Arbitrary Writers**
 
-output_buffer = StringIO.new
-out_pipe = ProcessExecuter::MonitoredPipe.new(output_buffer)
-pid, status = Process.wait2(Process.spawn('echo "Hello World"', out: out_pipe))
-out_pipe.close # Close the pipe so all the data is flushed and resources are not leaked
-output_buffer.string #=> "Hello World\n"
-```
+You can redirect subprocess output to any Ruby object that implements the
+`#write` method. This is particularly useful for:
 
-Any object that implements `#write` can be used as a destination (not just StringIO).
-For instance, you can use it to parse process output as a stream which might be useful
-for long XML or JSON output.
+- capturing command output in in-memory buffers like `StringIO`,
+- sending command output to custom logging objects that do not have a file descriptor, and
+- processing with streaming parser to parse and process command output as
+  the command is running.
 
-Example of tee'ing stdout to multiple destinations:
+- **Teeing Output**
 
-```ruby
-require 'stringio'
-require 'process_executer'
-
-output_buffer = StringIO.new
-output_file = File.open('process.out', 'w')
-out_pipe = ProcessExecuter::MonitoredPipe.new([:tee, output_buffer, output_file])
-pid, status = Process.wait2(Process.spawn('echo "Hello World"', out: out_pipe))
-out_pipe.close
-output_file.close
-output_buffer.string #=> "Hello World\n"
-File.read('process.out') #=> "Hello World\n"
-```
-
-### ProcessExecuter::Result
-
-An instance of this class is returned from both `.spawn_with_timeout` and `.run`.
-
-This class is an extension of
-[Process::Status](https://docs.ruby-lang.org/en/3.3/Process/Status.html) so it
-supports the same interface with the following additions:
-
-* `#command`: the command given to `.spawn_with_timeout` or `.run`
-* `#options`: the options given to `.spawn_with_timeout` or `.run` (possibly with some
-  changes)
-* `#timed_out?`: true if the process was killed after running for `:timeout_after`
-  seconds
-* `#elapsed_time`: the number of seconds the process was running
-* `#stdout`: the captured stdout from the subprocess (if the stdout destination was
-  wrapped by a `MonitoredPipe`)
-* `#stderr`: the captured stderr from the subprocess (if the stderr destination was
-  wrapped by a `MonitoredPipe`)
-
-### ProcessExecuter.spawn_with_timeout
-
-`ProcessExecuter.spawn_with_timeout` has the same interface and features as
-[Process.spawn](https://docs.ruby-lang.org/en/3.3/Process.html#method-c-spawn)
-with the following differences:
-
-1. It waits for the subprocess to exit
-2. A timeout can be specified using the `:timeout_after` option
-3. It returns a `ProcessExecuter::Result` instead of a `Process::Status`
-
-If the command does not terminate before the number of seconds specified by
-`:timeout_after`, the process is killed by sending it the SIGKILL signal. The
-returned Result object's `timed_out?` attribute will return `true`. For example:
-
-```ruby
-result = ProcessExecuter.spawn_with_timeout('sleep 10', timeout_after: 0.01)
-result.signaled? #=> true
-result.termsig #=> 9
-result.timed_out? #=> true
-```
-
-If the destination for stdout and stderr are wrapped by a
-ProcessExecuter::MonitoredPipe, the result will return the stdout and stderr
-subprocess output from its `#stdout` and `#stderr` methods.
-
-### ProcessExecuter.run
-
-`ProcessExecuter.run` builds upon `ProcessExecuter.spawn_with_timeout` adding the
-following features:
-
-* It automatically wraps any given stdout and stderr destination with a
-  MonitoredPipe. The pipe will be closed when the command exits.
-* It raises an error if there is any problem with the subprocess. This behavior can
-  be turned off with the `raise_errors: false` option.
-
-  ⚠️ `ProcessIOError` and `SpawnError` errors are not suppressed by giving the
-  `raise_errors: false` option.
-
-```ruby
-result = ProcessExecuter.run('echo "Hello World"', out: StringIO.new)
-result.stdout #=> "Hello World\n"
-```
+MonitoredPipe supports duplicating (or "teeing") output to multiple
+destinations simultaneously. This is achieved by providing an array in the
+format `[:tee, destination1, destination2, ...]`, where each `destination` can
+be any value that `MonitoredPipe` itself supports (including another tee or
+MonitoredPipe).
 
 ## Breaking Changes
 
@@ -193,26 +131,26 @@ This major release focused on changes to the interface to make it more understan
 
 #### `ProcessExecuter.spawn`
 
-* This method was renamed to `ProcessExecuter.spawn_with_timeout`
-* The `:timeout` option was renamed to `:timeout_after`
+- This method was renamed to `ProcessExecuter.spawn_with_timeout`
+- The `:timeout` option was renamed to `:timeout_after`
 
 #### `ProcessExecuter.run`
 
-* The `:timeout` option was renamed to `:timeout_after`
+- The `:timeout` option was renamed to `:timeout_after`
 
 #### `ProcessExecuter::Result`
 
-* The `#timeout` method was renamed to `#timed_out`
+- The `#timeout` method was renamed to `#timed_out`
 
 #### Other
 
-* Dropped support for Ruby 3.0
+- Dropped support for Ruby 3.0
 
 ### 3.x
 
 #### `ProcessExecuter.run`
 
-* The `:merge` option was removed
+- The `:merge` option was removed
 
   This was removed because `Process.spawn` already provides this functionality but in
   a different way. To merge, you will need to define a redirection where the source
@@ -224,7 +162,7 @@ This major release focused on changes to the interface to make it more understan
 
   will merge stdout and stderr from the subprocess into the file output.txt.
 
-* Stdout and stderr redirections are no longer default to a new instance of StringIO
+- Stdout and stderr redirections are no longer default to a new instance of StringIO
 
   Calls to `ProcessExecuter.run` that do not define a redirection for stdout or
   stderr will have to add explicit redirection(s) in order to capture the output.
@@ -232,6 +170,35 @@ This major release focused on changes to the interface to make it more understan
   This is to align with the functionality in `Process.spawn`. In `Process.spawn`, when
   an explicit redirection is not given for stdout and stderr, this output will be
   passed through to the parent process's stdout and stderr.
+
+### 4.x
+
+#### `ProcessExecuter.spawn_and_wait`
+
+`ProcessExecuter.spawn_and_wait` has been renamed to `ProcessExecuter.spawn_with_timeout`.
+
+#### `ProcessExecuter::Result`
+
+`Result#stdout` and `Result#stderr` were removed. Users depending on these methods
+will either have to capture this output themselves or change from using
+`.spawn_and_wait`/`.run` to `.run_with_capture` which returns a `ResultWithCapture`
+object.
+
+#### `ProcessExecuter.spawn_and_wait_with_options`
+
+`ProcessExecuter.spawn_and_wait_with_options` has been removed. Instead call
+`ProcessExecuter.spawn_with_timeout` which is overloaded to take the same method
+arguments.
+
+#### `ProcessExecuter.run_with_options`
+
+`ProcessExecuter.run_with_options` has been removed. Instead call
+`ProcessExecuter.run` which is overloaded to take the same method arguments.
+
+#### Other
+
+In places where users of this gem rescued `::ArgumentError`, they will have to change
+the rescued class to `ProcessExecuter::ArgumentError`.
 
 ## Installation
 
@@ -271,11 +238,11 @@ effectively.
 
 To ensure compliance, this project includes:
 
-* A git commit-msg hook that validates your commit messages before they are accepted.
+- A git commit-msg hook that validates your commit messages before they are accepted.
 
   To activate the hook, you must have node installed and run `npm install`.
 
-* A GitHub Actions workflow that will enforce the Conventional Commit standard as
+- A GitHub Actions workflow that will enforce the Conventional Commit standard as
   part of the continuous integration pipeline.
 
   Any commit message that does not conform to the Conventional Commits standard will

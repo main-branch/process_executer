@@ -5,22 +5,57 @@ require 'io/wait'
 require 'track_open_instances'
 
 module ProcessExecuter
-  # Write data sent through a pipe to a destination
+  # Acts as a pipe that writes the data written to it to one or more destinations
+  #
+  # {ProcessExecuter::MonitoredPipe} was created to expand the output redirection
+  # options for
+  # [Process.spawn](https://docs.ruby-lang.org/en/3.4/Process.html#method-c-spawn)
+  # and methods derived from it within the `ProcessExecuter` module.
+  #
+  # This class's initializer accepts any redirection destination supported by
+  # [Process.spawn](https://docs.ruby-lang.org/en/3.4/Process.html#method-c-spawn)
+  # (this is the `value` part of the file redirection option described in [the File
+  # Redirection section of
+  # `Process.spawn`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-File+Redirection+-28File+Descriptor-29).
+  #
+  # In addition to the standard redirection destinations, {ProcessExecuter::MonitoredPipe} also
+  # supports the additional types of destinations:
+  #
+  # - **Arbitrary Writers**
+  #
+  #   You can redirect subprocess output to any Ruby object that implements the
+  #   `#write` method. This is particularly useful for:
+  #
+  #     - capturing command output in in-memory buffers like `StringIO`,
+  #     - sending command output to custom logging objects that do not have a file descriptor, and
+  #     - processing with streaming parser to parse and process command output as
+  #       the command is running.
+  #
+  # - **Teeing Output**
+  #
+  #   MonitoredPipe supports duplicating (or "teeing") output to multiple
+  #   destinations simultaneously. This is achieved by providing an redirection
+  #   destination in the form `[:tee, destination1, destination2, ...]`, where each
+  #   `destination` can be any value that `MonitoredPipe` itself supports (including
+  #   another tee or MonitoredPipe).
   #
   # When a new MonitoredPipe is created, a pipe is created (via IO.pipe) and
-  # a thread is created to read data written to the pipe.
+  # a thread is created to read data written to the pipe. As data is read from the pipe,
+  # it is written to the destination(s) provided in the MonitoredPipe initializer.
   #
   # If the destination raises an exception, the monitoring thread will exit, the
   # pipe will be closed, and the exception will be saved in `#exception`.
   #
-  # `#close` must be called to ensure that (1) the pipe is closed, (2) all data is
-  # read from the pipe and written to the destination, and (3) the monitoring thread is
-  # killed.
+  # > **⚠️ WARNING**
+  # >
+  # > `#close` must be called to ensure that (1) the pipe is closed, (2) all data is
+  #   read from the pipe and written to the destination, and (3) the monitoring thread is
+  #   killed.
   #
-  # @example Collect pipe data into a string
+  # @example Collect pipe data into a StringIO object
   #   pipe_data = StringIO.new
   #   begin
-  #     pipe = MonitoredPipe.new(pipe_data)
+  #     pipe = ProcessExecuter::MonitoredPipe.new(pipe_data)
   #     pipe.write("Hello World")
   #   ensure
   #     pipe.close
@@ -31,13 +66,26 @@ module ProcessExecuter
   #   pipe_data_string = StringIO.new
   #   pipe_data_file = File.open("pipe_data.txt", "w")
   #   begin
-  #     pipe = MonitoredPipe.new(pipe_data_string, pipe_data_file)
+  #     pipe = ProcessExecuter::MonitoredPipe.new([:tee, pipe_data_string, pipe_data_file])
   #     pipe.write("Hello World")
   #   ensure
   #     pipe.close
   #   end
   #   pipe_data_string.string #=> "Hello World"
+  #   # It is your responsibility to close the file you opened
+  #   pipe_data_file.close
   #   File.read("pipe_data.txt") #=> "Hello World"
+  #
+  # @example Using a MonitoredPipe with Process.spawn
+  #   stdout_buffer = StringIO.new
+  #   begin
+  #     stdout_pipe = ProcessExecuter::MonitoredPipe.new(stdout_buffer)
+  #     pid = Process.spawn('echo Hello World', out: stdout_pipe)
+  #     _waited_pid, status = Process.wait2(pid)
+  #   ensure
+  #     stdout_pipe.close
+  #   end
+  #   stdout_buffer.string #=> "Hello World\n"
   #
   # @api public
   #
@@ -46,11 +94,12 @@ module ProcessExecuter
 
     # Create a new monitored pipe
     #
-    # Creates a IO.pipe and starts a monitoring thread to read data written to the pipe.
+    # Creates a IO.pipe and starts a monitoring thread to read data written to the
+    # pipe.
     #
     # @example
-    #   data_collector = StringIO.new
-    #   pipe = ProcessExecuter::MonitoredPipe.new(data_collector)
+    #   redirection_destination = StringIO.new
+    #   pipe = ProcessExecuter::MonitoredPipe.new(redirection_destination)
     #
     # @param redirection_destination [Array<#write>] as data is read from the pipe,
     #   it is written to this destination
