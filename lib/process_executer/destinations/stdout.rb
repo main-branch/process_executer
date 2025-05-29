@@ -1,19 +1,23 @@
 # frozen_string_literal: true
 
+require_relative 'destination_base'
+
 module ProcessExecuter
   module Destinations
     # Handles standard output redirection
     #
     # @api private
-    class Stdout < ProcessExecuter::DestinationBase
+    class Stdout < DestinationBase
       # Writes data to standard output
-      #
-      # @param data [String] the data to write
-      # @return [Integer] the number of bytes written
       #
       # @example
       #   stdout_handler = ProcessExecuter::Destinations::Stdout.new(:out)
       #   stdout_handler.write("Hello world")
+      #
+      # @param data [String] the data to write
+      #
+      # @return [Integer] the number of bytes written
+      #
       def write(data)
         super
         $stdout.write data

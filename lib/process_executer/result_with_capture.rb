@@ -17,17 +17,17 @@ module ProcessExecuter
     # @param stdout_buffer [StringIO] the captured stdout
     # @param stderr_buffer [StringIO] the captured stderr
     #
-    # @example
+    # @example manually create a ResultWithCapture instance
     #   stdout_buffer = StringIO.new
     #   stderr_buffer = StringIO.new
     #   command = ['echo HELLO; echo ERROR >&2']
-    #   result = ProcessExecuter.run('echo HELLO; echo ERROR >&2', out: stdout_buffer, err: stderr_buffer)
+    #   result = ProcessExecuter.run(*command, out: stdout_buffer, err: stderr_buffer)
     #   result_with_capture = ProcessExecuter::ResultWithCapture.new(result, stdout_buffer:, stderr_buffer:)
-    #   result_with_capture.success? #=> true
-    #   result_with_capture.stdout #=> "HELLO\n"
-    #   result_with_capture.stderr #=> "ERROR\n"
     #
-    # @api public
+    #   # Normally, you would use the `run_with_capture` method to create a
+    #   # ResultWithCapture instance. The above code is equivalent to:
+    #
+    #   result_with_capture = ProcessExecuter.run_with_capture('echo HELLO; echo ERROR >&2')
     #
     def initialize(result, stdout_buffer:, stderr_buffer:)
       super(result)

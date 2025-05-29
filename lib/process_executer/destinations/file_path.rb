@@ -1,18 +1,21 @@
 # frozen_string_literal: true
 
+require_relative 'destination_base'
+
 module ProcessExecuter
   module Destinations
     # Handles file path destinations
     #
     # @api private
-    class FilePath < ProcessExecuter::DestinationBase
+    class FilePath < DestinationBase
       # Initializes a new file path destination handler
       #
-      # Opens the file at the given path for writing.
+      # Redirects to the file at destination via `open(destination, 'w', 0644)`
       #
       # @param destination [String] the file path to write to
-      # @return [FilePath] a new file path destination handler
+      #
       # @raise [Errno::ENOENT] if the file path is invalid
+      #
       def initialize(destination)
         super
         @file = File.open(destination, 'w', 0o644)
@@ -25,13 +28,16 @@ module ProcessExecuter
 
       # Writes data to the file
       #
-      # @param data [String] the data to write
-      # @return [Integer] the number of bytes written
-      # @raise [IOError] if the file is closed
-      #
       # @example
       #   file_handler = ProcessExecuter::Destinations::FilePath.new("output.log")
       #   file_handler.write("Log entry")
+      #
+      # @param data [String] the data to write
+      #
+      # @return [Integer] the number of bytes written
+      #
+      # @raise [IOError] if the file is closed
+      #
       def write(data)
         super
         file.write data

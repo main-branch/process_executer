@@ -7,13 +7,15 @@ require 'tmpdir'
 RSpec.describe ProcessExecuter do
   describe '.run' do
     context 'with command given as a single string' do
-      let(:command) { windows? ? 'echo %VAR%' : 'echo $VAR' }
-      subject { ProcessExecuter.run({ 'VAR' => 'test' }, command, out: stdout_buffer) }
-      let(:stdout_buffer) { StringIO.new }
-      it { is_expected.to be_a(ProcessExecuter::Result) }
-      it { is_expected.to have_attributes(success?: true, exitstatus: 0, signaled?: false, timed_out?: false) }
-      it 'is expected to process the command with the shell and do shell expansions' do
-        subject
+      it 'should run successfully and return the expected result' do
+        command = windows? ? 'echo %VAR%' : 'echo $VAR'
+        stdout_buffer = StringIO.new
+        result = ProcessExecuter.run({ 'VAR' => 'test' }, command, out: stdout_buffer)
+        expect(result).to(
+          be_a(ProcessExecuter::Result).and(
+            have_attributes(success?: true, exitstatus: 0, signaled?: false, timed_out?: false)
+          )
+        )
         expect(stdout_buffer.string.gsub("\r\n", "\n")).to eq("test\n")
       end
     end
@@ -398,7 +400,7 @@ RSpec.describe ProcessExecuter do
           let(:log_level) { Logger::INFO }
           it 'is expected to log the command and its status' do
             subject
-            expect(log_buffer.string).to match(/INFO -- : \[.*?\] exited with status pid \d+ exit 0$/)
+            expect(log_buffer.string).to match(/INFO -- : PID \d+: \[.*?\] exited with status pid \d+ exit 0$/)
             expect(log_buffer.string).not_to match(/DEBUG -- : /)
           end
         end
@@ -407,7 +409,7 @@ RSpec.describe ProcessExecuter do
           let(:log_level) { Logger::DEBUG }
           it 'is expected to log the command and its status AND the command stdout and stderr' do
             subject
-            expect(log_buffer.string).to match(/INFO -- : \[.*?\] exited with status pid \d+ exit 0$/)
+            expect(log_buffer.string).to match(/INFO -- : PID \d+: \[.*?\] exited with status pid \d+ exit 0$/)
           end
         end
       end
@@ -428,7 +430,7 @@ RSpec.describe ProcessExecuter do
           let(:log_level) { Logger::INFO }
           it 'is expected to log the command and its status' do
             subject
-            expect(log_buffer.string).to match(/INFO -- : \[.*?\] exited with status pid \d+ exit 1$/)
+            expect(log_buffer.string).to match(/INFO -- : PID \d+: \[.*?\] exited with status pid \d+ exit 1$/)
             expect(log_buffer.string).not_to match(/DEBUG -- : /)
           end
         end
@@ -454,13 +456,13 @@ RSpec.describe ProcessExecuter do
             # :nocov: execution of this code is platform dependent
             expected_message =
               if jruby?
-                /INFO -- : \[.*?\] exited with status pid \d+ KILL \(signal 9\) timed out after 0.01s$/
+                /INFO -- : PID \d+: \[.*?\] exited with status pid \d+ KILL \(signal 9\) timed out after 0.01s$/
               elsif truffleruby?
-                /INFO -- : \[.*?\] exited with status pid \d+ exit nil timed out after 0.01s$/
+                /INFO -- : PID \d+: \[.*?\] exited with status pid \d+ exit nil timed out after 0.01s$/
               elsif windows?
-                /INFO -- : \[.*?\] exited with status pid \d+ exit 0 timed out after 0.01s$/
+                /INFO -- : PID \d+: \[.*?\] exited with status pid \d+ exit 0 timed out after 0.01s$/
               else
-                /INFO -- : \[.*?\] exited with status pid \d+ SIGKILL \(signal 9\) timed out after 0.01s$/
+                /INFO -- : PID \d+: \[.*?\] exited with status pid \d+ SIGKILL \(signal 9\) timed out after 0.01s$/
               end
             # :nocov:
 

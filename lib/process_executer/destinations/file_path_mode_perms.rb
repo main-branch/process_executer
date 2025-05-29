@@ -1,19 +1,23 @@
 # frozen_string_literal: true
 
+require_relative 'destination_base'
+
 module ProcessExecuter
   module Destinations
     # Handles file paths with specific open modes and permissions
     #
     # @api private
-    class FilePathModePerms < ProcessExecuter::DestinationBase
+    class FilePathModePerms < DestinationBase
       # Initializes a new file path with mode and permissions destination handler
       #
       # Opens the file at the given path with the specified mode and permissions.
       #
       # @param destination [Array<String, String, Integer>] array with file path, mode, and permissions
-      # @return [FilePathModePerms] a new handler instance
+      #
       # @raise [Errno::ENOENT] if the file path is invalid
+      #
       # @raise [ArgumentError] if the mode is invalid
+      #
       def initialize(destination)
         super
         @file = File.open(destination[0], destination[1], destination[2])
@@ -26,13 +30,16 @@ module ProcessExecuter
 
       # Writes data to the file
       #
-      # @param data [String] the data to write
-      # @return [Integer] the number of bytes written
-      # @raise [IOError] if the file is closed
-      #
       # @example
       #   perms_handler = ProcessExecuter::Destinations::FilePathModePerms.new(["output.log", "w", 0644])
       #   perms_handler.write("Log entry with specific permissions")
+      #
+      # @param data [String] the data to write
+      #
+      # @return [Integer] the number of bytes written
+      #
+      # @raise [IOError] if the file is closed
+      #
       def write(data)
         super
         file.write data

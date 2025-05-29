@@ -1,21 +1,26 @@
 # frozen_string_literal: true
 
+require_relative 'destination_base'
+
 module ProcessExecuter
   module Destinations
     # Handles IO objects
     #
     # @api private
-    class IO < ProcessExecuter::DestinationBase
+    class IO < DestinationBase
       # Writes data to the IO object
-      #
-      # @param data [String] the data to write
-      # @return [Integer] the number of bytes written
-      # @raise [IOError] if the IO object is closed
       #
       # @example
       #   io = File.open('file.txt', 'w')
       #   io_handler = ProcessExecuter::Destinations::IO.new(io)
       #   io_handler.write("Hello world")
+      #
+      # @param data [String] the data to write
+      #
+      # @return [Integer] the number of bytes written
+      #
+      # @raise [IOError] if the IO object is closed
+      #
       def write(data)
         super
         destination.write data

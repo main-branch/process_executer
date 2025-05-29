@@ -12,7 +12,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       let(:destination) { nil }
       it 'should raise an ProcessExecuter::ArgumentError' do
         expect { ProcessExecuter::MonitoredPipe.new(nil) }.to(
-          raise_error(ProcessExecuter::ArgumentError, 'wrong exec redirect action')
+          raise_error(ProcessExecuter::ArgumentError, 'Destination nil is not compatible with MonitoredPipe')
         )
       end
     end
@@ -164,7 +164,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       # [filepath] only works for stdin
       it 'should raise an ProcessExecuter::ArgumentError' do
         expect { ProcessExecuter::MonitoredPipe.new(['filepath']) }.to(
-          raise_error(ProcessExecuter::ArgumentError, 'wrong exec redirect action')
+          raise_error(ProcessExecuter::ArgumentError, 'Destination ["filepath"] is not compatible with MonitoredPipe')
         )
       end
     end
@@ -432,7 +432,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       # close the fd in the child process
       it 'should raise a ProcessExecuter::ArgumentError' do
         expect { ProcessExecuter::MonitoredPipe.new(:close) }.to(
-          raise_error(ProcessExecuter::ArgumentError, 'wrong exec redirect action')
+          raise_error(ProcessExecuter::ArgumentError, 'Destination :close is not compatible with MonitoredPipe')
         )
       end
     end
@@ -504,7 +504,7 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     it 'should create a new monitored pipe' do
       expect(monitored_pipe).to have_attributes(
         thread: Thread,
-        destination: ProcessExecuter::DestinationBase,
+        destination: ProcessExecuter::Destinations::DestinationBase,
         pipe_reader: IO,
         pipe_writer: IO,
         chunk_size: Integer

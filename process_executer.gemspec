@@ -8,8 +8,17 @@ Gem::Specification.new do |spec|
   spec.authors = ['James Couball']
   spec.email = ['jcouball@yahoo.com']
 
-  spec.summary = 'An API for executing commands in a subprocess'
-  spec.description = 'An API for executing commands in a subprocess'
+  spec.summary = <<~SUMMARY
+    Enhanced subprocess execution with timeouts, output capture, and flexible redirection
+  SUMMARY
+
+  spec.description = <<~DESCRIPTION
+    ProcessExecuter provides a simple API for running commands in a subprocess,
+    with options for capturing output, handling timeouts, logging, and more.
+    It also provides the MonitoredPipe class which expands the output
+    redirection capabilities of Ruby's Process.spawn.
+  DESCRIPTION
+
   spec.license = 'MIT'
   spec.required_ruby_version = '>= 3.1.0'
 

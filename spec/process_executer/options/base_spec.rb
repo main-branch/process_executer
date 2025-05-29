@@ -24,7 +24,7 @@ RSpec.describe ProcessExecuter::Options::Base do
 
     context 'when multiple unknown options are given' do
       let(:options_hash) { { unknown1: true, unknown2: false } }
-      it 'should raise a ProcessExecuter::ArugmentError' do
+      it 'should raise a ProcessExecuter::ArgumentError' do
         expect { options }.to raise_error(ProcessExecuter::ArgumentError, 'Unknown options: unknown1, unknown2')
       end
     end
@@ -215,7 +215,7 @@ RSpec.describe ProcessExecuter::Options::Base do
         subject { options }
 
         let(:validator) do
-          lambda {
+          lambda { |_key, _value|
             unless an_option.is_a?(String)
               raise(
                 ProcessExecuter::ArgumentError,
@@ -255,7 +255,7 @@ RSpec.describe ProcessExecuter::Options::Base do
           [
             *super,
             ProcessExecuter::Options::OptionDefinition.new(:option1, default: 'default1', validator: lambda {
-              validate_option1
+              |_key, _value| validate_option1
             })
           ]
         end
@@ -273,7 +273,11 @@ RSpec.describe ProcessExecuter::Options::Base do
         def define_options
           [
             *super,
-            ProcessExecuter::Options::OptionDefinition.new(:option2, default: 2, validator: -> { validate_option2 })
+            ProcessExecuter::Options::OptionDefinition.new(
+              :option2,
+              default: 2,
+              validator: ->(_key, _value) { validate_option2 }
+            )
           ]
         end
 

@@ -15,7 +15,7 @@ It has additional features like capturing output, handling timeouts, streaming o
 to multiple destinations, and providing detailed result information.
 
 This README documents the HEAD version of process_executer which may contain
-unrelease information. To see the README for the version you are using, consult
+unreleased information. To see the README for the version you are using, consult
 RubyGems.org. Go to the [process_executer page in
 RubyGems.org](https://rubygems.org/gems/process_executer), select your version, and
 then click the "Documentation" link.
@@ -79,12 +79,11 @@ method but with additional options.
 
 These methods are:
 
-- `spawn_with_timeout`: Wraps
-  [Process.spawn](https://docs.ruby-lang.org/en/3.4/Process.html#method-c-spawn) to
-  run a command and wait (with timeout) for it to finish
-- `run`: Wraps `spawn_with_timeout` adding more flexible redirection and other
-  options
-- `run_with_capture`: Wraps `run` and automatically captures stdout and stderr
+| Method | Description |
+|--------|-------------|
+| `ProcessExecuter.spawn_with_timeout` | Extends [Process.spawn](https://docs.ruby-lang.org/en/3.4/Process.html#method-c-spawn) to run a command and wait (with timeout) for it to finish |
+| `ProcessExecuter.run` | Extends `spawn_with_timeout` with more flexible redirection and other options. |
+| `ProcessExecuter.run_with_capture` | Extends `run` with capture of stdout and stderr |
 
 See the `ProcessExecuter::Error` class for the error architecture for this module.
 
@@ -97,9 +96,9 @@ See the `ProcessExecuter::Error` class for the error architecture for this modul
 `ProcessExecuter::MonitoredPipe` was created to expand the output redirection options
 for `Process.spawn` and methods derived from it within the `ProcessExecuter` module.
 
-This class's initializer accepts any redirection destination supported by
-`Process.spawn` (this is the `value` part of the file redirection option
-described in [the File Redirection section of
+This class's initializer accepts any compatible redirection destination supported by
+`Process.spawn` (this is the `value` part of the file redirection option described in
+[the File Redirection section of
 `Process.spawn`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-File+Redirection+-28File+Descriptor-29).
 
 In addition to the standard redirection destinations, `MonitoredPipe` also
@@ -112,8 +111,8 @@ supports these additional types of destinations:
 
   - capturing command output in in-memory buffers like `StringIO`,
   - sending command output to custom logging objects that do not have a file descriptor, and
-  - processing with streaming parser to parse and process command output as
-    the command is running.
+  - processing with a streaming parser to parse and process command output as the
+    command runs
 
 - **Multiple Destinations**
 
@@ -162,7 +161,7 @@ This major release focused on changes to the interface to make it more understan
 
   will merge stdout and stderr from the subprocess into the file output.txt.
 
-- Stdout and stderr redirections are no longer default to a new instance of StringIO
+- Stdout and stderr redirections no longer default to new instances of `StringIO`
 
   Calls to `ProcessExecuter.run` that do not define a redirection for stdout or
   stderr will have to add explicit redirection(s) in order to capture the output.
@@ -240,7 +239,7 @@ To ensure compliance, this project includes:
 
 - A git commit-msg hook that validates your commit messages before they are accepted.
 
-  To activate the hook, you must have node installed and run `npm install`.
+  To activate the hook, you must have Node.js installed and run `npm install`.
 
 - A GitHub Actions workflow that will enforce the Conventional Commit standard as
   part of the continuous integration pipeline.

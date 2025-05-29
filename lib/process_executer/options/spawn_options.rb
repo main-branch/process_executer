@@ -5,18 +5,19 @@ require_relative 'option_definition'
 
 module ProcessExecuter
   module Options
-    # Validate Process.spawn options and return Process.spawn options
+    # Defines and validates options accepted by `Process.spawn`
     #
-    # Allow subclasses to add additional options that are not passed to `Process.spawn`
+    # Allows subclasses to add additional options that are not passed to `Process.spawn`.
     #
-    # Valid options are those accepted by Process.spawn.
+    # Provides a method (#spawn_options) to retrieve only those options directly
+    # applicable to Process.spawn.
     #
     # @api public
     #
     class SpawnOptions < Base
       # Options that are passed to Process.spawn
       #
-      # They are not passed of the value is :not_set
+      # They are not passed if the value is :not_set
       #
       # @return [Array<OptionDefinition>]
       #
@@ -32,15 +33,18 @@ module ProcessExecuter
 
       # Returns the options to be passed to Process.spawn
       #
+      # Any options added by subclasses that are not part of the SPAWN_OPTIONS or
+      # are not a redirection option will not be included in the returned hash.
+      #
       # @example
-      #   options = ProcessExecuter::Options.new(out: $stdout, err: $stderr, timeout_after: 10)
-      #   options.spawn_options # => { out: $stdout, err: $stderr }
+      #   options = ProcessExecuter::Options::SpawnOptions.new(out: $stdout, chdir: '/tmp')
+      #   options.spawn_options # => { out: $stdout, chdir: '/tmp' }
       #
       # @return [Hash]
       #
       def spawn_options
         {}.tap do |spawn_options|
-          options.each do |option_key, value|
+          options_hash.each do |option_key, value|
             spawn_options[option_key] = value if include_spawn_option?(option_key, value)
           end
         end
@@ -75,8 +79,15 @@ module ProcessExecuter
       # Determine the option key that indicates a redirection option for stdout
       # @return [Symbol, Integer, IO, Array, nil] nil if not found
       # @api private
-      def stdout_redirection_key
-        options.keys.find { |option_key| option_key if stdout_redirection?(option_key) }
+      def stdout_redirection_source
+        options_hash.keys.find { |option_key| option_key if stdout_redirection?(option_key) }
+      end
+
+      # Return the redirection destination for stdout
+      # @return [Symbol, Integer, IO, Array, nil] nil if stdout is not redirected
+      # @api private
+      def stdout_redirection_destination
+        (key = stdout_redirection_source) ? options_hash[key] : nil
       end
 
       # Determine if the given option key indicates a redirection option for stderr
@@ -88,22 +99,22 @@ module ProcessExecuter
       # Determine the option key that indicates a redirection option for stderr
       # @return [Symbol, Integer, IO, Array, nil] nil if not found
       # @api private
-      def stderr_redirection_key
-        options.keys.find { |option_key| option_key if stderr_redirection?(option_key) }
+      def stderr_redirection_source
+        options_hash.keys.find { |option_key| option_key if stderr_redirection?(option_key) }
+      end
+
+      # Determine redirection destination for stderr if it exists
+      # @return [Symbol, Integer, IO, Array, nil] nil if stderr is not redirected
+      # @api private
+      def stderr_redirection_destination
+        (key = stderr_redirection_source) ? options_hash[key] : nil
       end
 
       private
 
       # Define the allowed options
       #
-      # @example Adding new options in a subclass
-      #   class MyOptions < SpawnOptions
-      #     def define_options
-      #       super.merge(timeout_after: { default: nil, validator: nil })
-      #     end
-      #   end
-      #
-      # @return [Hash<Symbol, Hash>]
+      # @return [Array<OptionDefinition>]
       #
       # @api private
       def define_options
@@ -111,7 +122,7 @@ module ProcessExecuter
       end
 
       # Determine if the given option should be passed to `Process.spawn`
-      # @param option_key [Symbol, Integer, IO] the option to be tested
+      # @param option_key [Object] the option to be tested
       # @param value [Object] the value of the option
       # @return [Boolean] true if the given option should be passed to `Process.spawn`
       # @api private
@@ -122,7 +133,7 @@ module ProcessExecuter
       end
 
       # Spawn allows IO object and integers as options
-      # @param option_key [Symbol] the option to be tested
+      # @param option_key [Object] the option to be tested
       # @return [Boolean] true if the given option is a valid option
       # @api private
       def valid_option?(option_key)

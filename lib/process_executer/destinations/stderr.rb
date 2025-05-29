@@ -1,19 +1,23 @@
 # frozen_string_literal: true
 
+require_relative 'destination_base'
+
 module ProcessExecuter
   module Destinations
     # Handles standard error redirection
     #
     # @api private
-    class Stderr < ProcessExecuter::DestinationBase
+    class Stderr < DestinationBase
       # Writes data to standard error
-      #
-      # @param data [String] the data to write
-      # @return [Integer] the number of bytes written
       #
       # @example
       #   stderr_handler = ProcessExecuter::Destinations::Stderr.new(:err)
       #   stderr_handler.write("Error message")
+      #
+      # @param data [String] the data to write
+      #
+      # @return [Integer] the number of bytes written
+      #
       def write(data)
         super
         $stderr.write data

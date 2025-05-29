@@ -1,17 +1,18 @@
 # frozen_string_literal: true
 
+require_relative 'destination_base'
+
 module ProcessExecuter
   module Destinations
     # Handles file paths with specific open modes
     #
     # @api private
-    class FilePathMode < ProcessExecuter::DestinationBase
+    class FilePathMode < DestinationBase
       # Initializes a new file path with mode destination handler
       #
-      # Opens the file at the given path with the specified mode.
+      # Redirects to the file at destination via `open(destination[0], destination[1], 0644)`
       #
       # @param destination [Array<String, String>] array with file path and mode
-      # @return [FilePathMode] a new file path with mode destination handler
       # @raise [Errno::ENOENT] if the file path is invalid
       # @raise [ArgumentError] if the mode is invalid
       def initialize(destination)
@@ -26,13 +27,16 @@ module ProcessExecuter
 
       # Writes data to the file
       #
-      # @param data [String] the data to write
-      # @return [Integer] the number of bytes written
-      # @raise [IOError] if the file is closed
-      #
       # @example
       #   mode_handler = ProcessExecuter::Destinations::FilePathMode.new(["output.log", "a"])
       #   mode_handler.write("Appended log entry")
+      #
+      # @param data [String] the data to write
+      #
+      # @return [Integer] the number of bytes written
+      #
+      # @raise [IOError] if the file is closed
+      #
       def write(data)
         super
         file.write data
