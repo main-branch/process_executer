@@ -1,47 +1,54 @@
 # frozen_string_literal: true
 
+require_relative 'destination_base'
+
 module ProcessExecuter
   module Destinations
-    # Handles destination for writing to multiple destinations
+    # Handles a destination for writing to multiple destinations
     #
     # The destination is an array with the first element being :tee and the rest
     # being the destinations.
     #
     # @api private
-    class Tee < ProcessExecuter::DestinationBase
-      # Initializes a new file path with mode and permissions destination handler
+    class Tee < DestinationBase
+      # Initializes a destination handler for writing to multiple output destinations
       #
-      # Opens the file at the given path with the specified mode and permissions.
+      # @param destination [Array<Symbol, Object...>] array in the form [:tee, destination...]
       #
-      # @param destination [Array<String, String, Integer>] array with file path, mode, and permissions
-      # @return [FilePathModePerms] a new handler instance
-      # @raise [Errno::ENOENT] if the file path is invalid
-      # @raise [ArgumentError] if the mode is invalid
+      # @raise [ArgumentError] if a child destination is invalid or incompatible
+      #
       def initialize(destination)
         super
         @child_destinations = destination[1..].map { |dest| ProcessExecuter::Destinations.factory(dest) }
       end
 
-      # The opened file object
+      # An array of child destinations
       #
-      # @return [File] the opened file
+      # @return [Array<ProcessExecuter::Destinations::DestinationBase>]
+      #   An array of the child destination handlers
+      #
       attr_reader :child_destinations
 
-      # Writes data to the file
-      #
-      # @param data [String] the data to write
-      # @return [Integer] the number of bytes written
-      # @raise [IOError] if the file is closed
+      # Writes data each of the {child_destinations}
       #
       # @example
-      #   perms_handler = ProcessExecuter::Destinations::FilePathModePerms.new(["output.log", "w", 0644])
-      #   perms_handler.write("Log entry with specific permissions")
+      #   tee = ProcessExecuter::Destinations::Tee.new([:tee, "output1.log", "output2.log"])
+      #   tee.write("Log entry with specific permissions")
+      #   tee.close # Important to close the tee to ensure all data is flushed
+      #
+      # @param data [String] the data to write
+      #
+      # @return [Integer] the number of bytes in the input data (which is written to each destination)
+      #
+      # @raise [IOError] if the file is closed
+      #
       def write(data)
         super
         child_destinations.each { |dest| dest.write(data) }
+        data.bytesize
       end
 
-      # Closes the file if it's open
+      # Closes the child_destinations
       #
       # @return [void]
       def close
@@ -51,7 +58,7 @@ module ProcessExecuter
       # Determines if this class can handle the given destination
       #
       # @param destination [Object] the destination to check
-      # @return [Boolean] true if destination is an Array with path, mode, and permissions
+      # @return [Boolean] true if destination is an Array in the form [:tee, destination...]
       def self.handles?(destination)
         destination.is_a?(Array) && destination.size > 1 && destination[0] == :tee
       end

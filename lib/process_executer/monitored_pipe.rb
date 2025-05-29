@@ -26,22 +26,23 @@ module ProcessExecuter
   #   You can redirect subprocess output to any Ruby object that implements the
   #   `#write` method. This is particularly useful for:
   #
-  #     - capturing command output in in-memory buffers like `StringIO`,
-  #     - sending command output to custom logging objects that do not have a file descriptor, and
-  #     - processing with streaming parser to parse and process command output as
-  #       the command is running.
+  #     - capturing command output in in-memory buffers like `StringIO`
+  #     - sending command output to custom logging objects that do not have a file
+  #       descriptor
+  #     - processing with a streaming parser to parse and process command output as
+  #       the command is running
   #
   # - **Multiple Destinations**
   #
   #   MonitoredPipe supports duplicating (or "teeing") output to multiple
-  #   destinations simultaneously. This is achieved by providing an redirection
+  #   destinations simultaneously. This is achieved by providing a redirection
   #   destination in the form `[:tee, destination1, destination2, ...]`, where each
   #   `destination` can be any value that `MonitoredPipe` itself supports (including
   #   another tee or MonitoredPipe).
   #
   # When a new MonitoredPipe is created, a pipe is created (via IO.pipe) and
   # a thread is created to read data written to the pipe. As data is read from the pipe,
-  # it is written to the destination(s) provided in the MonitoredPipe initializer.
+  # it is written to the destination provided in the MonitoredPipe initializer.
   #
   # If the destination raises an exception, the monitoring thread will exit, the
   # pipe will be closed, and the exception will be saved in `#exception`.
@@ -94,15 +95,28 @@ module ProcessExecuter
 
     # Create a new monitored pipe
     #
-    # Creates a IO.pipe and starts a monitoring thread to read data written to the
+    # Creates an IO.pipe and starts a monitoring thread to read data written to the
     # pipe.
     #
     # @example
     #   redirection_destination = StringIO.new
     #   pipe = ProcessExecuter::MonitoredPipe.new(redirection_destination)
     #
-    # @param redirection_destination [Array<#write>] as data is read from the pipe,
+    # @param redirection_destination [Object] as data is read from the pipe,
     #   it is written to this destination
+    #
+    #   Accepts any redirection destination supported by
+    #   [`Process.spawn`](https://docs.ruby-lang.org/en/3.4/Process.html#method-c-spawn).
+    #   This is the `value` part of the file redirection option described in [the
+    #   File Redirection section of
+    #   `Process.spawn`](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-File+Redirection+-28File+Descriptor-29).
+    #
+    #   In addition to the standard redirection destinations, `MonitoredPipe` also
+    #   accepts (1) another monitored pipe, (2) any object that implements a `#write` method and
+    #   (3) an array in the form `[:tee, destination1, destination2, ...]` where each
+    #   `destination` can be any value that `MonitoredPipe` itself supports (including
+    #   another tee or MonitoredPipe).
+    #
     # @param chunk_size [Integer] the size of the chunks to read from the pipe
     #
     def initialize(redirection_destination, chunk_size: 100_000)
@@ -165,8 +179,6 @@ module ProcessExecuter
     #
     # @return [IO] the write end of the pipe
     #
-    # @api private
-    #
     def to_io
       pipe_writer
     end
@@ -182,8 +194,6 @@ module ProcessExecuter
     #   pipe.fileno == pipe.to_io.fileno #=> true
     #
     # @return [Integer] the file descriptor for the write end of the pipe
-    #
-    # @api private
     #
     def fileno
       pipe_writer.fileno
@@ -205,7 +215,7 @@ module ProcessExecuter
     #
     # @return [Integer] the number of bytes written to the pipe
     #
-    # @api private
+    # @raise [IOError] if the pipe is not open
     #
     def write(data)
       mutex.synchronize do
@@ -223,7 +233,7 @@ module ProcessExecuter
     #   require 'stringio'
     #   data_collector = StringIO.new
     #   pipe = ProcessExecuter::MonitoredPipe.new(data_collector)
-    #   pipe.chunk_size #=> 1000
+    #   pipe.chunk_size #=> 100_000
     #
     # @return [Integer] the size of the chunks to read from the pipe
     #
@@ -237,46 +247,11 @@ module ProcessExecuter
     #   require 'stringio'
     #   data_collector = StringIO.new
     #   pipe = ProcessExecuter::MonitoredPipe.new(data_collector)
-    #   pipe.destination #=>
+    #   pipe.destination #=> #<ProcessExecuter::Destinations::Writer>
     #
-    # @return [Array<ProcessExecuter::Destination::Base>]
+    # @return [ProcessExecuter::Destinations::DestinationBase]
     #
     attr_reader :destination
-
-    # @!attribute [r]
-    #
-    # The thread that monitors the pipe
-    #
-    # @example
-    #   require 'stringio'
-    #   data_collector = StringIO.new
-    #   pipe = ProcessExecuter::MonitoredPipe.new(data_collector)
-    #   pipe.thread #=> #<Thread:0x00007f8b1a0b0e00>
-    #
-    # @return [Thread]
-    attr_reader :thread
-
-    # @!attribute [r]
-    #
-    # The read end of the pipe
-    #
-    # @example
-    #   pipe = ProcessExecuter::MonitoredPipe.new($stdout)
-    #   pipe.pipe_reader #=> #<IO:fd 11>
-    #
-    # @return [IO]
-    attr_reader :pipe_reader
-
-    # @!attribute [r]
-    #
-    # The write end of the pipe
-    #
-    # @example
-    #   pipe = ProcessExecuter::MonitoredPipe.new($stdout)
-    #   pipe.pipe_writer #=> #<IO:fd 12>
-    #
-    # @return [IO] the write end of the pipe
-    attr_reader :pipe_writer
 
     # @!attribute [r]
     #
@@ -310,6 +285,50 @@ module ProcessExecuter
     # @return [Exception, nil] the exception raised by a destination or `nil` if no exception was raised
     #
     attr_reader :exception
+
+    # @!attribute [r]
+    #
+    # The thread that monitors the pipe
+    #
+    # @example
+    #   require 'stringio'
+    #   data_collector = StringIO.new
+    #   pipe = ProcessExecuter::MonitoredPipe.new(data_collector)
+    #   pipe.thread #=> #<Thread:0x00007f8b1a0b0e00>
+    #
+    # @return [Thread]
+    #
+    # @api private
+    #
+    attr_reader :thread
+
+    # @!attribute [r]
+    #
+    # The read end of the pipe
+    #
+    # @example
+    #   pipe = ProcessExecuter::MonitoredPipe.new($stdout)
+    #   pipe.pipe_reader #=> #<IO:fd 11>
+    #
+    # @return [IO]
+    #
+    # @api private
+    #
+    attr_reader :pipe_reader
+
+    # @!attribute [r]
+    #
+    # The write end of the pipe
+    #
+    # @example
+    #   pipe = ProcessExecuter::MonitoredPipe.new($stdout)
+    #   pipe.pipe_writer #=> #<IO:fd 12>
+    #
+    # @return [IO] the write end of the pipe
+    #
+    # @api private
+    #
+    attr_reader :pipe_writer
 
     private
 
@@ -386,13 +405,6 @@ module ProcessExecuter
     rescue IO::WaitReadable
       pipe_reader.wait_readable(0.001)
     end
-
-    # # Check if the writer is a file descriptor
-    # #
-    # # @param writer [#write] the writer to check
-    # # @return [Boolean] true if the writer is a file descriptor
-    # # @api private
-    # def file_descriptor?(writer) = writer.is_a?(Integer) || writer.is_a?(Symbol)
 
     # Write the data read from the pipe to the destination
     #

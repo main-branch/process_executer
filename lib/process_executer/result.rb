@@ -7,7 +7,7 @@ module ProcessExecuter
   #
   # * `command`: the command that was used to spawn the process
   # * `options`: the options that were used to spawn the process
-  # * `elapsed_time`: the secs the command ran
+  # * `elapsed_time`: the seconds the command ran
   # * `timed_out?`: true if the process timed out
   #
   # @api public
@@ -15,31 +15,25 @@ module ProcessExecuter
   class Result < SimpleDelegator
     # Create a new Result object
     #
-    # @param status [Process::Status] the status to delegate to
-    # @param command [Array] the command that was used to spawn the process
-    # @param options [ProcessExecuter::Options] the options that were used to spawn the process
-    # @param timed_out [Boolean] true if the process timed out
-    # @param elapsed_time [Numeric] the secs the command ran
-    #
     # @example
     #   command = ['sleep 1']
-    #   options = ProcessExecuter::Options.new(timeout_after: 0.5)
-    #   start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    #   timed_out = false
-    #   status = nil
+    #   options = ProcessExecuter::Options::SpawnOptions.new
     #   pid = Process.spawn(*command, **options.spawn_options)
-    #   Timeout.timeout(options.timeout_after) do
-    #     _pid, status = Process.wait2(pid)
-    #   rescue Timeout::Error
-    #     Process.kill('KILL', pid)
-    #     timed_out = true
-    #     _pid, status = Process.wait2(pid)
-    #   end
-    #   elapsed_time = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+    #   _pid, status = Process.wait2(pid)
+    #   timed_out = false
+    #   elapsed_time = 0.01
     #
     #   ProcessExecuter::Result.new(status, command:, options:, timed_out:, elapsed_time:)
     #
-    # @api public
+    # @param status [Process::Status] the status to delegate to
+    #
+    # @param command [Array] the command that was used to spawn the process
+    #
+    # @param options [ProcessExecuter::Options::Base] the options that were used to spawn the process
+    #
+    # @param timed_out [Boolean] true if the process timed out
+    #
+    # @param elapsed_time [Numeric] the seconds the command ran
     #
     def initialize(status, command:, options:, timed_out:, elapsed_time:)
       super(status)
@@ -57,39 +51,42 @@ module ProcessExecuter
     attr_reader :command
 
     # The options that were used to spawn the process
+    #
     # @see Process.spawn
+    #
     # @example
+    #   # Looks like a hash, but is actually an object that derives from
+    #   # ProcessExecuter::Options::Base
     #   result.options #=> { chdir: '/path/to/repo', timeout_after: 0.5 }
-    # @return [Hash]
-    # @api public
+    #
+    # @return [ProcessExecuter::Options::Base]
+    #
     attr_reader :options
 
-    # The secs the command ran
+    # The seconds the command ran
     # @example
-    #   result.elapsed_time #=> 10
-    # @return [Numeric, nil]
-    # @api public
+    #   result.elapsed_time #=> 10.0
+    # @return [Numeric]
     attr_reader :elapsed_time
 
     # @!attribute [r] timed_out?
     # True if the process timed out and was sent the SIGKILL signal
     # @example
-    #   result = ProcessExecuter.spawn('sleep 10', timeout_after: 0.01)
+    #   result = ProcessExecuter.spawn_with_timeout('sleep 10', timeout_after: 0.01)
     #   result.timed_out? # => true
     # @return [Boolean]
     #
-    def timed_out?
-      @timed_out
-    end
+    attr_reader :timed_out
+    alias timed_out? timed_out
 
-    # Overrides the default success? method to return nil if the process timed out
+    # Overrides the default `success?` method to return `nil` if the process timed out
     #
     # This is because when a timeout occurs, Windows will still return true.
     #
     # @example
-    #   result = ProcessExecuter.spawn('sleep 10', timeout_after: 0.01)
+    #   result = ProcessExecuter.spawn_with_timeout('sleep 10', timeout_after: 0.01)
     #   result.success? # => nil
-    # @return [true, nil]
+    # @return [true, false, nil]
     #
     def success?
       return nil if timed_out? # rubocop:disable Style/ReturnNilInPredicateMethodDefinition
@@ -99,8 +96,11 @@ module ProcessExecuter
 
     # Return a string representation of the result
     # @example
-    #   result.to_s #=> "pid 70144 SIGKILL (signal 9) timed out after 10s"
+    #   result = ProcessExecuter.spawn_with_timeout('sleep 10', timeout_after: 1)
+    #   # This message is platform dependent, but will look like this on Linux:
+    #   result.to_s #=> "pid 70144 SIGKILL (signal 9) timed out after 1s"
     # @return [String]
+    #
     def to_s
       "#{super}#{timed_out? ? " timed out after #{options.timeout_after}s" : ''}"
     end

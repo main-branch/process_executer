@@ -5,7 +5,7 @@ require_relative 'option_definition'
 
 module ProcessExecuter
   module Options
-    # Define options for the `ProcessExecuter.spawn_with_timeout`
+    # Defines options for {ProcessExecuter.spawn_with_timeout}
     #
     # @api public
     #
@@ -22,11 +22,17 @@ module ProcessExecuter
         ].freeze
       end
 
-      # Raise an error unless timeout_after is nil or a non-negative real number
+      # Note an error if timeout_after is not nil or a non-negative real number
+      #
+      # @param _key [Symbol] the option key (not used)
+      #
+      # @param _value [Object] the option value (not used)
+      #
       # @return [void]
-      # @raise [ArgumentError] if timeout_after is not a non-negative real number
+      #
       # @api private
-      def validate_timeout_after
+      #
+      def validate_timeout_after(_key, _value)
         return if timeout_after.nil?
         return if timeout_after.is_a?(Numeric) && timeout_after.real? && !timeout_after.negative?
 

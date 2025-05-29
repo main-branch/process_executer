@@ -5,7 +5,7 @@ require_relative 'option_definition'
 
 module ProcessExecuter
   module Options
-    # Define options for the `ProcessExecuter.run`
+    # Define options for {ProcessExecuter.run}
     #
     # @api public
     #
@@ -23,19 +23,23 @@ module ProcessExecuter
         ].freeze
       end
 
-      # Validate the raise_errors option value
-      # @return [String, nil] the error message if the value is not valid
+      # Note an error if raise_errors is not true or false
+      # @param _key [Symbol] the option key (not used)
+      # @param _value [Object] the option value (not used)
+      # @return [Void]
       # @api private
-      def validate_raise_errors
+      def validate_raise_errors(_key, _value)
         return if [true, false].include?(raise_errors)
 
         errors << "raise_errors must be true or false but was #{raise_errors.inspect}"
       end
 
-      # Validate the logger option value
-      # @return [String, nil] the error message if the value is not valid
+      # Note an error if the logger option is not valid
+      # @param _key [Symbol] the option key (not used)
+      # @param _value [Object] the option value (not used)
+      # @return [Void]
       # @api private
-      def validate_logger
+      def validate_logger(_key, _value)
         return if logger.respond_to?(:info) && logger.respond_to?(:debug)
 
         errors << "logger must respond to #info and #debug but was #{logger.inspect}"

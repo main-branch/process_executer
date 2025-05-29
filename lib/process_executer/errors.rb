@@ -27,15 +27,15 @@ module ProcessExecuter
   # | `Error` | This catch-all error serves as the base class for other custom errors. |
   # | `ArgumentError` | Raised when an invalid argument is passed to a method. |
   # | `CommandError` | A subclass of this error is raised when there is a problem executing a command. |
-  # | `FailedError` | Raised when the command exits with a non-zero status code. |
+  # | `FailedError` | Raised when the command exits with a non-zero exit status. |
   # | `SignaledError` | Raised when the command is terminated as a result of receiving a signal. This could happen if the process is forcibly terminated or if there is a serious system error. |
-  # | `TimeoutError` | This is a specific type of `SignaledError` that is raised when the command times out and is killed via the SIGKILL signal. Raised when the operation takes longer than the specified timeout duration (if provided). |
+  # | `TimeoutError` | This is a specific type of `SignaledError` that is raised when the command times out and is killed via the SIGKILL signal. |
   # | `ProcessIOError` | Raised when an error was encountered reading or writing to the command's subprocess. |
-  # | `SpawnError` | Raised when the process could not execute. Check the  |
+  # | `SpawnError` | Raised when the process could not execute. Check the `#cause` for the original exception from `Process.spawn`.  |
   #
   # @example Rescuing any error
   #   begin
-  #     ProcessExecuter.run_command('git', 'status')
+  #     ProcessExecuter.run('git', 'status')
   #   rescue ProcessExecuter::Error => e
   #     puts "An error occurred: #{e.message}"
   #   end
@@ -43,11 +43,11 @@ module ProcessExecuter
   # @example Rescuing a timeout error
   #   begin
   #     timeout_after = 0.1 # seconds
-  #     ProcessExecuter.run_command('sleep', '1', timeout_after:)
+  #     ProcessExecuter.run('sleep', '1', timeout_after:)
   #   rescue ProcessExecuter::TimeoutError => e # Catch the more specific error first!
   #     puts "Command took too long and timed out: #{e}"
   #   rescue ProcessExecuter::Error => e
-  #     puts "Some other error occured: #{e}"
+  #     puts "Some other error occurred: #{e}"
   #   end
   #
   # @api public
@@ -58,22 +58,22 @@ module ProcessExecuter
 
   # Raised when an invalid argument is passed to a method
   #
-  # @example
+  # @example Raising ProcessExecuter::ArgumentError due to invalid option value
   #   begin
-  #     # Command should not be an array
-  #     ProcessExecuter.run(nil, timeout_after: -1)
+  #     ProcessExecuter.run('echo Hello', timeout_after: 'not_a_number')
   #   rescue ProcessExecuter::ArgumentError => e
-  #     e.message #=> "Command elements must be a String"
+  #     e.message #=> 'timeout_after must be nil or a non-negative real number but was "not_a_number"'
   #   end
+  #
+  # @api public
   #
   class ArgumentError < ProcessExecuter::Error; end
 
   # Raised when a command fails or exits because of an uncaught signal
   #
-  # The command executed, status, stdout, and stderr are available from this
-  # object.
+  # The command executed and its result are available from this object.
   #
-  # The Gem will raise a more specific error for each type of failure:
+  # This gem will raise a more specific error for each type of failure:
   #
   # * {FailedError}: when the command exits with a non-zero status
   # * {SignaledError}: when the command exits because of an uncaught signal
@@ -86,12 +86,18 @@ module ProcessExecuter
     #
     # @example
     #   `exit 1` # set $? appropriately for this example
-    #   result = ProcessExecuter::Result.new(%w[git status], $?, 'stdout', 'stderr')
+    #   result_data = {
+    #     command: ['exit 1'],
+    #     options: ProcessExecuter::Options::RunOptions.new,
+    #     timed_out: false,
+    #     elapsed_time: 0.01
+    #   }
+    #   result = ProcessExecuter::Result.new($?, **result_data)
     #   error = ProcessExecuter::CommandError.new(result)
-    #   error.to_s #=> '["git", "status"], status: pid 89784 exit 1, stderr: "stderr"'
+    #   error.to_s #=> '["exit 1"], status: pid 29686 exit 1'
     #
-    # @param result [Result] The result of the command including the command,
-    #   status, stdout, and stderr
+    # @param result [ProcessExecuter::Result] The result of the command including the
+    #   command and exit status
     #
     def initialize(result)
       @result = result
@@ -101,7 +107,7 @@ module ProcessExecuter
     # The human readable representation of this error
     #
     # @example
-    #   error.error_message #=> '["git", "status"], status: pid 89784 exit 1, stderr: "stderr"'
+    #   error.error_message #=> '["git", "status"], status: pid 89784 exit 1'
     #
     # @return [String]
     #
@@ -116,12 +122,12 @@ module ProcessExecuter
     # @example
     #   error.result #=> #<ProcessExecuter::Result:0x00007f9b1b8b3d20>
     #
-    # @return [Result]
+    # @return [ProcessExecuter::Result]
     #
     attr_reader :result
   end
 
-  # Raised when the command returns a non-zero exitstatus
+  # Raised when the command returns a non-zero exit status
   #
   # @api public
   #
@@ -136,13 +142,17 @@ module ProcessExecuter
   # Raised when the command takes longer than the configured timeout_after
   #
   # @example
-  #   result.timed_out? #=> true
+  #   begin
+  #     ProcessExecuter.spawn_with_timeout('sleep 1', timeout_after: 0.1)
+  #   rescue ProcessExecuter::TimeoutError => e
+  #     puts "Command timed out: #{e.result.command}"
+  #   end
   #
   # @api public
   #
   class TimeoutError < ProcessExecuter::SignaledError; end
 
-  # Raised when the output of a command can not be read
+  # Raised if an exception occurred while processing subprocess output
   #
   # @api public
   #

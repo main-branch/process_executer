@@ -9,5 +9,6 @@ require_relative 'options/option_definition'
 
 module ProcessExecuter
   # Options related to spawning or running a command
+  # @api public
   module Options; end
 end

@@ -1,20 +1,25 @@
 # frozen_string_literal: true
 
+require_relative 'destination_base'
+
 module ProcessExecuter
   module Destinations
     # Handles monitored pipes
     #
     # @api private
-    class MonitoredPipe < ProcessExecuter::DestinationBase
+    class MonitoredPipe < DestinationBase
       # Writes data to the monitored pipe
       #
-      # @param data [String] the data to write
-      # @return [Object] the return value of the pipe's write method
-      #
       # @example
-      #   pipe = ProcessExecuter::MonitoredPipe.new
+      #   stringio_dest = StringIO.new
+      #   pipe = ProcessExecuter::MonitoredPipe.new(stringio_dest)
       #   pipe_handler = ProcessExecuter::Destinations::MonitoredPipe.new(pipe)
       #   pipe_handler.write("Data to pipe")
+      #
+      # @param data [String] the data to write
+      #
+      # @return [Integer] the number of bytes written
+      #
       def write(data)
         super
         destination.write data
