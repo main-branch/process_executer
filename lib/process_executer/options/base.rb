@@ -20,6 +20,9 @@ module ProcessExecuter
     #         ProcessExecuter::Options::OptionDefinition.new(
     #           :option2, default: '', validator: method(:assert_is_string)
     #         ),
+    #         ProcessExecuter::Options::OptionDefinition.new(
+    #           :option3, default: '', validator: method(:assert_is_string)
+    #         )
     #       ]
     #     end
     #     def assert_is_string(key, value)
@@ -82,8 +85,6 @@ module ProcessExecuter
       # @return [Hash<Symbol, ProcessExecuter::Options::OptionDefinition>] A hash
       #   where keys are option names and values are their definitions.
       #
-      # @api public
-      #
       def allowed_options
         @allowed_options ||=
           define_options.each_with_object({}) do |option, hash|
@@ -92,31 +93,37 @@ module ProcessExecuter
       end
 
       # A string representation of the object that includes the options
+      #
       # @example
       #   options = MyOptions.new(option1: 'value1', option2: 'value2')
       #   options.to_s # => #<MyOptions option1: "value1", option2: "value2">'
+      #
       # @return [String]
-      # @api public
+      #
       def to_s
         "#{super.to_s[0..-2]} #{inspect}>"
       end
 
       # A string representation of the options
+      #
       # @example
       #   options = MyOptions.new(option1: 'value1', option2: 'value2')
       #   options.inspect # => '{:option1=>"value1", :option2=>"value2"}'
+      #
       # @return [String]
-      # @api public
+      #
       def inspect
         options_hash.inspect
       end
 
       # A hash representation of the options
+      #
       # @example
       #   options = MyOptions.new(option1: 'value1', option2: 'value2')
       #   options.to_h # => { option1: "value1", option2: "value2" }
+      #
       # @return [Hash]
-      # @api public
+      #
       def to_h
         options_hash.dup
       end
@@ -136,49 +143,47 @@ module ProcessExecuter
       #
       # @return [Object] the obj passed to the block
       #
-      # @api public
-      #
       def each_with_object(obj, &)
         options_hash.each_with_object(obj, &)
       end
 
-      # Merge the given options into the current options
-      # @example
-      #   options = MyOptions.new({ option1: 'value1', option2: 'value2' })
-      #   options.merge!(option2: 'new_value2', option3: 'value3')
-      #   options.option2 # => 'new_value2'
-      #   options.option3 # => 'value3'
+      # Merge the given options into the current options object
       #
-      # @param other_options [Hash] the options to merge into the current options
-      #
-      # @return [Hash]
-      #
-      # @api public
-      #
-      def merge!(*other_options)
-        options_hash.merge!(*other_options)
-      end
-
-      # A shallow copy of self with options copied but not the values they reference
-      #
-      # If any keyword arguments are given, the copy will be created with the
-      # respective option values updated.
+      # Subsequent hashes' values overwrite earlier ones for the same key.
       #
       # @example
       #   options = MyOptions.new(option1: 'value1', option2: 'value2')
-      #   copy = options.with(option1: 'new_value1')
-      #   copy.option1 # => 'new_value1'
-      #   copy.option2 # => 'value2'
-      #   options.option1 # => 'value1'
-      #   options.option2 # => 'value2'
+      #   h1 = { option2: 'new_value2' }
+      #   h2 = { option3: 'value3' }
+      #   options.merge!(h1, h2) => {option1: "value1", option2: "new_value2", option3: "value3"}
       #
-      # @param other_options_hash [Hash] the options to merge into the current options
+      # @param other_options_hashes [Array<Hash>] zero of more hashes to merge into the current options
+      #
+      # @return [self] the current options object with the merged options
+      #
+      # @api public
+      #
+      def merge!(*other_options_hashes)
+        options_hash.merge!(*other_options_hashes)
+      end
+
+      # Returns a new options object formed by merging self with each of other_hashes
+      #
+      # @example
+      #   options = MyOptions.new(option1: 'value1', option2: 'value2')
+      #   options.object_id # => 1025
+      #   h1 = { option2: 'new_value2' }
+      #   h2 = { option3: 'value3' }
+      #   merged_options = options.merge(h1, h2)
+      #   merged_options.object_id # => 1059
+      #
+      # @param other_options_hashes [Array<Hash>] the options to merge into the current options
       #
       # @return [self.class]
       #
-      # @api public
-      def with(**other_options_hash)
-        self.class.new(**options_hash, **other_options_hash)
+      def merge(*other_options_hashes)
+        merged_options = other_options_hashes.reduce(options_hash, :merge)
+        self.class.new(**merged_options)
       end
 
       protected

@@ -88,10 +88,10 @@ RSpec.describe ProcessExecuter::Options::Base do
 
     let(:original_options) { described_class.new }
 
-    subject { original_options.with(**new_option_values) }
+    subject { original_options.merge(*other_options_hashes) }
 
     context 'when given no options to update' do
-      let(:new_option_values) { {} }
+      let(:other_options_hashes) { [] }
 
       it 'should return the same instance' do
         expect(subject.option1).to eq('value1')
@@ -100,7 +100,7 @@ RSpec.describe ProcessExecuter::Options::Base do
     end
 
     context 'when given one option to update' do
-      let(:new_option_values) { { option1: 'new_value1' } }
+      let(:other_options_hashes) { [{ option1: 'new_value1' }] }
 
       it 'should return a new instance with the new options' do
         expect(subject).to have_attributes(option1: 'new_value1', option2: 'value2')
@@ -112,10 +112,20 @@ RSpec.describe ProcessExecuter::Options::Base do
     end
 
     context 'when given new options which are the same as the original options' do
-      let(:new_option_values) { { option1: 'new_value1', option2: 'new_value2' } }
+      let(:other_options_hashes) { [{ option1: 'new_value1', option2: 'new_value2' }] }
 
       it 'should return a new instance with the new options' do
         expect(subject).to have_attributes(option1: 'new_value1', option2: 'new_value2')
+      end
+    end
+
+    context 'when given multiple options hashes' do
+      let(:other_options_hashes) { [other_options_hash1, other_options_hash2] }
+      let(:other_options_hash1) { { option1: 'new_value1' } }
+      let(:other_options_hash2) { { option1: 'Last one wins!' } }
+
+      it 'should return a new instance with the new options' do
+        expect(subject).to have_attributes(option1: 'Last one wins!', option2: 'value2')
       end
     end
   end
