@@ -46,7 +46,9 @@ module ProcessExecuter
       #
       def call
         @stdout_buffer = StringIO.new
+        stdout_buffer.set_encoding(options.effective_stdout_encoding)
         @stderr_buffer = StringIO.new
+        stderr_buffer.set_encoding(options.effective_stderr_encoding)
 
         update_capture_options
 

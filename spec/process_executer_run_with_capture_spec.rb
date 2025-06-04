@@ -184,6 +184,225 @@ RSpec.describe ProcessExecuter do
     end
 
     context 'when given a command that runs successfully and sends output to stdout and stderr' do
+      describe 'encoding' do
+        let(:tmpdir) { Dir.mktmpdir }
+        let(:valid_utf8_file) { File.join(tmpdir, 'valid_utf8.txt') }
+        let(:invalid_utf8_file) { File.join(tmpdir, 'invalid_utf8.txt') }
+        let(:valid_utf8_string) { '😊'.encode('UTF-8') }
+        let(:invalid_utf8_string) { "\xFF\xFE".dup.force_encoding('UTF-8') }
+        let(:command) { "cat #{file_to_cat}" }
+        let(:result) { described_class.run_with_capture(command, **options) }
+
+        before do
+          File.write(valid_utf8_file, valid_utf8_string)
+          File.write(invalid_utf8_file, invalid_utf8_string)
+        end
+
+        after do
+          FileUtils.rm_rf(tmpdir)
+        end
+
+        context 'when given an invalid encoding' do
+          context 'when the option { encoding: INVALID } is given' do
+            let(:options) { { encoding: 'INVALID_ENCODING' } }
+            let(:file_to_cat) { valid_utf8_file }
+            it 'should raise a ProcessExecuter::ArgumentError' do
+              expect { result }.to raise_error(ProcessExecuter::ArgumentError, /unknown encoding/)
+            end
+          end
+
+          context 'when the option { stdout_encoding: INVALID } is given' do
+            let(:options) { { stdout_encoding: 'INVALID_ENCODING' } }
+            let(:file_to_cat) { valid_utf8_file }
+            it 'should raise a ProcessExecuter::ArgumentError' do
+              expect { result }.to raise_error(ProcessExecuter::ArgumentError, /unknown encoding/)
+            end
+          end
+
+          context 'when the option { stderr_encoding: INVALID } is given' do
+            let(:options) { { stderr_encoding: 'INVALID_ENCODING' } }
+            let(:file_to_cat) { valid_utf8_file }
+            it 'should raise a ProcessExecuter::ArgumentError' do
+              expect { result }.to raise_error(ProcessExecuter::ArgumentError, /unknown encoding/)
+            end
+          end
+        end
+
+        context 'for stdout' do
+          let(:command) { "cat #{file_to_cat}" }
+          let(:output) { result.stdout }
+
+          context 'when neither the option { encoding: <value> } nor { stdout_encoding: <value> is given' do
+            let(:options) { {} }
+            let(:file_to_cat) { valid_utf8_file }
+
+            it 'should return output tagged as UTF-8 encoding' do
+              expect(result).to(have_attributes(exitstatus: 0))
+              expect(output.encoding).to eq(Encoding::UTF_8)
+              expect(output.valid_encoding?).to be true
+              expect(output).to eq(valid_utf8_string)
+            end
+          end
+
+          context 'when the option { encoding: "ASCII-8BIT"  } is given' do
+            let(:options) { { encoding: 'ASCII-8BIT' } }
+            let(:file_to_cat) { valid_utf8_file }
+
+            it 'should return the output in ASCII-8BIT encoding' do
+              expect(result).to(have_attributes(exitstatus: 0))
+              expect(output.encoding).to eq(Encoding::ASCII_8BIT)
+              expect(output.valid_encoding?).to be true
+              expect(output).to eq(valid_utf8_string.dup.force_encoding(Encoding::ASCII_8BIT))
+            end
+          end
+
+          context 'when the option { encoding: "UTF-8" } is given' do
+            let(:options) { { encoding: 'UTF-8' } }
+
+            context 'when output is valid UTF-8' do
+              let(:file_to_cat) { valid_utf8_file }
+
+              it 'should return the output tagged as UTF-8 encoding' do
+                expect(output.encoding).to eq(Encoding::UTF_8)
+              end
+
+              it 'should return the content' do
+                expect(output).to eq(valid_utf8_string)
+              end
+
+              it 'should return the output with valid_encoding? true' do
+                expect(output.valid_encoding?).to be true
+              end
+            end
+
+            context 'when output is NOT valid UTF-8' do
+              let(:file_to_cat) { invalid_utf8_file }
+
+              it 'should return the output tagged as UTF-8 encoding' do
+                expect(output.encoding).to eq(Encoding::UTF_8)
+              end
+
+              it 'should return the content' do
+                expect(output).to eq(invalid_utf8_string)
+              end
+
+              it 'should return the output with valid_encoding? true' do
+                expect(output.valid_encoding?).to be false
+              end
+            end
+          end
+
+          context 'when the option { stdout_encoding: "ASCII-8BIT" } is given' do
+            let(:options) { { stdout_encoding: 'ASCII-8BIT' } }
+            let(:file_to_cat) { valid_utf8_file }
+
+            it 'should return output tagged with ASCII-8BIT encoding' do
+              expect(output.encoding).to eq(Encoding::ASCII_8BIT)
+              expect(output.valid_encoding?).to be true
+              expect(output).to eq(valid_utf8_string.dup.force_encoding(Encoding::ASCII_8BIT))
+            end
+          end
+
+          context 'when the options { encoding: "UTF-8", stdout_encoding: "ASCII-8BIT" } are given' do
+            let(:options) { { stdout_encoding: 'ASCII-8BIT' } }
+            let(:file_to_cat) { valid_utf8_file }
+
+            it 'should use stdout_encoding and ignore encoding' do
+              expect(output.encoding).to eq(Encoding::ASCII_8BIT)
+              expect(output.valid_encoding?).to be true
+              expect(output).to eq(valid_utf8_string.dup.force_encoding(Encoding::ASCII_8BIT))
+            end
+          end
+        end
+
+        context 'for stderr' do
+          let(:command) { "cat #{file_to_cat} 1>&2" }
+          let(:output) { result.stderr }
+
+          context 'when neither the option { encoding: <value> } nor { stderr_encoding: <value> is given' do
+            let(:options) { {} }
+            let(:file_to_cat) { valid_utf8_file }
+
+            it 'should return output tagged as UTF-8 encoding' do
+              expect(result).to(have_attributes(exitstatus: 0))
+              expect(output.encoding).to eq(Encoding::UTF_8)
+              expect(output.valid_encoding?).to be true
+              expect(output).to eq(valid_utf8_string)
+            end
+          end
+
+          context 'when the option { encoding: "ASCII-8BIT"  } is given' do
+            let(:options) { { encoding: 'ASCII-8BIT' } }
+            let(:file_to_cat) { valid_utf8_file }
+
+            it 'should return the output in ASCII-8BIT encoding' do
+              expect(result).to(have_attributes(exitstatus: 0))
+              expect(output.encoding).to eq(Encoding::ASCII_8BIT)
+              expect(output.valid_encoding?).to be true
+              expect(output).to eq(valid_utf8_string.dup.force_encoding(Encoding::ASCII_8BIT))
+            end
+          end
+
+          context 'when the option { encoding: "UTF-8" } is given' do
+            let(:options) { { encoding: 'UTF-8' } }
+
+            context 'when output is valid UTF-8' do
+              let(:file_to_cat) { valid_utf8_file }
+
+              it 'should return the output tagged as UTF-8 encoding' do
+                expect(output.encoding).to eq(Encoding::UTF_8)
+              end
+
+              it 'should return the content' do
+                expect(output).to eq(valid_utf8_string)
+              end
+
+              it 'should return the output with valid_encoding? true' do
+                expect(output.valid_encoding?).to be true
+              end
+            end
+
+            context 'when output is NOT valid UTF-8' do
+              let(:file_to_cat) { invalid_utf8_file }
+
+              it 'should return the output tagged as UTF-8 encoding' do
+                expect(output.encoding).to eq(Encoding::UTF_8)
+              end
+
+              it 'should return the content' do
+                expect(output).to eq(invalid_utf8_string)
+              end
+
+              it 'should return the output with valid_encoding? true' do
+                expect(output.valid_encoding?).to be false
+              end
+            end
+          end
+
+          context 'when the option { stderr_encoding: "ASCII-8BIT" } is given' do
+            let(:options) { { stderr_encoding: 'ASCII-8BIT' } }
+            let(:file_to_cat) { valid_utf8_file }
+
+            it 'should return output tagged with ASCII-8BIT encoding' do
+              expect(output.encoding).to eq(Encoding::ASCII_8BIT)
+              expect(output.valid_encoding?).to be true
+              expect(output).to eq(valid_utf8_string.dup.force_encoding(Encoding::ASCII_8BIT))
+            end
+          end
+
+          context 'when the options { encoding: "UTF-8", stderr_encoding: "ASCII-8BIT" } are given' do
+            let(:options) { { stderr_encoding: 'ASCII-8BIT' } }
+            let(:file_to_cat) { valid_utf8_file }
+
+            it 'should use stderr_encoding and ignore encoding' do
+              expect(output.encoding).to eq(Encoding::ASCII_8BIT)
+              expect(output.valid_encoding?).to be true
+              expect(output).to eq(valid_utf8_string.dup.force_encoding(Encoding::ASCII_8BIT))
+            end
+          end
+        end
+      end
+
       context 'when a logger is given' do
         let(:log_buffer) { StringIO.new }
         let(:logger) { Logger.new(log_buffer) }
