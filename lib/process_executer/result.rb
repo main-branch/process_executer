@@ -102,7 +102,7 @@ module ProcessExecuter
     # @return [String]
     #
     def to_s
-      "#{super}#{timed_out? ? " timed out after #{options.timeout_after}s" : ''}"
+      "#{super}#{" timed out after #{options.timeout_after}s" if timed_out?}"
     end
   end
 end
