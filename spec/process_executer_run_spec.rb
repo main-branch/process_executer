@@ -702,5 +702,38 @@ RSpec.describe ProcessExecuter do
         end
       end
     end
+
+    describe 'encoding' do
+      context 'when stdout containing binary content is redirected to a file' do
+        before do
+          @tmpdir = File.realpath(Dir.mktmpdir)
+          @input_file = File.join(@tmpdir, 'input.txt')
+          @output_file = File.join(@tmpdir, 'output.txt')
+          @options = { out: @output_file }
+        end
+
+        after do
+          FileUtils.rm_rf(@tmpdir)
+        end
+
+        it 'should write the binary content to the file' do
+          binary_content = "\xA5\xE9\x80".b
+          File.write(@input_file, binary_content) # Write binary content to the input file
+          input_file_content = File.binread(@input_file)
+          expect(input_file_content).to eq(binary_content)
+
+          command = "cat #{@input_file}"
+
+          result = ProcessExecuter.run(command, **@options)
+          expect(result.exitstatus).to eq(0)
+
+          output_file_content = File.binread(@output_file)
+          expect(output_file_content.encoding).to eq(Encoding::ASCII_8BIT)
+
+          # this is the key assertion...
+          expect(output_file_content).to eq(binary_content)
+        end
+      end
+    end
   end
 end
