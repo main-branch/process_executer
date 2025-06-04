@@ -14,7 +14,7 @@ module ProcessExecuter
     # plus the additional options `timeout_after`, `raise_errors`, `logger`, and
     # `merge_output`.
     #
-    # Like {run}, any stdout or stderr redirection destinations are wrapped in a
+    # Like {Run}, any stdout or stderr redirection destinations are wrapped in a
     # {MonitoredPipe}.
     #
     # @api private
