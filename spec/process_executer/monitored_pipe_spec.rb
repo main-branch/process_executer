@@ -744,4 +744,28 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       end
     end
   end
+
+  describe 'encoding of output' do
+    let(:output_writer) do
+      Class.new do
+        def initialize
+          @data = []
+        end
+
+        attr_reader :data
+
+        def write(new_data)
+          @data << new_data
+        end
+      end.new
+    end
+
+    it 'should write data with BINARY encoding' do
+      monitored_pipe.write('違いを生み出すサンプルテキスト'.encode(Encoding::UTF_8))
+      sleep(0.01)
+      monitored_pipe.close
+      expect(output_writer.data.size).to eq(1)
+      expect(output_writer.data).to all(satisfy { |d| d.encoding == Encoding::BINARY })
+    end
+  end
 end
