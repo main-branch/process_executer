@@ -128,6 +128,13 @@ module ProcessExecuter
       @condition_variable = ConditionVariable.new
       @chunk_size = chunk_size
       @pipe_reader, @pipe_writer = IO.pipe
+
+      # Set the encoding of the pipe reader to ASCII_8BIT. This is not strictly
+      # necessary since read_nonblock always returns a String where encoding is
+      # Encoding::ASCII_8BIT, but it is a good practice to explicitly set the
+      # encoding.
+      pipe_reader.set_encoding(Encoding::ASCII_8BIT)
+
       @state = :open
       @thread = start_monitoring_thread
 
@@ -400,6 +407,7 @@ module ProcessExecuter
     # @return [void]
     # @api private
     def monitor_pipe
+      # read_nonblock always returns a String where encoding is Encoding::ASCII_8BIT
       new_data = pipe_reader.read_nonblock(chunk_size)
       write_data(new_data)
     rescue IO::WaitReadable
