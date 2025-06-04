@@ -268,7 +268,7 @@ module ProcessExecuter
 
         raise(
           ArgumentError,
-          "Unknown option#{unknown_options.count > 1 ? 's' : ''}: #{unknown_options.join(', ')}"
+          "Unknown option#{'s' if unknown_options.count > 1}: #{unknown_options.join(', ')}"
         )
       end
     end
