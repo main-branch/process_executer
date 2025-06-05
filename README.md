@@ -26,13 +26,16 @@ then click the "Documentation" link.
 - Compatible with MRI 3.1+, TruffleRuby 24+, and JRuby 9.4+
 - Works on Mac, Linux, and Windows platforms
 
-## Table of Contents
+## Table of contents
 
 - [Requirements](#requirements)
-- [Table of Contents](#table-of-contents)
+- [Table of contents](#table-of-contents)
 - [Usage](#usage)
-  - [Key Methods](#key-methods)
+  - [Key methods](#key-methods)
   - [ProcessExecuter::MonitoredPipe](#processexecutermonitoredpipe)
+  - [Encoding](#encoding)
+    - [Encoding summary](#encoding-summary)
+    - [Encoding details](#encoding-details)
 - [Breaking Changes](#breaking-changes)
   - [2.x](#2x)
     - [`ProcessExecuter.spawn`](#processexecuterspawn)
@@ -61,7 +64,7 @@ then click the "Documentation" link.
 [Full YARD documentation](https://rubydoc.info/gems/process_executer/) for this gem
 is hosted on RubyGems.org. Read below for an overview and several examples.
 
-### Key Methods
+### Key methods
 
 ℹ️ See [the ProcessExecuter module
   documentation](https://rubydoc.info/gems/process_executer/ProcessExecuter) for
@@ -104,7 +107,7 @@ This class's initializer accepts any compatible redirection destination supporte
 In addition to the standard redirection destinations, `MonitoredPipe` also
 supports these additional types of destinations:
 
-- **Arbitrary Writers**
+- **Arbitrary writers**
 
   You can redirect subprocess output to any Ruby object that implements the
   `#write` method. This is particularly useful for:
@@ -114,13 +117,87 @@ supports these additional types of destinations:
   - processing with a streaming parser to parse and process command output as the
     command runs
 
-- **Multiple Destinations**
+- **Multiple destinations**
 
   MonitoredPipe supports duplicating (or "teeing") output to multiple
   destinations simultaneously. This is achieved by providing an array in the
   format `[:tee, destination1, destination2, ...]`, where each `destination` can
   be any value that `MonitoredPipe` itself supports (including another tee or
   MonitoredPipe).
+
+### Encoding
+
+#### Encoding summary
+
+The gem's core (`MonitoredPipe`) passes through raw bytes from the subprocess without
+attempting to interpret or transcode them. `ProcessExecuter.run_with_capture` allows
+text encodings to be specified for the captured stdout and stderr (defaulting to
+`UTF-8`). For these outputs, the raw bytes are interpreted as being in that specified
+encoding. The original byte sequence is preserved and the resulting captured string
+is tagged with the target encoding. No transcoding between different text encodings
+(e.g., `Latin-1` to `UTF-8`) is performed.
+
+#### Encoding details
+
+`ProcessExecuter::MonitoredPipe` is encoding agnostic. Bytes pass through this class
+from the subprocesses output to the destination object as a stream of unaltered
+bytes. No transcoding is applied. Strings written to the destination are tagged for
+the ASCII-8BIT (aka BINARY) encoding.
+
+`ProcessExecuter` methods `.spawn_with_timeout`, `.run`, and `.run_with_capture` are
+also encoding agnostic except with one exception: the user can specify the assumed
+encoding for strings returned from `ResultWithCapture#stdout` and
+`ResultWithCapture#stderr`.
+
+As a convenience, the captured output is assumed to be UTF-8 by default:
+
+```ruby
+result = ProcessExecuter.run_with_capture('pwd')
+result.stdout #=> "/Users/James/projects/process_executer\n"
+result.stdout.encoding #=> #<Encoding::UTF-8>
+```
+
+You can changed the assumed encoding for the captured stdout and stderr via options
+passed to `#run_with_capture`:
+
+```ruby
+# Set the assumed encoding for both stdout and stderr
+result = ProcessExecuter.run_with_capture('pwd', encoding: Encoding::BINARY)
+result.stdout #=> "/Users/James/projects/process_executer\n"
+result.stdout.encoding #=> #<Encoding:BINARY (ASCII-8BIT)>
+
+# You can set the assumed encoding separately for stdout and stderr
+# Encoding may be different for each
+result = ProcessExecuter.run_with_capture('pwd', stdout_encoding: 'BINARY', stderr_encoding: 'UTF-8')
+result.stdout.encoding #=> #<Encoding:BINARY (ASCII-8BIT)>
+result.stderr.encoding #=> #<Encoding:UTF-8>
+```
+
+It is possible that the bytes captured are not valid in the given encoding. The user
+will need to check the `#valid_encoding?` method to know for sure.
+
+```ruby
+File.binwrite('output.txt', "\xFF\xFE") # little-endian BOM marker is not valid UTF-8
+result = ProcessExecuter.run_with_capture('cat output.txt')
+result.stdout #=> "\xFF\xFE"
+result.stdout.encoding #=> #<Encoding:UTF-8>
+result.stdout.valid_encoding? #=> false
+```
+
+Encoding options accept any encoding objects returned by `Encoding.list` or their
+String equivalent given by `#to_s`:
+
+```ruby
+Encoding::UTF_8.to_s #=> 'UTF-8'
+```
+
+Changing the assumed encoding DOES NOT cause transcoding. It simply interprets the
+bytes captured as the given encoding.
+
+These encoding options ONLY affect the internally captured stdout and stderr for
+`ProcessExecuter::run_with_capture`. If you give an `out:` or `err:` option, these
+will result in BINARY encoded strings and you will need to handle setting the right
+encoding or transcoding after collecting the output.
 
 ## Breaking Changes
 
