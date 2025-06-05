@@ -258,32 +258,69 @@ module ProcessExecuter
   #
   # Accepts all [Process.spawn execution
   # options](https://docs.ruby-lang.org/en/3.4/Process.html#module-Process-label-Execution+Options),
-  # the additional options defined by {spawn_with_timeout} and {run}, and the additional
-  # option `merge_output`:
+  # the additional options defined by {spawn_with_timeout} and {run}, and the
+  # additional options `merge_output`, `encoding`, `stdout_encoding`, and
+  # `stderr_encoding`:
   #
-  # * `merge_output: true` merges stdout and stderr into a single capture buffer
-  #   (default is false)
+  # * `merge_output: <Boolean>` if true merges stdout and stderr into a single
+  #   capture buffer (default is false)
+  # * `encoding: <Encoding>` sets the encoding for both stdout and stderr captures
+  #   (default is `Encoding::UTF_8`)
+  # * `stdout_encoding: <Encoding>` sets the encoding for the stdout capture and, if
+  #   not nil, overrides the `encoding` option for stdout (default is nil)
+  # * `stderr_encoding: <Encoding>` sets the encoding for the stderr capture and, if
+  #   not nil, overrides the `encoding` option for stderr (default is nil)
   #
   # The captured output is accessed in the returned object's `#stdout` and `#stderr`
   # methods. Merged output (if the `merged_output: true` option is given) is accessed
   # in the `#stdout` method.
   #
-  # stdout and stderr redirection options may be given by the user. User-supplied
-  # redirections will receive the output in addition to the internal capture.
+  # stdout and stderr redirection destinations may be given by the user (e.g. `out:
+  # <destination>` or `err: <destination>`). These redirections will receive the
+  # output in addition to the internal capture.
+  #
+  # Unless told otherwise, the internally captured output is assumed to be in UTF-8
+  # encoding. This assumption can be changed with the `encoding`,
+  # `stdout_encoding`, or `stderr_encoding` options. These options accept any
+  # encoding objects returned by `Encoding.list` or their String equivalent given by
+  # `#to_s`.
+  #
+  # The bytes captured are not transcoded. They are interpreted as being in the
+  # specified encoding. The user will have to check the validity of the
+  # encoding by calling `#valid_encoding?` on the captured output (e.g.,
+  # `result.stdout.valid_encoding?`).
   #
   # A `ProcessExecuter::ArgumentError` will be raised if both an options object and
   # an options_hash are given.
   #
   # @example capture stdout and stderr
-  #   result = ProcessExecuter.run_with_capture('echo HELLO; echo ERROR >&2')
-  #   result.stdout #=> "HELLO\n"
-  #   result.stderr #=> "ERROR\n"
+  #   result =
+  #   ProcessExecuter.run_with_capture('echo HELLO; echo ERROR >&2')
+  #   result.stdout #=> "HELLO\n" result.stderr #=> "ERROR\n"
   #
   # @example merge stdout and stderr
   #   result = ProcessExecuter.run_with_capture('echo HELLO; echo ERROR >&2', merge_output: true)
   #   # order of output is not guaranteed
-  #   result.stdout #=> "HELLO\nERROR\n"
-  #   result.stderr #=> ""
+  #   result.stdout #=> "HELLO\nERROR\n" result.stderr #=> ""
+  #
+  # @example default encoding
+  #   result = ProcessExecuter.run_with_capture('echo HELLO')
+  #   result.stdout #=> "HELLO\n"
+  #   result.stdout.encoding #=> #<Encoding:UTF-8>
+  #   result.stdout.valid_encoding? #=> true
+  #
+  # @example custom encoding
+  #   result = ProcessExecuter.run_with_capture('echo HELLO', encoding: Encoding::ISO_8859_1)
+  #   result.stdout #=> "HELLO\n"
+  #   result.stdout.encoding #=> #<Encoding:ISO-8859-1>
+  #   result.stdout.valid_encoding? #=> true
+  #
+  # @example custom encoding with invalid bytes
+  #   File.binwrite('output.txt', "\xFF\xFE") # little-endian BOM marker is not valid UTF-8
+  #   result = ProcessExecuter.run_with_capture('cat output.txt')
+  #   result.stdout #=> "\xFF\xFE"
+  #   result.stdout.encoding #=> #<Encoding:UTF-8>
+  #   result.stdout.valid_encoding? #=> false
   #
   # @overload run_with_capture(*command, **options_hash)
   #
@@ -300,6 +337,24 @@ module ProcessExecuter
   #
   #   @option options_hash [Boolean] :merge_output if true, stdout and stderr will be
   #     merged into a single capture buffer
+  #
+  #   @option options_hash [Encoding, String] :encoding the encoding to assume for
+  #     the internal stdout and stderr captures
+  #
+  #     The default is `Encoding::UTF_8`. This option is overridden by the `stdout_encoding`
+  #     and `stderr_encoding` options if they are given and not nil.
+  #
+  #   @option options_hash [Encoding, String, nil] :stdout_encoding the encoding to
+  #     assume for the internal stdout capture
+  #
+  #     The default is nil, which means the `encoding` option is used. If this option is
+  #     is not nil, it is used instead of the `encoding` option.
+  #
+  #   @option options_hash [Encoding, String, nil] :stderr_encoding the encoding to
+  #     assume for the internal stderr capture
+  #
+  #     The default is nil, which means the `encoding` option is used. If this option
+  #     is not nil, it is used instead of the `encoding` option.
   #
   # @overload run_with_capture(*command, options)
   #
@@ -336,6 +391,9 @@ module ProcessExecuter
   #   collecting subprocess output
   #
   # @return [ProcessExecuter::ResultWithCapture]
+  #
+  #   Where `#stdout` and `#stderr` are strings whose encoding is determined by the
+  #   `:encoding`, `:stdout_encoding`, or `:stderr_encoding` options.
   #
   # @api public
   #
