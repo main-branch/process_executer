@@ -5,6 +5,47 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0](https://github.com/main-branch/process_executer/compare/v3.2.4...v4.0.0) (2025-06-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* Users who call ProcessExecuter::Options::Base#with even if from a derived class will need to update to use #merge instead.
+* Users depending on `Result#stdout` or `Result#stderr` will either have to capture this output manually themselves or change from `spawn_and_wait`/`run` to `run_with_capture`.
+* calls to `ProcessExecuter.spawn_with_timeout_with_options` and `ProcessExecuter.run_with_options` have been removed. Use `ProcessExecuter.spawn_with_timeout` and `ProcessExecuter.run` instead.
+* Users who use ProcessExecuter.spawn_and_wait will need to update their calls to spawn_with_timeout. In addition, the following items will need to be updated if used by the user of this gem:
+    * ProcessExecuter.spawn_and_wait_with_options
+    * ProcessExecuter::SpawnAndWaitOptions
+* In places where users of this gem rescued ::ArgumentError, they will have to change the rescued class to ProcessExecuter::ArgumentError.
+
+### Features
+
+* Add `ProcessExecuter.run_with_capture` ([d9e97fe](https://github.com/main-branch/process_executer/commit/d9e97fe7728a0c7fce9520ad5ba9568782243f70))
+* Add encoding, stdout_encoding, stderr_encoding options to RunWithCaptureOptions ([83eaa93](https://github.com/main-branch/process_executer/commit/83eaa93417e810c1a1b569616c19d8facdc2b2f4))
+* Add ProcessExecuter::ArgumentError and raise it instead of ::ArgumentError ([860fc5a](https://github.com/main-branch/process_executer/commit/860fc5a224f86dd4ff525de32b643fc261e456f6))
+* Ensure that all data written by MonitoredPipe is ASCII-8BIT encoded ([8753006](https://github.com/main-branch/process_executer/commit/87530066280ed91afc208714514df845e4455b6b))
+* Make run_with_capture encode captured stdout and stderr based on encoding options ([75c3d92](https://github.com/main-branch/process_executer/commit/75c3d922fa74a17b61b415fe50acd9763a00524f))
+* Remove #spawn_with_timeout_with_options and #run_with_options methods ([446cb51](https://github.com/main-branch/process_executer/commit/446cb510a634ff5171df6b0fcb2d426cb3f9ed9e))
+* Remove Result#stdout and Result#stderr ([2dcad47](https://github.com/main-branch/process_executer/commit/2dcad47bb921170070f8d4bae1ce07244547db5c))
+* Rename ProcessExecuter::Options::Base#with to #merge ([7e8c28e](https://github.com/main-branch/process_executer/commit/7e8c28e33b99945187d272766134e30b5746ddc8))
+* Rename ProcessExecuter.spawn_and_wait to spawn_with_timeout ([b9d19e7](https://github.com/main-branch/process_executer/commit/b9d19e792234996f78c7cd63b22047bb7474a06d))
+
+
+### Bug Fixes
+
+* Fix new rubocop offense Style/EmptyStringInsideInterpolation ([bb610af](https://github.com/main-branch/process_executer/commit/bb610af96519cccd2fe1be62e61b1531711e5d9b))
+
+
+### Other Changes
+
+* Add a JRuby 10 build to the continuous integration workflow ([7a939ba](https://github.com/main-branch/process_executer/commit/7a939ba5bf7b291555a4259db7040b6cb96f494b))
+* Document the new encoding options on ProcessExecuter.run_with_capture ([c86ce62](https://github.com/main-branch/process_executer/commit/c86ce627b8c081981a92414c35eafb85b99e3201))
+* Ensure that binary data is correctly written to file destinations ([0d2db54](https://github.com/main-branch/process_executer/commit/0d2db54d2b9c4354cb880a17a6b683dc8b5f8424))
+* Fix indentation in README ([1837e7a](https://github.com/main-branch/process_executer/commit/1837e7a5cee56ccc7f3ebdc7f71aab43d1a56ab4))
+* Internally refactor classes for clarity and update documentation ([da1db96](https://github.com/main-branch/process_executer/commit/da1db9697e5c2be371d308d5790e44dcccf8e40b))
+* Remove unneeded :nocov: blocks ([7a1fcf5](https://github.com/main-branch/process_executer/commit/7a1fcf500b89d7fe8e7254ba4fa20e38f0b46d45))
+* Update the README with all the changes for the latest release ([38206a5](https://github.com/main-branch/process_executer/commit/38206a57d26dcca3437611291ab3ccdc1d5a442f))
+
 ## [3.2.4](https://github.com/main-branch/process_executer/compare/v3.2.3...v3.2.4) (2025-04-18)
 
 
