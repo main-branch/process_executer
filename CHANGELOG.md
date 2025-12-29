@@ -5,6 +5,15 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1](https://github.com/main-branch/process_executer/compare/v4.0.0...v4.0.1) (2025-12-29)
+
+
+### Other Changes
+
+* Add Copilot instructions for process_executer gem ([d567df2](https://github.com/main-branch/process_executer/commit/d567df2020b655493adebfcbf55a83a61d944c2f))
+* Add irb as development dependency ([95443c0](https://github.com/main-branch/process_executer/commit/95443c0fc2ef9a7aa8ff982811622d761fe09db9))
+* Add Ruby 4.0 to continuous integration test matrix ([5f032b4](https://github.com/main-branch/process_executer/commit/5f032b46ee67474b871484d20105b044207b62f2))
+
 ## [4.0.0](https://github.com/main-branch/process_executer/compare/v3.2.4...v4.0.0) (2025-06-05)
 
 
