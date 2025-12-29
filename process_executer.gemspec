@@ -60,6 +60,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'simplecov-rspec', '~> 0.3'
 
   unless RUBY_PLATFORM == 'java'
+    spec.add_development_dependency 'irb', '~> 1.6'
     spec.add_development_dependency 'redcarpet', '~> 3.6'
     spec.add_development_dependency 'yard', '~> 0.9', '>= 0.9.28'
     spec.add_development_dependency 'yardstick', '~> 0.9'
