@@ -149,14 +149,31 @@ module ProcessExecuter
 
         process_status =
           begin
-            Timeout.timeout(options.timeout_after) { Process.wait2(pid).last }
+            Timeout.timeout(options.timeout_after) { wait_for_status }
           rescue Timeout::Error
             Process.kill('KILL', pid)
             timed_out = true
-            Process.wait2(pid).last
+            wait_for_status
           end
 
+        raise ProcessExecuter::ProcessIOError, 'Process wait returned nil status' if process_status.nil?
+
         [process_status, timed_out]
+      end
+
+      def wait_for_status
+        pair = try_wait { Process.wait2(pid) }
+        pair = try_wait { Process.waitpid2(pid) } if pair.nil?
+
+        return pair.last if pair
+
+        try_wait { Process.wait(pid) }
+      end
+
+      def try_wait
+        yield
+      rescue Errno::ECHILD
+        nil
       end
     end
   end
