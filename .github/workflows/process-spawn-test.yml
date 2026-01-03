@@ -40,4 +40,5 @@ jobs:
           ruby -e "puts %Q(Java version: #{java.lang.System.getProperty(%q(java.version))})"
 
       - name: Run tests
-        run: cd process_spawn_test && bundle exec rspec
+        working-directory: process_spawn_test
+        run: bundle exec rspec
