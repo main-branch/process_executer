@@ -20,15 +20,8 @@ RubyGems.org. Go to the [process_executer page in
 RubyGems.org](https://rubygems.org/gems/process_executer), select your version, and
 then click the "Documentation" link.
 
-## Requirements
-
-- Ruby 3.1.0 or later
-- Compatible with MRI 3.1+, TruffleRuby 24+, and JRuby 9.4+
-- Works on Mac, Linux, and Windows platforms
-
 ## Table of contents
 
-- [Requirements](#requirements)
 - [Table of contents](#table-of-contents)
 - [Usage](#usage)
   - [Key methods](#key-methods)
@@ -36,6 +29,7 @@ then click the "Documentation" link.
   - [Encoding](#encoding)
     - [Encoding summary](#encoding-summary)
     - [Encoding details](#encoding-details)
+- [Ruby version support policy](#ruby-version-support-policy)
 - [Breaking Changes](#breaking-changes)
   - [2.x](#2x)
     - [`ProcessExecuter.spawn`](#processexecuterspawn)
@@ -198,6 +192,26 @@ These encoding options ONLY affect the internally captured stdout and stderr for
 `ProcessExecuter::run_with_capture`. If you give an `out:` or `err:` option, these
 will result in BINARY encoded strings and you will need to handle setting the right
 encoding or transcoding after collecting the output.
+
+## Ruby version support policy
+
+This gem will be expected to function correctly on:
+
+- All [non-EOL versions](https://www.ruby-lang.org/en/downloads/branches/) of the MRI
+  Ruby on Mac, Linux, and Windows
+- The latest version of JRuby 9.4+ on Linux
+- The latest version of TruffleRuby 24+ on Linux
+
+It is this project's intent to support the latest version of JRuby on Windows once
+Process.wait2 and Process.wait work correctly on this platform.
+
+Currently, JRuby on Windows does not capture and report the subprocess status via $?
+(or $CHILD_STATUS), Process.wait, or Process.wait2. These values always return `nil`
+for the status, preventing this gem from properly detecting command failures and
+timeouts.
+
+This repository includes a separate test suite in the `process_spawn_test/`
+directory that specifically validates JRuby's subprocess behavior. The [Process Spawn Test workflow](.github/workflows/process-spawn-test.yml) can be run manually to verify the status of this issue.
 
 ## Breaking Changes
 

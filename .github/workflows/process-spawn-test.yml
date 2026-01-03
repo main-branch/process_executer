@@ -1,0 +1,43 @@
+name: Process.spawn Test
+
+# Test that Process.spawn sets status correctly on JRuby for Windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ["ruby", "jruby"]
+        operating-system: [ubuntu-latest, windows-latest]
+
+    name: Ruby ${{ matrix.ruby }} on ${{ matrix.operating-system }}
+    runs-on: ${{ matrix.operating-system }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Java
+        if: startsWith(matrix.ruby, 'jruby')
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+          working-directory: .
+
+      - name: Show Java version
+        if: startsWith(matrix.ruby, 'jruby')
+        run: |
+          ruby -e "puts %Q(Java version: #{java.lang.System.getProperty(%q(java.version))})"
+
+      - name: Run tests
+        run: cd process_spawn_test && bundle exec rspec
