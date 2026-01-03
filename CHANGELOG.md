@@ -5,6 +5,17 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.2](https://github.com/main-branch/process_executer/compare/v4.0.1...v4.0.2) (2026-01-03)
+
+
+### Other Changes
+
+* Bump actions/checkout@v5 and actions/setup-java@v5 ([07c6488](https://github.com/main-branch/process_executer/commit/07c6488b21305cbffb059c181e7720868781ddd4))
+* Fix process spawn workflow link ([316fdeb](https://github.com/main-branch/process_executer/commit/316fdebce530b2be5ceb5046e21ee848af52381a))
+* Run process-spawn specs under bash on Windows ([320ceb0](https://github.com/main-branch/process_executer/commit/320ceb0395c85bb40b1706efb0c6e71f50a20d06))
+* Run process-spawn tests from subdirectory ([ef8b968](https://github.com/main-branch/process_executer/commit/ef8b968b0cc8ff6b8d1ea051ff5836fcaf65ff7e))
+* Update Ruby version support policy ([0df371d](https://github.com/main-branch/process_executer/commit/0df371d004da62ed3bcb6685aba53d62d7061d02))
+
 ## [4.0.1](https://github.com/main-branch/process_executer/compare/v4.0.0...v4.0.1) (2025-12-29)
 
 
