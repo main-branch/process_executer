@@ -210,8 +210,10 @@ Currently, JRuby on Windows does not capture and report the subprocess status vi
 for the status, preventing this gem from properly detecting command failures and
 timeouts.
 
-This repository includes a separate test suite in the `process_spawn_test/`
-directory that specifically validates JRuby's subprocess behavior. The [Process Spawn Test workflow](.github/workflows/process-spawn-test.yml) can be run manually to verify the status of this issue.
+This repository includes a separate test suite in the `process_spawn_test/` directory
+that specifically validates JRuby's subprocess behavior. The [Process Spawn Test
+workflow](https://github.com/main-branch/process_executer/actions/workflows/process-spawn-test.yml)
+can be run manually to verify the status of this issue.
 
 ## Breaking Changes
 
