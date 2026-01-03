@@ -41,4 +41,5 @@ jobs:
 
       - name: Run tests
         working-directory: process_spawn_test
-        run: bundle exec rspec
+        shell: bash
+        run: bundle exec rspec spec/test_spec.rb
