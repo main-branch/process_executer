@@ -203,17 +203,12 @@ This gem will be expected to function correctly on:
 - The latest version of TruffleRuby 24+ on Linux
 
 It is this project's intent to support the latest version of JRuby on Windows once
-Process.wait2 and Process.wait work correctly on this platform.
+Process.wait and Process.wait2 report subprocess status correctly on that platform
+(tracking: https://github.com/main-branch/process_executer/issues/156).
 
-Currently, JRuby on Windows does not capture and report the subprocess status via $?
-(or $CHILD_STATUS), Process.wait, or Process.wait2. These values always return `nil`
-for the status, preventing this gem from properly detecting command failures and
-timeouts.
-
-This repository includes a separate test suite in the `process_spawn_test/` directory
-that specifically validates JRuby's subprocess behavior. The [Process Spawn Test
-workflow](https://github.com/main-branch/process_executer/actions/workflows/process-spawn-test.yml)
-can be run manually to verify the status of this issue.
+This repository includes a separate test suite in the `process_spawn_test/` directory.
+The [Process Spawn Test workflow](https://github.com/main-branch/process_executer/actions/workflows/process-spawn-test.yml)
+can be run manually to check the current JRuby/Windows status.
 
 ## Breaking Changes
 
