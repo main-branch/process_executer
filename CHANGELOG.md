@@ -5,6 +5,13 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.3](https://github.com/main-branch/process_executer/compare/v4.0.2...v4.0.3) (2026-01-04)
+
+
+### Other Changes
+
+* Note JRuby Windows support issue ([4cc6903](https://github.com/main-branch/process_executer/commit/4cc69036bbdda383a8ecb50bd63b19f96303203a))
+
 ## [4.0.2](https://github.com/main-branch/process_executer/compare/v4.0.1...v4.0.2) (2026-01-03)
 
 
