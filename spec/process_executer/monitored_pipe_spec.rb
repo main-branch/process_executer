@@ -24,14 +24,15 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         COMMAND
         Dir.mktmpdir do |dir|
           path = File.join(dir, 'output.txt')
-          f = File.open(path, 'w', 0o644)
-          fd = f.fileno
-          monitored_pipe = ProcessExecuter::MonitoredPipe.new(fd)
-          _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
-          monitored_pipe.close
-          f.close
-          expect(monitored_pipe.exception).to be_nil
-          expect(status.exitstatus).to eq(0)
+          File.open(path, 'w', 0o644) do |f|
+            fd = f.fileno
+            monitored_pipe = ProcessExecuter::MonitoredPipe.new(fd)
+            _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+            monitored_pipe.close
+
+            expect(monitored_pipe.exception).to be_nil
+            expect(status.exitstatus).to eq(0)
+          end
           expect(File.read(path).gsub("\r\n", "\n")).to eq("stdout output\n")
         end
       end
@@ -91,16 +92,15 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
 
         Dir.mktmpdir do |dir|
           path = File.join(dir, 'output.txt')
-          f = File.open(path, 'w', 0o644)
-          monitored_pipe = ProcessExecuter::MonitoredPipe.new(f)
-          _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
-          monitored_pipe.close
+          File.open(path, 'w', 0o644) do |f|
+            monitored_pipe = ProcessExecuter::MonitoredPipe.new(f)
+            _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+            monitored_pipe.close
 
-          expect(monitored_pipe.exception).to be_nil
-          expect(status.exitstatus).to eq(0)
-          expect(f.closed?).to eq(false)
-
-          f.close
+            expect(monitored_pipe.exception).to be_nil
+            expect(status.exitstatus).to eq(0)
+            expect(f.closed?).to eq(false)
+          end
 
           expect(File.read(path).gsub("\r\n", "\n")).to eq("stdout output\n")
         end
@@ -140,16 +140,18 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
           Dir.mktmpdir do |dir|
             filepath = File.join(dir, 'output.txt')
 
-            f = File.open(filepath, 'w', 0o600)
-            f.puts 'initial content'
-            f.close
+            File.open(filepath, 'w', 0o600) do |f|
+              f.puts 'initial content'
+              f.close
 
-            monitored_pipe = ProcessExecuter::MonitoredPipe.new(filepath)
-            _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
-            monitored_pipe.close
+              monitored_pipe = ProcessExecuter::MonitoredPipe.new(filepath)
+              _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+              monitored_pipe.close
 
-            expect(monitored_pipe.exception).to be_nil
-            expect(status.exitstatus).to eq(0)
+              expect(monitored_pipe.exception).to be_nil
+              expect(status.exitstatus).to eq(0)
+            end
+
             unless windows?
               file_permissions = File.stat(filepath).mode & 0o7777
               expect(file_permissions).to eq(0o600)
@@ -477,19 +479,21 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         Dir.mktmpdir do |dir|
           destination1 = File.join(dir, 'output1.txt')
           filepath2 = File.join(dir, 'output2.txt')
-          destination2 = File.open(filepath2, 'w', 0o644)
           destination3 = StringIO.new
-          monitored_pipe = ProcessExecuter::MonitoredPipe.new([:tee, destination1, destination2, destination3])
 
-          command = ruby_command(<<~COMMAND)
-            puts 'stdout output'
-          COMMAND
-          _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
-          monitored_pipe.close
-          destination2.close
+          File.open(filepath2, 'w', 0o644) do |destination2|
+            monitored_pipe = ProcessExecuter::MonitoredPipe.new([:tee, destination1, destination2, destination3])
 
-          expect(monitored_pipe.exception).to be_nil
-          expect(status.exitstatus).to eq(0)
+            command = ruby_command(<<~COMMAND)
+              puts 'stdout output'
+            COMMAND
+            _pid, status = Process.wait2(Process.spawn(*command, out: monitored_pipe))
+            monitored_pipe.close
+
+            expect(monitored_pipe.exception).to be_nil
+            expect(status.exitstatus).to eq(0)
+          end
+
           expect(File.read(destination1).gsub("\r\n", "\n")).to eq("stdout output\n")
           expect(File.read(filepath2).gsub("\r\n", "\n")).to eq("stdout output\n")
           expect(destination3.string.gsub("\r\n", "\n")).to eq("stdout output\n")
@@ -578,10 +582,11 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       it 'should write to the file descriptor' do
         Dir.mktmpdir do |dir|
           path = File.join(dir, 'output.txt')
-          file = File.open(path, 'w')
-          pid = Process.spawn('echo hello', out: file.fileno)
-          Process.wait(pid)
-          file.close
+          File.open(path, 'w') do |file|
+            pid = Process.spawn('echo hello', out: file.fileno)
+            Process.wait(pid)
+          end
+
           expect(File.read(path)).to eq("hello\n")
         end
       end
