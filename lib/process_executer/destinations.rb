@@ -76,7 +76,7 @@ module ProcessExecuter
       destination_classes =
         ProcessExecuter::Destinations.constants
                                      .map { |const| ProcessExecuter::Destinations.const_get(const) }
-                                     .select { |const| const.is_a?(Class) }
+                                     .grep(Class)
                                      .reject { |klass| klass == ProcessExecuter::Destinations::DestinationBase }
 
       destination_classes.find { |klass| klass.handles?(destination) }

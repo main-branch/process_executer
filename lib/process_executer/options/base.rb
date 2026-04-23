@@ -87,8 +87,8 @@ module ProcessExecuter
       #
       def allowed_options
         @allowed_options ||=
-          define_options.each_with_object({}) do |option, hash|
-            hash[option.name] = option
+          define_options.to_h do |option|
+            [option.name, option]
           end.freeze
       end
 

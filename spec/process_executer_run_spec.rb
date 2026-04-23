@@ -483,9 +483,11 @@ RSpec.describe ProcessExecuter do
         Dir.mktmpdir do |dir|
           Dir.chdir(dir) do
             out_buffer = StringIO.new
-            out_file = File.open('stdout.txt', 'w')
-            ProcessExecuter.run(*command, out: [:tee, out_buffer, out_file])
-            out_file.close
+
+            File.open('stdout.txt', 'w') do |out_file|
+              ProcessExecuter.run(*command, out: [:tee, out_buffer, out_file])
+            end
+
             expect(out_buffer.string.gsub("\r\n", "\n")).to eq("Test output\n")
             expect(File.read('stdout.txt').gsub("\r\n", "\n")).to eq("Test output\n")
           end
@@ -619,10 +621,10 @@ RSpec.describe ProcessExecuter do
 
         Dir.mktmpdir do |dir|
           Dir.chdir(dir) do
-            file = File.open('output.txt', 'w')
-            options = { out: [:child, 6], err: [:child, 6], 6 => file }
-            ProcessExecuter.run(*command, **options)
-            file.close
+            File.open('output.txt', 'w') do |file|
+              options = { out: [:child, 6], err: [:child, 6], 6 => file }
+              ProcessExecuter.run(*command, **options)
+            end
 
             expect(File.read('output.txt').gsub("\r\n", "\n")).to match(/^stdout output\n/)
             expect(File.read('output.txt').gsub("\r\n", "\n")).to match(/^stderr output\n/)
