@@ -5,6 +5,18 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.4](https://github.com/main-branch/process_executer/compare/v4.0.3...v4.0.4) (2026-04-24)
+
+
+### Bug Fixes
+
+* **rubocop:** Fix offenses introduced by new rubocop cops ([b21ca99](https://github.com/main-branch/process_executer/commit/b21ca991641784146b0c92c1dd3205fc9d2c0f4f))
+
+
+### Other Changes
+
+* **dependencies:** Update dependencies for all GitHub Actions workflows ([3524dbf](https://github.com/main-branch/process_executer/commit/3524dbf8b5945c233be96381f4555407b537f236))
+
 ## [4.0.3](https://github.com/main-branch/process_executer/compare/v4.0.2...v4.0.3) (2026-01-04)
 
 
