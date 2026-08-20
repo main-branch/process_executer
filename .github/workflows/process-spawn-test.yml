@@ -1,6 +1,9 @@
 name: Process.spawn Test
 
 # Test that Process.spawn sets status correctly on JRuby for Windows
+#
+# See jruby/jruby#7515. The `subspawn` variant of the matrix checks the same
+# thing with byteit101/subspawn replacing JRuby's built-in spawn/wait.
 
 on:
   workflow_dispatch:
@@ -12,8 +15,14 @@ jobs:
       matrix:
         ruby: ["ruby", "jruby"]
         operating-system: [ubuntu-latest, windows-latest]
+        spawn-backend: [stock, subspawn]
+        exclude:
+          # SubSpawn replaces JRuby's spawn implementation. Running it on MRI
+          # would not tell us anything about jruby/jruby#7515.
+          - ruby: "ruby"
+            spawn-backend: subspawn
 
-    name: Ruby ${{ matrix.ruby }} on ${{ matrix.operating-system }}
+    name: ${{ matrix.ruby }} / ${{ matrix.operating-system }} / ${{ matrix.spawn-backend }}
     runs-on: ${{ matrix.operating-system }}
 
     steps:
@@ -39,7 +48,40 @@ jobs:
         run: |
           ruby -e "puts %Q(Java version: #{java.lang.System.getProperty(%q(java.version))})"
 
+      - name: Install SubSpawn from git
+        if: matrix.spawn-backend == 'subspawn'
+        shell: bash
+        run: |
+          # The published subspawn 0.2.0.pre1 cannot be installed on JRuby at all:
+          # its engine-hacks dependency was only ever pushed as a `ruby` platform
+          # gem carrying a C extension, and the `java` platform build that its
+          # gemspec provides for was never published. Building the gemspecs with
+          # the active Ruby produces the java-platform gem instead.
+          #
+          # master is also newer than the RC and carries fixes the RC does not
+          # have, so build from master rather than from the released gems.
+          git clone --depth 1 https://github.com/byteit101/subspawn "$RUNNER_TEMP/subspawn"
+          cd "$RUNNER_TEMP/subspawn"
+          git log -1 --format='subspawn master at %H (%ci)'
+          for gem_dir in engine-hacks subspawn-common subspawn-win32 subspawn-posix subspawn; do
+            (
+              cd "$gem_dir"
+              gem build "$gem_dir.gemspec"
+              gem install --force --no-document "$gem_dir"-*.gem
+            )
+          done
+
       - name: Run tests
         working-directory: process_spawn_test
         shell: bash
-        run: bundle exec rspec spec/test_spec.rb
+        env:
+          SPAWN_BACKEND: ${{ matrix.spawn-backend }}
+        run: |
+          if [ "$SPAWN_BACKEND" = subspawn ]; then
+            # SubSpawn is installed as a system gem, outside the bundle, so run
+            # rspec directly instead of through `bundle exec`.
+            gem install --no-document rspec
+            rspec spec/test_spec.rb
+          else
+            bundle exec rspec spec/test_spec.rb
+          fi
