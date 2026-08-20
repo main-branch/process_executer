@@ -5,6 +5,14 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.5](https://github.com/main-branch/process_executer/compare/v4.0.4...v4.0.5) (2026-08-20)
+
+
+### Other Changes
+
+* **process-spawn:** Check exit status and blocking, and add a subspawn backend ([99021d2](https://github.com/main-branch/process_executer/commit/99021d2144a21210f793b7ae94d36875eef504e6))
+* **process-spawn:** Run the spawn tests against the subspawn backend ([573086f](https://github.com/main-branch/process_executer/commit/573086f194e790f25d916de32bb5e94437a5ae86))
+
 ## [4.0.4](https://github.com/main-branch/process_executer/compare/v4.0.3...v4.0.4) (2026-04-24)
 
 
