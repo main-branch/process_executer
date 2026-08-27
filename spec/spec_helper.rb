@@ -270,12 +270,16 @@ RSpec.shared_examples 'it returns only Process.spawn options' do |**non_spawn_op
   it { is_expected.to eq(spawn_options) }
 end
 
-require 'rbconfig'
-
-SimpleCov::RSpec.start(list_uncovered_lines: ci_build?) do
-  # Avoid false positives in spec directory from JRuby, TruffleRuby, and Windows
-  add_filter '/spec/' unless mri? && windows?
-end
+# Coverage results from JRuby, TruffleRuby, and Windows are incomplete, so only
+# enforce the coverage threshold on MRI builds that are not on Windows. Setting
+# the FAIL_ON_LOW_COVERAGE environment variable overrides this (simplecov-rspec
+# gives the env var precedence over the fail_on_low_coverage option).
+#
+# Spec files are included in the coverage measurement. Code in spec files that
+# only runs on some platforms is excluded from coverage with `# :nocov:`
+# comments.
+#
+SimpleCov::RSpec.start(list_uncovered_lines: ci_build?, fail_on_low_coverage: mri? && !windows?)
 
 # Make sure to require your project AFTER starting SimpleCov
 #
