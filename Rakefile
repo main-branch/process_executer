@@ -6,6 +6,9 @@ desc 'Run the same tasks that the CI build will run'
 
 if RUBY_PLATFORM == 'java'
   task default: %w[spec rubocop bundle:audit build]
+elsif RUBY_ENGINE == 'truffleruby'
+  # RuboCop raises internal errors when run on TruffleRuby, so skip it there
+  task default: %w[spec yard bundle:audit build]
 else
   task default: %w[spec rubocop yard bundle:audit build]
 end
