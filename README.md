@@ -26,6 +26,7 @@ then click the "Documentation" link.
 - [Usage](#usage)
   - [Key methods](#key-methods)
   - [ProcessExecuter::MonitoredPipe](#processexecutermonitoredpipe)
+  - [Redirecting stdin](#redirecting-stdin)
   - [Encoding](#encoding)
     - [Encoding summary](#encoding-summary)
     - [Encoding details](#encoding-details)
@@ -118,6 +119,25 @@ supports these additional types of destinations:
   format `[:tee, destination1, destination2, ...]`, where each `destination` can
   be any value that `MonitoredPipe` itself supports (including another tee or
   MonitoredPipe).
+
+### Redirecting stdin
+
+The `in:` option is passed directly to `Process.spawn` and is not wrapped in a
+`MonitoredPipe`. It accepts any stdin redirection value that `Process.spawn`
+supports, such as a filename (`in: 'input.txt'`) or an IO object with a file
+descriptor. Unlike `out:` and `err:`, redirecting stdin from a `StringIO` is not
+supported and will raise `ProcessExecuter::SpawnError`. To feed in-memory data
+to a command's stdin, write it to a `Tempfile` and pass that:
+
+```ruby
+require 'tempfile'
+
+Tempfile.create do |file|
+  file.write("HEAD\n")
+  file.rewind
+  result = ProcessExecuter.run('git cat-file --batch-check', in: file)
+end
+```
 
 ### Encoding
 
