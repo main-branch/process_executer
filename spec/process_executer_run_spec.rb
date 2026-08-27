@@ -682,7 +682,9 @@ RSpec.describe ProcessExecuter do
           # MonitoredPipe.
 
           it 'is expected to raise an error', skip: 'this test hangs, see comment' do
+            # :nocov: execution of this code is platform dependent
             expect { subject }.to raise_error(ProcessExecuter::SpawnError)
+            # :nocov:
           end
         end
 
@@ -691,15 +693,22 @@ RSpec.describe ProcessExecuter do
         #
         context 'when run with TruffleRuby', if: truffleruby? do
           it 'is expected to return a Result with exitstatus 1 (which raises a FailedError)' do
+            # :nocov: execution of this code is platform dependent
             expect { subject }.to raise_error(ProcessExecuter::FailedError)
+            # :nocov:
           end
         end
 
-        # JRuby silently ignores the chdir option
+        # JRuby does not raise a SpawnError for an invalid chdir path. Older
+        # versions silently ignored the option; current versions attempt the
+        # chdir in the launched shell, which fails with a non-zero exitstatus
+        # (which raises a FailedError).
         #
         context 'when run with JRuby', if: jruby? do
-          it 'is expected to ignore the invalid chdir path' do
-            expect(subject).to be_a(ProcessExecuter::Result).and have_attributes(exitstatus: 0)
+          it 'is expected to fail the command instead of raising a SpawnError' do
+            # :nocov: execution of this code is platform dependent
+            expect { subject }.to raise_error(ProcessExecuter::FailedError)
+            # :nocov:
           end
         end
       end
