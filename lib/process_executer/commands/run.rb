@@ -21,9 +21,29 @@ module ProcessExecuter
     # destination. This means that you can redirect to a StringIO which is not possible
     # with `Process.spawn`.
     #
+    # The wrapper pipes are kept in an internal hash that is combined with the
+    # user's options only when `Process.spawn` is called. The options object the
+    # caller gave is never modified, so it can be reused for another run and
+    # `result.options` returns the destinations as the user configured them.
+    #
     # @api private
     #
     class Run < SpawnWithTimeout
+      # Create a new Run instance
+      #
+      # @example
+      #   options = ProcessExecuter::Options::RunOptions.new(raise_errors: true)
+      #   result = ProcessExecuter::Commands::Run.new('echo hello', options).call
+      #   result.success? # => true
+      #
+      # @param command [Array<String>] The command to run in the subprocess
+      # @param options [ProcessExecuter::Options::RunOptions] The options to use when running the command
+      #
+      def initialize(command, options)
+        super
+        @redirection_overrides = {}
+      end
+
       # Run a command and return the result
       #
       # Wrap the stdout and stderr redirection destinations in pipes and then execute
@@ -63,7 +83,31 @@ module ProcessExecuter
 
       private
 
+      # Redirection options to apply on top of the user's options at spawn time
+      #
+      # Holds the {MonitoredPipe} wrappers created by {#wrap_stdout_stderr} (and
+      # the capture redirections added by subclasses) keyed by the redirection
+      # option key. Keeping them here instead of writing them into {#options}
+      # leaves the caller's options object unmodified.
+      #
+      # @return [Hash<Object, Object>]
+      #
+      attr_reader :redirection_overrides
+
+      # The options to pass to Process.spawn
+      #
+      # The user's spawn options with the redirection destinations replaced by
+      # their internal {MonitoredPipe} wrappers.
+      #
+      # @return [Hash]
+      #
+      def spawn_options = super.merge(redirection_overrides)
+
       # Wrap the stdout and stderr redirection options with a MonitoredPipe
+      #
+      # The wrapper pipes are recorded in {#redirection_overrides} instead of
+      # being written into {#options} so the caller's options object is not
+      # modified.
       #
       # Each pipe is added to `opened_pipes` as soon as it is created so that,
       # if creating a later pipe raises, the caller's ensure block can close the
@@ -75,16 +119,21 @@ module ProcessExecuter
       # @return [Hash<Object, ProcessExecuter::MonitoredPipe>] the given `opened_pipes`
       #
       def wrap_stdout_stderr(opened_pipes)
-        options.each_with_object(opened_pipes) do |key_value, pipes|
-          key, value = key_value
-
+        effective_redirections.each do |key, value|
           next unless should_wrap?(key, value)
 
           wrapped_destination = ProcessExecuter::MonitoredPipe.new(value)
-          pipes[key] = wrapped_destination
-          options.merge!({ key => wrapped_destination })
+          opened_pipes[key] = wrapped_destination
+          redirection_overrides[key] = wrapped_destination
         end
+        opened_pipes
       end
+
+      # The options as given by the user with {#redirection_overrides} applied
+      #
+      # @return [Hash<Object, Object>]
+      #
+      def effective_redirections = options.to_h.merge(redirection_overrides)
 
       # Close the given pipes and raise any pipe error unless already unwinding
       #

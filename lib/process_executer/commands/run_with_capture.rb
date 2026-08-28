@@ -50,7 +50,7 @@ module ProcessExecuter
         @stderr_buffer = StringIO.new
         stderr_buffer.set_encoding(options.effective_stderr_encoding)
 
-        update_capture_options
+        add_capture_redirections
 
         begin
           super
@@ -89,15 +89,18 @@ module ProcessExecuter
         )
       end
 
-      # Updates {options} to include the stdout and stderr capture options
+      # Add the stdout and stderr capture redirections to {#redirection_overrides}
+      #
+      # The capture redirections are not written into {options} so the caller's
+      # options object is not modified.
       #
       # @return [Void]
       #
-      def update_capture_options
+      def add_capture_redirections
         out = stdout_buffer
         err = options.merge_output ? [:child, 1] : stderr_buffer
 
-        options.merge!(
+        redirection_overrides.merge!(
           capture_option(:out, stdout_redirection_source, stdout_redirection_destination, out),
           capture_option(:err, stderr_redirection_source, stderr_redirection_destination, err)
         )

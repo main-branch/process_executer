@@ -48,7 +48,7 @@ module ProcessExecuter
       #
       def call
         begin
-          @pid = Process.spawn(*command, **options.spawn_options)
+          @pid = Process.spawn(*command, **spawn_options)
         rescue StandardError => e
           raise ProcessExecuter::SpawnError, "Failed to spawn process: #{e.message}"
         end
@@ -117,6 +117,16 @@ module ProcessExecuter
       attr_reader :result
 
       private
+
+      # The options to pass to Process.spawn
+      #
+      # Subclasses may override this method to combine internal redirections
+      # with the user's options without modifying the options object the
+      # caller gave.
+      #
+      # @return [Hash]
+      #
+      def spawn_options = options.spawn_options
 
       # Wait for process to terminate
       #
