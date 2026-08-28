@@ -3,6 +3,21 @@
 require 'tmpdir'
 
 RSpec.describe ProcessExecuter::MonitoredPipe do
+  # Tear down a pipe whose threads are wedged so that a deadlock fails this
+  # example instead of hanging the whole suite (including the global
+  # `assert_no_open_instances` hook).
+  # Every step is a no-op when the pipe already closed normally, so this is safe
+  # to call unconditionally: killing a dead thread does nothing, the fds are
+  # guarded by #closed?, and remove_open_instance deletes a key that may not be
+  # there.
+  def force_close(pipe, *threads)
+    threads.compact.each(&:kill)
+    pipe.thread.kill
+    pipe.pipe_writer.close unless pipe.pipe_writer.closed?
+    pipe.pipe_reader.close unless pipe.pipe_reader.closed?
+    described_class.remove_open_instance(pipe)
+  end
+
   let(:monitored_pipe) { described_class.new(destination) }
   let(:output_writer) { StringIO.new }
   let(:destination) { output_writer }
@@ -700,6 +715,49 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         monitored_pipe.write(data)
         monitored_pipe.close
         expect(output_writer.string.size).to eq(data.size)
+      end
+    end
+
+    context 'when the destination raises an error while the pipe buffer is full' do
+      let(:output_writer) { double('output') }
+
+      # Much larger than the OS pipe buffer (~64KB) so that the write to the pipe
+      # blocks partway through while the destination is raising on an earlier chunk.
+      let(:data) { 'x' * 10_000_000 }
+
+      before { allow(output_writer).to receive(:write).and_raise(RuntimeError, 'destination failed') }
+
+      it 'should not deadlock the writing thread and the monitoring thread' do
+        # The thread returns whatever #write does: the error it raised, or the
+        # number of bytes written if it unexpectedly ran to completion.
+        writer = Thread.new do
+          monitored_pipe.write(data)
+        rescue StandardError => e
+          e
+        end
+
+        # Do not call writer.value before this expectation: it waits on the thread,
+        # which never finishes if the deadlock has come back.
+        expect(writer.join(10)).not_to be_nil, '#write deadlocked with the monitoring thread'
+
+        # The monitoring thread closes the pipe when the destination raises, so the
+        # write that is still in progress fails. #write reports that as an IOError
+        # on every engine; the message is engine-specific, so only the class is
+        # asserted here.
+        expect(writer.value).to be_a(IOError)
+
+        monitored_pipe.close
+        expect(monitored_pipe.state).to eq(:closed)
+        expect(monitored_pipe.exception).to be_a(RuntimeError)
+      ensure
+        # Leave no open pipe behind no matter which expectation above failed. The
+        # suite asserts after every example that no MonitoredPipe is still open, so
+        # a pipe leaked here fails this example and every example that follows it.
+        #
+        # This runs unconditionally. The state is not a safe signal that cleanup
+        # already happened: the monitoring thread sets the state to :closed on its
+        # own when the destination raises, but only #close untracks the instance.
+        force_close(monitored_pipe, writer)
       end
     end
 
