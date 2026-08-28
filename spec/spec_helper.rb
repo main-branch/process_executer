@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'rbconfig'
 require 'rspec'
 
 RSpec.configure do |config|
@@ -37,16 +38,7 @@ else
   def linux? = RUBY_PLATFORM.match?(/linux/)
 end
 
-def ruby_command(code)
-  @ruby_path ||=
-    if windows?
-      `where ruby`.chomp
-    else
-      `which ruby`.chomp
-    end
-
-  [@ruby_path, '-e', code]
-end
+def ruby_command(code) = [RbConfig.ruby, '-e', code]
 
 # SimpleCov configuration
 #
