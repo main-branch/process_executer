@@ -25,12 +25,15 @@ module ProcessExecuter
         destination.write data
       end
 
-      # Closes the pipe if it's open
+      # Does nothing: closing a caller-provided pipe is the caller's responsibility
+      #
+      # The library closes only pipes it creates. A {ProcessExecuter::MonitoredPipe}
+      # given as a redirection destination was created by the caller, and the
+      # {ProcessExecuter::MonitoredPipe} documentation makes closing it the
+      # caller's responsibility.
       #
       # @return [void]
-      def close
-        destination.close if destination.state == :open
-      end
+      def close; end
 
       # Determines if this class can handle the given destination
       #

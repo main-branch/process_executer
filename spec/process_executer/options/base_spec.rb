@@ -130,6 +130,52 @@ RSpec.describe ProcessExecuter::Options::Base do
     end
   end
 
+  describe '#merge!' do
+    let(:described_class) do
+      Class.new(ProcessExecuter::Options::Base) do
+        private
+
+        def define_options
+          [
+            *super,
+            ProcessExecuter::Options::OptionDefinition.new(:option1, default: 'value1'),
+            ProcessExecuter::Options::OptionDefinition.new(:option2, default: 'value2')
+          ]
+        end
+      end
+    end
+
+    let(:options) { described_class.new }
+
+    it 'should merge the given hashes into the options object in place' do
+      options.merge!({ option1: 'new_value1' }, { option2: 'new_value2' })
+      expect(options).to have_attributes(option1: 'new_value1', option2: 'new_value2')
+    end
+  end
+
+  describe '#each_with_object' do
+    let(:described_class) do
+      Class.new(ProcessExecuter::Options::Base) do
+        private
+
+        def define_options
+          [
+            *super,
+            ProcessExecuter::Options::OptionDefinition.new(:option1, default: 'value1'),
+            ProcessExecuter::Options::OptionDefinition.new(:option2, default: 'value2')
+          ]
+        end
+      end
+    end
+
+    let(:options) { described_class.new }
+
+    it 'should iterate over each option with the given object' do
+      result = options.each_with_object({}) { |(key, value), obj| obj[key] = value }
+      expect(result).to eq(option1: 'value1', option2: 'value2')
+    end
+  end
+
   context 'with a class derived from ProcessExecuter::Options::Base' do
     context 'with one defined option "an_option"' do
       let(:described_class) do
