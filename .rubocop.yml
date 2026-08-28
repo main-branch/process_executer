@@ -5,3 +5,9 @@ AllCops:
   # Pin this project to Ruby 3.1 in case the shared config above is upgraded to 3.2
   # or later.
   TargetRubyVersion: 3.1
+
+# The default `native` style expects CRLF on Windows, but this project's files
+# are LF everywhere. Pin the style so RuboCop gives the same result on Windows
+# as it does on Linux and macOS.
+Layout/EndOfLine:
+  EnforcedStyle: lf
