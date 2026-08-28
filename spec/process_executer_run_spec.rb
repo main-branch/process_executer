@@ -378,6 +378,113 @@ RSpec.describe ProcessExecuter do
       end
     end
 
+    context 'when creating a monitored pipe for a redirection option fails' do
+      # Run#wrap_stdout_stderr processes the redirection options in the order
+      # they were given (Ruby hashes preserve insertion order). out: is
+      # deliberately given before the failing err: so that the out: pipe has
+      # already been created when opening the err: destination raises
+      # Errno::ENOENT.
+      subject { ProcessExecuter.run('echo hi', out: StringIO.new, err: '/no/such/dir/x.log') }
+
+      # A regression here leaks the out: pipe and its monitoring thread. Close
+      # any leaked pipes so the leak fails this example (via its own
+      # expectations) instead of every example that follows it: the global
+      # assert_no_open_instances hook in spec_helper.rb runs after this hook
+      # (after hooks run innermost first). #open_instances returns a dup, so
+      # closing (which untracks) while iterating is safe.
+      after do
+        ProcessExecuter::MonitoredPipe.open_instances.each_key(&:close)
+      end
+
+      it 'is expected to raise the error from the destination that could not be created' do
+        expect { subject }.to raise_error(Errno::ENOENT)
+      end
+
+      it 'is expected to close pipes already created for other redirection options' do
+        pre_call_thread_count = Thread.list.size
+
+        begin
+          subject
+        rescue StandardError
+          # Only the cleanup behavior is asserted in this example
+        end
+
+        expect(ProcessExecuter::MonitoredPipe.open_instances).to be_empty
+        expect(Thread.list.size).to eq(pre_call_thread_count)
+      end
+    end
+
+    context 'when a pipe destination exception is recorded while unwinding from an unrelated error' do
+      let(:failing_destination) { double('destination') }
+
+      before do
+        allow(failing_destination).to receive(:write).and_raise(RuntimeError, 'destination failed')
+      end
+
+      # The command writes to stdout, so the out: pipe records the destination
+      # exception, and then exits 1, so a FailedError is in flight when the
+      # ensure block in Run#call closes the pipes and checks them for recorded
+      # exceptions.
+      let(:command) { ruby_command(<<~RUBY) }
+        puts 'some output'
+        exit 1
+      RUBY
+
+      it 'is expected to raise the original error, not ProcessIOError' do
+        expect do
+          ProcessExecuter.run(*command, out: failing_destination, err: StringIO.new)
+        end.to raise_error(ProcessExecuter::FailedError)
+      end
+    end
+
+    context 'when closing a monitored pipe fails' do
+      let(:out_destination) { StringIO.new }
+      let(:close_error) { IOError.new('close failed') }
+
+      # Make the out: pipe raise from #close after it has actually closed
+      # (releasing its monitoring thread, file descriptors, and tracking entry)
+      # so these examples exercise only the cleanup loop in Run#call.
+      before do
+        allow(ProcessExecuter::MonitoredPipe).to receive(:new).and_wrap_original do |original, *args|
+          original.call(*args).tap do |pipe|
+            if args.first.equal?(out_destination)
+              allow(pipe).to receive(:close).and_wrap_original do |original_close|
+                original_close.call
+                raise close_error
+              end
+            end
+          end
+        end
+      end
+
+      # A regression here leaks the err: pipe; close leaked pipes so the leak
+      # fails these examples instead of every example that follows them (see
+      # the comment on the like-named hook above)
+      after do
+        ProcessExecuter::MonitoredPipe.open_instances.each_key(&:close)
+      end
+
+      context 'when no other error is being raised' do
+        it 'is expected to close the remaining pipes and raise the close error' do
+          expect do
+            ProcessExecuter.run('echo hi', out: out_destination, err: StringIO.new)
+          end.to raise_error(close_error)
+          expect(ProcessExecuter::MonitoredPipe.open_instances).to be_empty
+        end
+      end
+
+      context 'when another error is being raised' do
+        let(:command) { ruby_command('exit 1') }
+
+        it 'is expected to close the remaining pipes and raise the original error, not the close error' do
+          expect do
+            ProcessExecuter.run(*command, out: out_destination, err: StringIO.new)
+          end.to raise_error(ProcessExecuter::FailedError)
+          expect(ProcessExecuter::MonitoredPipe.open_instances).to be_empty
+        end
+      end
+    end
+
     context 'when given a logger' do
       let(:logger) { Logger.new(log_buffer, level: log_level) }
       let(:log_buffer) { StringIO.new }
