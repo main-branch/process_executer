@@ -485,6 +485,52 @@ RSpec.describe ProcessExecuter do
       end
     end
 
+    context 'when the same options object is used for a second run' do
+      let(:options_object) { ProcessExecuter::Options::RunOptions.new(out: stdout_buffer) }
+
+      it "is expected to leave the caller's destination in the options object after the run" do
+        ProcessExecuter.run('echo one', options_object)
+        expect(options_object.stdout_redirection_destination).to be(stdout_buffer)
+      end
+
+      it 'is expected to run both times and capture the output of both runs' do
+        ProcessExecuter.run('echo one', options_object)
+        ProcessExecuter.run('echo two', options_object)
+        expect(stdout_buffer.string.gsub("\r\n", "\n")).to eq("one\ntwo\n")
+      end
+    end
+
+    context 'when the caller passes their own MonitoredPipe as a destination' do
+      let(:user_pipe) { ProcessExecuter::MonitoredPipe.new(stdout_buffer) }
+
+      # The user's pipe is the caller's to close. Close it here so a leaked
+      # pipe does not fail every example that follows via the global
+      # assert_no_open_instances hook in spec_helper.rb. The guard makes the
+      # hook safe even when a regression closes the pipe during the run.
+      after do
+        user_pipe.close if user_pipe.state == :open
+      end
+
+      it "is expected not to close the caller's pipe" do
+        ProcessExecuter.run('echo one', out: user_pipe)
+        expect(user_pipe.state).to eq(:open)
+      end
+
+      it 'is expected to allow the pipe to be reused for a second run' do
+        ProcessExecuter.run('echo one', out: user_pipe)
+        ProcessExecuter.run('echo two', out: user_pipe)
+        user_pipe.close
+        expect(stdout_buffer.string.gsub("\r\n", "\n")).to eq("one\ntwo\n")
+      end
+    end
+
+    describe 'the options returned by result#options' do
+      it 'is expected to hold the destination the user configured, not an internal pipe' do
+        result = ProcessExecuter.run('echo one', out: stdout_buffer)
+        expect(result.options.stdout_redirection_destination).to be(stdout_buffer)
+      end
+    end
+
     context 'when given a logger' do
       let(:logger) { Logger.new(log_buffer, level: log_level) }
       let(:log_buffer) { StringIO.new }
