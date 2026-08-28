@@ -183,6 +183,57 @@ RSpec.describe ProcessExecuter do
       end
     end
 
+    context 'when the same options object is used for a second run' do
+      it 'is expected to run both times and capture the output of each run' do
+        options = ProcessExecuter::Options::RunWithCaptureOptions.new
+        result1 = described_class.run_with_capture(*command, options)
+        result2 = described_class.run_with_capture(*command, options)
+        expect(result1.stdout).to eq("HELLO#{eol}")
+        expect(result2.stdout).to eq("HELLO#{eol}")
+      end
+
+      it "is expected to leave the caller's destination in the options object after the run" do
+        my_stdout_buffer = StringIO.new
+        options = ProcessExecuter::Options::RunWithCaptureOptions.new(out: my_stdout_buffer)
+        described_class.run_with_capture(*command, options)
+        expect(options.stdout_redirection_destination).to be(my_stdout_buffer)
+      end
+    end
+
+    context 'when the caller passes their own MonitoredPipe as a destination' do
+      let(:my_stdout_buffer) { StringIO.new }
+      let(:user_pipe) { ProcessExecuter::MonitoredPipe.new(my_stdout_buffer) }
+
+      # The user's pipe is the caller's to close. Close it here so a leaked
+      # pipe does not fail every example that follows via the global
+      # assert_no_open_instances hook in spec_helper.rb. The guard makes the
+      # hook safe even when a regression closes the pipe during the run.
+      after do
+        user_pipe.close if user_pipe.state == :open
+      end
+
+      it "is expected not to close the caller's pipe" do
+        described_class.run_with_capture(*command, out: user_pipe)
+        expect(user_pipe.state).to eq(:open)
+      end
+
+      it 'is expected to allow the pipe to be reused for a second run' do
+        described_class.run_with_capture(*command, out: user_pipe)
+        result = described_class.run_with_capture(*command, out: user_pipe)
+        expect(result.stdout).to eq("HELLO#{eol}")
+        user_pipe.close
+        expect(my_stdout_buffer.string).to eq("HELLO#{eol}HELLO#{eol}")
+      end
+    end
+
+    describe 'the options returned by result#options' do
+      it 'is expected to hold the destination the user configured, not an internal pipe' do
+        my_stdout_buffer = StringIO.new
+        result = described_class.run_with_capture(*command, out: my_stdout_buffer)
+        expect(result.options.stdout_redirection_destination).to be(my_stdout_buffer)
+      end
+    end
+
     context 'when given a command that runs successfully and sends output to stdout and stderr' do
       describe 'encoding' do
         let(:tmpdir) { Dir.mktmpdir }
