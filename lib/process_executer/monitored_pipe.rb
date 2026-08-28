@@ -224,12 +224,35 @@ module ProcessExecuter
     #
     # @raise [IOError] if the pipe is not open
     #
+    #   The pipe is only checked before the write begins. If the destination
+    #   raises (or another thread calls {#close}) while a large write is still in
+    #   progress, the monitoring thread closes the pipe and the in-progress write
+    #   fails with an `IOError` too.
+    #
     def write(data)
-      mutex.synchronize do
-        raise IOError, 'closed stream' unless state == :open
+      # The mutex is released before writing to the pipe. `pipe_writer.write`
+      # blocks once the OS pipe buffer is full, and it can only be unblocked by
+      # the monitoring thread draining the pipe. Holding the mutex across the
+      # write would stop the monitoring thread from taking the mutex in its own
+      # error path, deadlocking both threads.
+      mutex.synchronize { raise IOError, 'closed stream' unless state == :open }
 
-        pipe_writer.write(data)
-      end
+      pipe_writer.write(data)
+    rescue SystemCallError
+      # Engines disagree about how a write that is already blocked reacts to the
+      # monitoring thread closing the pipe. MRI and JRuby raise an IOError.
+      # TruffleRuby lets the write continue and fail at the system call, and which
+      # errno that is depends on the platform: EPIPE on macOS, EBADF on Linux.
+      #
+      # The monitoring thread is the only reader of this pipe, so any error from
+      # the operating system means the same thing the IOError does: the pipe went
+      # away mid-write. Report it as an IOError so #write has one documented
+      # contract on every supported engine. The original error is still available
+      # through Exception#cause.
+      #
+      # :nocov: only reached on engines that do not interrupt the blocked write
+      raise IOError, 'closed stream'
+      # :nocov:
     end
 
     # @!attribute [r]
