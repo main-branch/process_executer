@@ -44,8 +44,9 @@ module ProcessExecuter
   # a thread is created to read data written to the pipe. As data is read from the pipe,
   # it is written to the destination provided in the MonitoredPipe initializer.
   #
-  # If the destination raises an exception, the monitoring thread will exit, the
-  # pipe will be closed, and the exception will be saved in `#exception`.
+  # If the destination raises an exception (of any class, not just
+  # `StandardError`), the monitoring thread will exit, the pipe will be closed,
+  # and the exception will be saved in `#exception`.
   #
   # > **⚠️ WARNING**
   # >
@@ -144,6 +145,12 @@ module ProcessExecuter
     # Set the state to `:closing` and wait for the state to be set to `:closed`
     #
     # The monitoring thread will see that the state has changed and will close the pipe.
+    #
+    # An exception that escapes the monitoring thread's work is recorded in
+    # {#exception} by the monitoring thread itself before it terminates, so the
+    # `Thread#join` in this method never re-raises one. An exception raised at
+    # the join -- such as an `Interrupt` delivered to the calling thread -- is
+    # directed at the caller and propagates.
     #
     # @example
     #   data_collector = StringIO.new
@@ -395,13 +402,37 @@ module ProcessExecuter
     end
 
     # Start the thread to monitor the pipe and write data to the destination
+    #
+    # An exception that escapes {#monitor} is recorded in {#exception} (unless
+    # an exception is already recorded there) so that the thread never
+    # terminates holding an unhandled exception.
+    #
+    # The exception is recorded here, in the monitoring thread itself, rather
+    # than by rescuing around the `Thread#join` in {#close}, because a rescue
+    # at the join cannot reliably tell the two kinds of exception apart: a
+    # monitoring thread exception re-raised by `Thread#join` (which must be
+    # recorded) is indistinguishable from an async exception delivered to the
+    # calling thread at that same moment -- such as an `Interrupt` from Ctrl-C
+    # -- which must propagate. Checking `thread.alive?` in that rescue is racy
+    # since the thread can terminate between the exception being raised and
+    # the check. Recording at the source removes the ambiguity: the join can
+    # never re-raise a monitoring thread exception, so anything raised there
+    # is directed at the caller and propagates, while callers like
+    # `ProcessExecuter::Commands::Run` read {#exception} and report it as a
+    # {ProcessExecuter::ProcessIOError} with the original exception as its
+    # cause.
+    #
     # @return [void]
     # @api private
     def start_monitoring_thread
       Thread.new do
         Thread.current.report_on_exception = false
         Thread.current.abort_on_exception = false
-        monitor
+        begin
+          monitor
+        rescue Exception => e # rubocop:disable Lint/RescueException
+          mutex.synchronize { @exception ||= e }
+        end
       end
     end
 
@@ -409,18 +440,39 @@ module ProcessExecuter
     #
     # The state is changed to `:closed` by calling `#close`.
     #
-    # Before this method returns, state is set to `:closed`
+    # Before this method returns, state is set to `:closed`. This transition
+    # must happen even if closing the pipe raises, or a thread waiting in
+    # {#close} would block forever, so any exception raised by `#close_pipe` is
+    # saved to {#exception} instead of escaping the `ensure` block.
     #
     # @return [void]
     # @api private
     def monitor
       monitor_pipe until state == :closing
     ensure
-      close_pipe
+      close_pipe_and_record_exception
       mutex.synchronize do
         @state = :closed
         condition_variable.signal
       end
+    end
+
+    # Call `#close_pipe`, saving any exception it raises to {#exception}
+    #
+    # Rescues `Exception` (not just `StandardError`) so that the `ensure` block
+    # in {#monitor} always sets the state to `:closed` and signals the condition
+    # variable. The exception is recorded under the same mutex that guards the
+    # state transition, and an exception already recorded in {#exception} is not
+    # overwritten. This does not interfere with `Thread#kill` or `Thread#exit`,
+    # which terminate the thread through a mechanism that `rescue` cannot
+    # intercept; only exceptions that would otherwise escape are recorded.
+    #
+    # @return [void]
+    # @api private
+    def close_pipe_and_record_exception
+      close_pipe
+    rescue Exception => e # rubocop:disable Lint/RescueException
+      mutex.synchronize { @exception ||= e }
     end
 
     # Read data from the pipe until `#state` is changed to `:closing`
@@ -439,15 +491,19 @@ module ProcessExecuter
 
     # Write the data read from the pipe to the destination
     #
-    # If an exception is raised by a writer, set the state to `:closing`
-    # so that the pipe can be closed.
+    # If an exception is raised by a writer, save it to {#exception} and set the
+    # state to `:closing` so that the pipe can be closed.
+    #
+    # Rescues `Exception` (not just `StandardError`) so that a destination
+    # raising, for instance, a `NoMemoryError` or a `SignalException` cannot
+    # kill the monitoring thread and leave {#close} blocked forever.
     #
     # @param data [String] the data read from the pipe
     # @return [void]
     # @api private
     def write_data(data)
       destination.write(data)
-    rescue StandardError => e
+    rescue Exception => e # rubocop:disable Lint/RescueException
       mutex.synchronize do
         @exception = e
         @state = :closing

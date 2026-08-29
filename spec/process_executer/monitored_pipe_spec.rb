@@ -626,6 +626,24 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         force_close(monitored_pipe)
       end
     end
+
+    context 'when an async exception is delivered while joining the monitoring thread' do
+      it 'should re-raise the exception from #close and not save it to #exception' do
+        # The monitoring thread records its own exceptions before terminating,
+        # so an exception raised by the Thread#join in #close is directed at the
+        # calling thread. It must not be mistaken for a destination error: an
+        # Interrupt from Ctrl-C must still stop the program.
+        allow(monitored_pipe.thread).to receive(:join).and_raise(Interrupt)
+
+        expect { monitored_pipe.close }.to raise_error(Interrupt)
+        expect(monitored_pipe.exception).to be_nil
+      ensure
+        # Leave no open pipe behind: #close raised before untracking the
+        # instance, so without this the suite's assert_no_open_instances hook
+        # fails this example and every example that follows it.
+        force_close(monitored_pipe)
+      end
+    end
   end
 
   describe '#to_io' do
