@@ -173,6 +173,60 @@ RSpec.describe ProcessExecuter do
       end
     end
 
+    context 'with multiple wrapped pipes held open past the close deadline' do
+      # Run#close_pipes must close all of its pipes under ONE shared deadline.
+      # Duplicating each internal pipe's write fd as it is created keeps both
+      # pipes from ever reaching EOF, so an implementation that gave each pipe
+      # its own full timeout would take two deadlines instead of one.
+      it 'should close all pipes within one shared deadline, not one deadline per pipe' do
+        stub_const('ProcessExecuter::MonitoredPipe::DEFAULT_CLOSE_TIMEOUT', 1)
+
+        created_pipes = []
+        held_open_writers = []
+        allow(ProcessExecuter::MonitoredPipe).to receive(:new).and_wrap_original do |original, *args|
+          pipe = original.call(*args)
+          created_pipes << pipe
+          held_open_writers << pipe.to_io.dup
+          pipe
+        end
+
+        start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        expect do
+          ProcessExecuter.run('echo hello', out: StringIO.new, err: StringIO.new)
+        end.to raise_error(ProcessExecuter::ProcessIOError, /truncated/)
+        elapsed_time = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+
+        expect(created_pipes.count).to eq(2)
+        expect(created_pipes).to all(have_attributes(truncated?: true))
+        expect(elapsed_time).to(
+          be < 1.7,
+          "expected run to close both pipes within one shared 1s deadline but it took #{elapsed_time.round(2)}s " \
+          '(each pipe appears to have been given its own full deadline)'
+        )
+      ensure
+        held_open_writers.each(&:close)
+      end
+    end
+
+    context 'when a pipe cannot be fully drained before the close deadline' do
+      it 'should raise a ProcessIOError reporting the truncated output' do
+        stub_const('ProcessExecuter::MonitoredPipe::DEFAULT_CLOSE_TIMEOUT', 0.25)
+
+        held_open_writers = []
+        allow(ProcessExecuter::MonitoredPipe).to receive(:new).and_wrap_original do |original, *args|
+          pipe = original.call(*args)
+          held_open_writers << pipe.to_io.dup
+          pipe
+        end
+
+        expect do
+          ProcessExecuter.run('echo hello', out: StringIO.new)
+        end.to raise_error(ProcessExecuter::ProcessIOError, /truncated/)
+      ensure
+        held_open_writers.each(&:close)
+      end
+    end
+
     context 'with a command that times out' do
       let(:command) { 'sleep 1' }
       let(:options) { { timeout_after: 0.01, out: StringIO.new, err: StringIO.new } }

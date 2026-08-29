@@ -32,6 +32,26 @@ module ProcessExecuter
   # * `timeout_after: <Numeric, nil>`: the amount of time (in seconds) to wait before
   #   signaling the process with SIGKILL. 0 or nil means no timeout.
   #
+  #   When a timeout is given, the command is spawned into its own process group
+  #   (`pgroup: true` on POSIX, `new_pgroup: true` on Windows) unless the caller
+  #   passes a `pgroup`/`new_pgroup` option themselves. Note that a new process
+  #   group is a background group for any terminal the command inherits, so an
+  #   interactive command that reads the terminal is stopped by `SIGTTIN` and
+  #   then killed when the timeout fires. A caller who needs an interactive
+  #   command to stay in the foreground process group can pass their own
+  #   `pgroup` option (for example, `pgroup: Process.getpgrp`).
+  #
+  #   On timeout, the whole process group is killed so that descendant
+  #   processes still in that group do not outlive the timeout. A descendant
+  #   that started its own session or moved to another process group (a
+  #   daemon, for example) is not killed. If the group can not be killed (for
+  #   instance, the caller placed the command in an existing process group),
+  #   only the direct child is killed.
+  #
+  #   Killing the process group is only supported on POSIX platforms. On
+  #   Windows, Ruby's `Process.kill` cannot signal a process group, so only the
+  #   direct child is killed and descendant processes may survive the timeout.
+  #
   # Returns a {Result} object. The {Result} class is a decorator for
   # [Process::Status](https://docs.ruby-lang.org/en/3.4/Process/Status.html) that
   # provides additional attributes about the command's status. This includes the
@@ -55,7 +75,10 @@ module ProcessExecuter
   #     the following options are supported: `:timeout_after`
   #
   #   @option options_hash [Numeric] :timeout_after the amount of time (in seconds)
-  #     to wait before signaling the process with SIGKILL
+  #     to wait before killing the process -- and, on POSIX platforms when the
+  #     effective spawn options make the command a new process group leader
+  #     (set automatically, or by an explicit `pgroup: true` or `pgroup: 0`),
+  #     its whole process group
   #
   # @overload spawn_with_timeout(*command, options)
   #
@@ -209,7 +232,10 @@ module ProcessExecuter
   #   and its result at the info level
   #
   #   @option options_hash [Numeric] :timeout_after the amount of time (in seconds)
-  #     to wait before signaling the process with SIGKILL
+  #     to wait before killing the process -- and, on POSIX platforms when the
+  #     effective spawn options make the command a new process group leader
+  #     (set automatically, or by an explicit `pgroup: true` or `pgroup: 0`),
+  #     its whole process group
   #
   # @overload run(*command, options)
   #

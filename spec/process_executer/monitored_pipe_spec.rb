@@ -718,6 +718,53 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       end
     end
 
+    context 'when data arrives while #close is waiting on a held-open write fd' do
+      it 'should write the late-arriving data to the destination and not truncate' do
+        inherited_writer = monitored_pipe.to_io.dup
+
+        closer = Thread.new { monitored_pipe.close(timeout: 5) }
+        # Give #close time to change the state to :closing so that only the
+        # drain loop (not the main monitor loop) can read what is written next
+        sleep(0.1)
+
+        inherited_writer.write('late data')
+        inherited_writer.close
+
+        expect(closer.join(10)).not_to be_nil, '#close did not return'
+        expect(output_writer.string).to eq('late data')
+        expect(monitored_pipe.truncated?).to eq(false)
+      end
+    end
+
+    context 'when called with timeout: nil' do
+      it 'should drain the pipe without a deadline and close normally' do
+        monitored_pipe.write('Hello World')
+        monitored_pipe.close(timeout: nil)
+
+        expect(output_writer.string).to eq('Hello World')
+        expect(monitored_pipe.truncated?).to eq(false)
+        expect(monitored_pipe.state).to eq(:closed)
+      end
+    end
+
+    context 'when called with timeout: 0 and the pipe has nothing left to drain' do
+      # Run#close_pipes passes 0 to later pipes once its shared deadline is
+      # spent, so an already-expired deadline with nothing left in the pipe
+      # must close normally, not report truncation
+      it 'should close normally without recording truncation' do
+        monitored_pipe.write('Hello World')
+        # Wait for the monitoring thread to consume the data so the pipe is at
+        # EOF (not holding unread data) when #close runs its drain
+        wait_until { output_writer.string == 'Hello World' }
+
+        monitored_pipe.close(timeout: 0)
+
+        expect(monitored_pipe.truncated?).to eq(false)
+        expect(output_writer.string).to eq('Hello World')
+        expect(monitored_pipe.state).to eq(:closed)
+      end
+    end
+
     context 'when an async exception is delivered while joining the monitoring thread' do
       it 'should re-raise the exception from #close and not save it to #exception' do
         # The monitoring thread records its own exceptions before terminating,

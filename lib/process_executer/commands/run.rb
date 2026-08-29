@@ -66,7 +66,8 @@ module ProcessExecuter
       # @raise [ProcessExecuter::TimeoutError] If the command timed out
       #
       # @raise [ProcessExecuter::ProcessIOError] If there was an exception while
-      #   collecting subprocess output
+      #   collecting subprocess output, or the output was truncated because it
+      #   could not be fully collected before the close timeout
       #
       # @return [ProcessExecuter::Result] The result of the completed subprocess
       #
@@ -145,7 +146,8 @@ module ProcessExecuter
       #
       # @param in_flight_error [Exception, nil] the exception `#call` is unwinding from, if any
       #
-      # @raise [ProcessExecuter::ProcessIOError] if a pipe recorded a destination exception
+      # @raise [ProcessExecuter::ProcessIOError] if a pipe recorded a destination
+      #   exception or gave up draining before reaching EOF (truncated output)
       #
       # @raise [StandardError] the first error raised while closing the pipes
       #
@@ -155,7 +157,10 @@ module ProcessExecuter
         close_error = close_pipes(opened_pipes)
         return if in_flight_error
 
-        opened_pipes.each { |option_key, pipe| raise_pipe_error(option_key, pipe) }
+        opened_pipes.each do |option_key, pipe|
+          raise_pipe_error(option_key, pipe)
+          raise_truncation_error(option_key, pipe)
+        end
         raise close_error if close_error
       end
 
@@ -164,14 +169,23 @@ module ProcessExecuter
       # Closing continues past a failure so that one pipe's error does not leak
       # the monitoring threads and file descriptors of the pipes after it.
       #
+      # All pipes share a single close deadline so that this method -- called
+      # from `#call`'s ensure block -- returns in bounded time even when a
+      # process outside this object's control (such as an orphaned descendant
+      # of a timed out command) still holds a pipe's write fd open. A pipe
+      # whose drain is cut short by the deadline records it via
+      # {MonitoredPipe#truncated?}.
+      #
       # @param opened_pipes [Hash<Object, ProcessExecuter::MonitoredPipe>] the pipes to close
       #
       # @return [StandardError, nil] the first error raised while closing, or nil if none was raised
       #
       def close_pipes(opened_pipes)
         first_close_error = nil
+        deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + MonitoredPipe::DEFAULT_CLOSE_TIMEOUT
         opened_pipes.each_value do |pipe|
-          pipe.close
+          remaining_time = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          pipe.close(timeout: [remaining_time, 0].max)
         rescue StandardError => e
           first_close_error ||= e
         end
@@ -221,6 +235,31 @@ module ProcessExecuter
 
         error = ProcessExecuter::ProcessIOError.new("Pipe Exception for #{command}: #{option_key.inspect}")
         raise(error, cause: pipe.exception)
+      end
+
+      # Raises a ProcessIOError if the given pipe's output was truncated
+      #
+      # Truncation means the pipe gave up draining before reaching EOF
+      # ({MonitoredPipe#truncated?}): output the subprocess (or a descendant
+      # holding the inherited write fd) produced was discarded instead of
+      # being written to the destination. Raising makes that data loss loud
+      # rather than letting the command appear to succeed with silently
+      # incomplete output.
+      #
+      # @param option_key [Object] The redirection option key
+      #
+      # @param pipe [ProcessExecuter::MonitoredPipe] The pipe whose output was truncated
+      #
+      # @raise [ProcessExecuter::ProcessIOError] If the pipe's output was truncated
+      #
+      # @return [void]
+      #
+      def raise_truncation_error(option_key, pipe)
+        return unless pipe.truncated?
+
+        raise ProcessExecuter::ProcessIOError,
+              "Output truncated for #{command}: #{option_key.inspect} " \
+              'could not be fully collected before the close timeout'
       end
     end
   end
