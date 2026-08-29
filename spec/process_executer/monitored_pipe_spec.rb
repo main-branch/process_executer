@@ -641,7 +641,13 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       let(:close_pipe_error) { Exception.new('close_pipe failed') }
 
       before do
-        allow(monitored_pipe).to receive(:close_pipe).and_raise(close_pipe_error)
+        # Stub the class, not the instance: referencing `monitored_pipe` here
+        # would start its monitoring thread and then modify the instance's
+        # singleton class while that thread is calling #monitor_pipe in a tight
+        # loop. JRuby can raise a transient NoMethodError from a method lookup
+        # that races the singleton class modification, and the monitoring
+        # thread records that error in #exception in place of the stubbed one.
+        allow_any_instance_of(described_class).to receive(:close_pipe).and_raise(close_pipe_error)
       end
 
       it 'should still set the state to :closed and save the exception to #exception' do
@@ -665,7 +671,10 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       let(:monitor_error) { Exception.new('monitor loop failed') }
 
       before do
-        allow(monitored_pipe).to receive(:monitor_pipe).and_raise(monitor_error)
+        # Stub the class, not the instance, for the same reason as the
+        # "closing the pipe raises" context above: stubbing the live instance
+        # races the monitoring thread's calls to #monitor_pipe on JRuby.
+        allow_any_instance_of(described_class).to receive(:monitor_pipe).and_raise(monitor_error)
       end
 
       it 'should not raise the exception from #close but save it to #exception' do
