@@ -94,6 +94,18 @@ module ProcessExecuter
   class MonitoredPipe
     include TrackOpenInstances
 
+    # The default number of seconds {#close} waits to drain remaining pipe data
+    #
+    # Draining normally finishes in well under a second: it only has to read
+    # whatever is still buffered in the pipe once every copy of the pipe's
+    # write fd is closed. The timeout exists so that a write fd inherited by a
+    # process outside this object's control (such as an orphaned descendant of
+    # a killed subprocess) cannot make {#close} block indefinitely.
+    #
+    # @return [Numeric]
+    #
+    DEFAULT_CLOSE_TIMEOUT = 10
+
     # Create a new monitored pipe
     #
     # Creates an IO.pipe and starts a monitoring thread to read data written to the
@@ -137,6 +149,19 @@ module ProcessExecuter
     #
     # The monitoring thread will see that the state has changed and will close the pipe.
     #
+    # Remaining pipe data is drained to the destination for at most `timeout`
+    # seconds. The pipe only reaches EOF once every copy of its write fd is
+    # closed -- including copies inherited by processes outside this object's
+    # control -- so without a timeout this method could block indefinitely.
+    # When the timeout expires before EOF, the pipe is closed anyway,
+    # {#truncated?} returns `true`, and data still in the pipe is discarded.
+    #
+    # The timeout is one absolute deadline for the whole drain: time spent
+    # writing to the destination counts against it too. Only the waits for
+    # pipe data or EOF are cut short when the deadline passes, though -- a
+    # destination `#write` already in progress is never interrupted, so a
+    # destination that blocks can still delay this method past the timeout.
+    #
     # An exception that escapes the monitoring thread's work is recorded in
     # {#exception} by the monitoring thread itself before it terminates, so the
     # `Thread#join` in this method never re-raises one. An exception raised at
@@ -152,11 +177,18 @@ module ProcessExecuter
     #   pipe.state #=> :closed
     #   data_collector.string #=> "Hello World"
     #
+    # @param timeout [Numeric, nil] the number of seconds to spend draining
+    #   remaining pipe data to the destination before giving up, or `nil` to
+    #   wait without a time limit. The deadline is absolute -- time in the
+    #   destination's `#write` counts against it -- but a write in progress is
+    #   never interrupted, so a blocking destination can overrun it.
+    #
     # @return [void]
     #
-    def close
+    def close(timeout: DEFAULT_CLOSE_TIMEOUT)
       mutex.synchronize do
         if state == :open
+          @close_deadline = timeout ? Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout : nil
           @state = :closing
           condition_variable.wait(mutex) while @state != :closed
         end
@@ -314,6 +346,25 @@ module ProcessExecuter
     #
     attr_reader :exception
 
+    # Whether {#close} gave up draining the pipe before reaching EOF
+    #
+    # `true` when the close timeout expired before the pipe reached EOF: some
+    # copy of the pipe's write fd was still open (for instance, held by an
+    # orphaned descendant of a killed subprocess) or unread data remained, and
+    # what was left was discarded instead of being written to the destination.
+    # An expired timeout on a pipe with nothing left to drain closes normally
+    # and stays `false`.
+    #
+    # @example
+    #   data_collector = StringIO.new
+    #   pipe = ProcessExecuter::MonitoredPipe.new(data_collector)
+    #   pipe.close
+    #   pipe.truncated? #=> false
+    #
+    # @return [Boolean]
+    #
+    def truncated? = @truncated
+
     # @!attribute [r]
     #
     # The thread that monitors the pipe
@@ -407,6 +458,7 @@ module ProcessExecuter
       pipe_reader.set_encoding(Encoding::ASCII_8BIT)
 
       @state = :open
+      @truncated = false
       @thread = start_monitoring_thread
 
       self.class.add_open_instance(self)
@@ -541,10 +593,66 @@ module ProcessExecuter
 
       # Read remaining data from pipe_reader (if any)
       # If an exception was already raised by the last call to #write, then don't try to read remaining data
-      monitor_pipe while exception.nil? && !pipe_reader.eof?
+      drain_pipe
 
       # Close the read end of the pipe
       pipe_reader.close
+    end
+
+    # Read remaining pipe data to the destination until EOF or the close deadline
+    #
+    # The pipe reaches EOF only once every copy of the write fd is closed,
+    # including copies inherited by processes this object knows nothing about
+    # (such as orphaned descendants of a killed subprocess). The deadline set
+    # by {#close} bounds the wait on such an fd: when it passes before EOF,
+    # draining stops and {#truncated?} becomes true. A `nil` deadline (a
+    # `close(timeout: nil)`, or the monitoring thread closing the pipe on its
+    # own after a destination exception) means no time limit.
+    #
+    # EOF is probed before the deadline is applied so that a pipe with nothing
+    # left to drain closes normally -- not as truncated -- even when the
+    # deadline has already passed (such as a `close(timeout: 0)`). Truncation
+    # is recorded only when the expired deadline abandons unread data or a
+    # still-open write fd.
+    #
+    # There is no need to poll: nothing outside this loop can end it, so each
+    # wait sleeps until the pipe has data or reaches EOF (both wake
+    # `wait_readable`), bounded by the time remaining before the deadline.
+    #
+    # The deadline bounds only the waits for pipe data or EOF. A call to
+    # {#write_data} runs the destination's `#write`, which is arbitrary user
+    # code that cannot safely be interrupted, so a destination that blocks can
+    # still hold this loop past the deadline; the deadline is applied again as
+    # soon as the write returns.
+    #
+    # @return [void]
+    # @api private
+    def drain_pipe
+      while exception.nil?
+        remaining_time = time_remaining_until_close_deadline
+
+        data = pipe_reader.read_nonblock(chunk_size, exception: false)
+
+        break if data.nil? # EOF: every copy of the pipe's write fd is closed
+
+        if remaining_time&.zero?
+          @truncated = true
+          break
+        end
+
+        data == :wait_readable ? pipe_reader.wait_readable(remaining_time) : write_data(data)
+      end
+    end
+
+    # The seconds left before the deadline set by {#close}
+    #
+    # @return [Numeric, nil] `nil` when no deadline is set (wait without a
+    #   time limit), 0 when the deadline has passed
+    # @api private
+    def time_remaining_until_close_deadline
+      return nil if @close_deadline.nil?
+
+      [@close_deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC), 0].max
     end
   end
 end

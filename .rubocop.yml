@@ -11,3 +11,10 @@ AllCops:
 # as it does on Linux and macOS.
 Layout/EndOfLine:
   EnforcedStyle: lf
+
+# MonitoredPipe grew past the default limit when the close deadline handling
+# was added for issue #164. Its pipe lifecycle logic (open, monitor, drain,
+# close) is cohesive and would not be clearer split across classes.
+Metrics/ClassLength:
+  Exclude:
+    - "lib/process_executer/monitored_pipe.rb"

@@ -126,7 +126,38 @@ module ProcessExecuter
       #
       # @return [Hash]
       #
-      def spawn_options = options.spawn_options
+      def spawn_options = options.spawn_options.merge(process_group_options)
+
+      # Spawn options that place the subprocess into its own process group
+      #
+      # When `timeout_after` is set to a value that can fire (`nil` and `0`
+      # mean "no timeout"), the subprocess is made the leader of a new process
+      # group so that a timeout can kill the whole group -- including
+      # descendants that inherited the redirections -- instead of just the
+      # direct child. Empty when no timeout can fire or when the caller gave a
+      # `pgroup`/`new_pgroup` option themselves (their setting is honored).
+      #
+      # A new process group is a background group for any terminal the
+      # subprocess inherits, so an interactive subprocess that reads the
+      # terminal is stopped by `SIGTTIN` and then killed when the timeout
+      # fires -- which is the bound `timeout_after` promises. A caller who
+      # needs an interactive subprocess to stay in the foreground process
+      # group can pass their own `pgroup` option.
+      #
+      # @return [Hash]
+      #
+      def process_group_options
+        return {} unless options.timeout_after&.positive?
+        return {} unless options.pgroup == :not_set && options.new_pgroup == :not_set
+
+        windows? ? { new_pgroup: true } : { pgroup: true }
+      end
+
+      # Whether the current platform is Windows
+      #
+      # @return [Boolean]
+      #
+      def windows? = Gem.win_platform?
 
       # Wait for process to terminate
       #
@@ -152,21 +183,121 @@ module ProcessExecuter
 
       # Wait for a process to terminate returning the status and timed out flag
       #
+      # An exception other than the timeout (an `Interrupt` from Ctrl-C, for
+      # example) abandons the wait; {#kill_and_reap_abandoned_subprocess} then
+      # cleans up a subprocess this class isolated into its own process group
+      # before the exception propagates.
+      #
       # @return [Array<Process::Status, Boolean>] an array containing the process status and a boolean
       #   indicating whether the process timed out
       def wait_for_process_raw
-        timed_out = false
+        wait_with_timeout
+      rescue Exception # rubocop:disable Lint/RescueException
+        kill_and_reap_abandoned_subprocess
+        raise
+      end
 
-        process_status =
-          begin
-            Timeout.timeout(options.timeout_after) { Process.wait2(pid).last }
-          rescue Timeout::Error
-            Process.kill('KILL', pid)
-            timed_out = true
-            Process.wait2(pid).last
-          end
+      # Wait for the process, killing it when `timeout_after` expires first
+      #
+      # @return [Array<Process::Status, Boolean>] an array containing the process status and a boolean
+      #   indicating whether the process timed out
+      def wait_with_timeout
+        process_status = Timeout.timeout(options.timeout_after) { Process.wait2(pid).last }
+        [process_status, false]
+      rescue Timeout::Error
+        kill_subprocess
+        [Process.wait2(pid).last, true]
+      end
 
-        [process_status, timed_out]
+      # Kill and reap the subprocess when its wait was abandoned by an exception
+      #
+      # Only applies to a subprocess this class isolated into its own process
+      # group: such a subprocess no longer receives terminal-generated signals
+      # (Ctrl-C sends `SIGINT` to the caller's foreground group, not to the
+      # new group), so an exception that abandons the wait would otherwise
+      # leave it and its descendants running unsupervised and unreaped. A
+      # subprocess whose process group came from the caller's own options
+      # keeps its pre-existing signal semantics and is left alone.
+      #
+      # Rescues `Exception` (not just `StandardError`) so that a second async
+      # exception delivered during this best-effort cleanup cannot replace
+      # the exception already being re-raised by the caller.
+      #
+      # @return [void]
+      #
+      def kill_and_reap_abandoned_subprocess
+        return unless isolated_in_new_process_group?
+
+        kill_subprocess
+        Process.wait2(pid)
+      rescue Exception # rubocop:disable Lint/RescueException
+        # the subprocess may already be dead and reaped; the wait's exception
+        # is what must propagate
+      end
+
+      # Forcibly terminate the timed out subprocess and (if possible) its descendants
+      #
+      # When the subprocess was spawned as the leader of its own process
+      # group, the whole group is killed so that descendants that would
+      # otherwise survive the timeout (and keep any inherited redirection
+      # file descriptors open) are terminated too, falling back to killing
+      # the direct child if the group kill fails. A group signal reaches only
+      # the processes still in that group: a descendant that started its own
+      # session or joined another process group (a daemon, for example) is
+      # not killed. Otherwise the subprocess is in a process group this
+      # object did not create, so only the direct child is killed, matching
+      # the pre-process-group behavior.
+      #
+      # Killing a process group is only possible on POSIX platforms. On
+      # Windows, `Process.kill` cannot signal a process group (a negative pid
+      # raises an error), so the group kill always falls back to the direct
+      # child and descendants may survive the timeout; the bounded
+      # {MonitoredPipe#close} keeps such descendants from blocking
+      # {ProcessExecuter.run} indefinitely.
+      #
+      # @return [void]
+      #
+      def kill_subprocess
+        return if process_group_leader? && kill_process_group
+
+        Process.kill('KILL', pid)
+      end
+
+      # Whether the spawn options made the subprocess a new process group leader
+      #
+      # True when the process group option -- added by {#process_group_options}
+      # or given by the caller -- asks for a new process group with the
+      # subprocess as its leader (`pgroup: true`, `pgroup: 0`, or
+      # `new_pgroup: true`). False when there is no process group option or
+      # when `pgroup` places the subprocess in an existing process group.
+      #
+      # @return [Boolean]
+      #
+      def process_group_leader?
+        [true, 0].include?(spawn_options[:pgroup]) || spawn_options[:new_pgroup] == true
+      end
+
+      # Whether this class isolated the subprocess into its own process group
+      #
+      # True when the subprocess is a new process group leader and that came
+      # from {#process_group_options} rather than from a `pgroup`/`new_pgroup`
+      # option the caller supplied.
+      #
+      # @return [Boolean]
+      #
+      def isolated_in_new_process_group?
+        process_group_leader? && options.pgroup == :not_set && options.new_pgroup == :not_set
+      end
+
+      # Send SIGKILL to the subprocess's process group
+      #
+      # @return [Boolean] true if the signal was sent, false if doing so raised an error
+      #
+      def kill_process_group
+        Process.kill('KILL', -pid)
+        true
+      rescue StandardError
+        false
       end
     end
   end
