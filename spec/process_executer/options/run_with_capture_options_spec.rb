@@ -75,6 +75,53 @@ RSpec.describe ProcessExecuter::Options::RunWithCaptureOptions do
             )
           end
         end
+
+        context 'when stdout and stderr encodings are equivalent but given in different forms' do
+          let(:options_hash) { { merge_output: true, stdout_encoding: Encoding::UTF_8, stderr_encoding: 'UTF-8' } }
+          it 'should not raise an error' do
+            expect { subject }.not_to raise_error
+          end
+        end
+      end
+    end
+
+    describe 'a combined [:out, :err] redirection' do
+      context 'when stdout and stderr encodings are different' do
+        let(:options_hash) do
+          { %i[out err] => StringIO.new, stdout_encoding: Encoding::UTF_8, stderr_encoding: :binary }
+        end
+        it 'should raise a ProcessExecuter::ArgumentError' do
+          expect { subject }.to(
+            raise_error(
+              ProcessExecuter::ArgumentError,
+              'Cannot give a redirection that combines stdout and stderr ' \
+              'AND give different encodings for stdout and stderr'
+            )
+          )
+        end
+      end
+
+      context 'when stdout and stderr encodings are equivalent but given in different forms' do
+        let(:options_hash) do
+          { %i[out err] => StringIO.new, stdout_encoding: Encoding::UTF_8, stderr_encoding: 'UTF-8' }
+        end
+        it 'should not raise an error' do
+          expect { subject }.not_to raise_error
+        end
+      end
+
+      context 'when an unknown encoding name is given' do
+        let(:options_hash) do
+          { %i[out err] => StringIO.new, stdout_encoding: 'NOT-AN-ENCODING' }
+        end
+        it 'should report only the unknown encoding error' do
+          expect { subject }.to(
+            raise_error(
+              ProcessExecuter::ArgumentError,
+              'stdout_encoding specifies an unknown encoding name: "NOT-AN-ENCODING"'
+            )
+          )
+        end
       end
     end
   end
@@ -122,6 +169,27 @@ RSpec.describe ProcessExecuter::Options::RunWithCaptureOptions do
         expect(subject).to eq(Encoding::BINARY)
       end
     end
+
+    context 'when stdout_encoding is given as a String' do
+      let(:options_hash) { { stdout_encoding: 'UTF-8' } }
+      it 'should return the canonical Encoding object' do
+        expect(subject).to eq(Encoding::UTF_8)
+      end
+    end
+
+    context 'when stdout_encoding is given as :binary' do
+      let(:options_hash) { { stdout_encoding: :binary } }
+      it 'should return Encoding::BINARY' do
+        expect(subject).to eq(Encoding::BINARY)
+      end
+    end
+
+    context 'when stdout_encoding is given as :default_external' do
+      let(:options_hash) { { stdout_encoding: :default_external } }
+      it 'should return the default external encoding' do
+        expect(subject).to eq(Encoding.default_external)
+      end
+    end
   end
 
   describe '#effective_stderr_encoding' do
@@ -152,6 +220,27 @@ RSpec.describe ProcessExecuter::Options::RunWithCaptureOptions do
       let(:options_hash) { { encoding: Encoding::UTF_16, stderr_encoding: Encoding::BINARY } }
       it 'should return what the user gave for stderr_encoding' do
         expect(subject).to eq(Encoding::BINARY)
+      end
+    end
+
+    context 'when stderr_encoding is given as a String' do
+      let(:options_hash) { { stderr_encoding: 'UTF-8' } }
+      it 'should return the canonical Encoding object' do
+        expect(subject).to eq(Encoding::UTF_8)
+      end
+    end
+
+    context 'when stderr_encoding is given as :binary' do
+      let(:options_hash) { { stderr_encoding: :binary } }
+      it 'should return Encoding::BINARY' do
+        expect(subject).to eq(Encoding::BINARY)
+      end
+    end
+
+    context 'when stderr_encoding is given as :default_external' do
+      let(:options_hash) { { stderr_encoding: :default_external } }
+      it 'should return the default external encoding' do
+        expect(subject).to eq(Encoding.default_external)
       end
     end
   end
