@@ -40,6 +40,36 @@ end
 
 def ruby_command(code) = [RbConfig.ruby, '-e', code]
 
+# Whether the process is currently running (POSIX only)
+#
+# A terminated process that has not been reaped yet (a zombie) is NOT
+# running: it can do no further work and holds no file descriptors.
+# `Process.kill(0, pid)` cannot make that distinction -- it succeeds for
+# zombies too -- and a killed descendant that is not this process's child
+# stays a zombie until the system reaper collects it, so ask `ps` for the
+# process state instead. `ps` prints nothing for a pid that does not exist
+# and a state starting with `Z` for a zombie.
+def process_running?(pid)
+  state = `ps -o state= -p #{Integer(pid)}`.strip
+  !state.empty? && !state.start_with?('Z')
+end
+
+# Poll until the process with the given pid is dead or `within` seconds pass
+#
+# Returns true if the process is no longer running (exited, killed, or a
+# zombie awaiting the system reaper) before the deadline and false if it is
+# still running when the deadline passes. POSIX only, like
+# {#process_running?} which it polls.
+def process_dead?(pid, within:)
+  deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + within
+  loop do
+    return true unless process_running?(pid)
+    return false if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+
+    sleep(0.01)
+  end
+end
+
 # SimpleCov configuration
 #
 require 'simplecov'

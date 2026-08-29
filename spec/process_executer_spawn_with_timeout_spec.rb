@@ -98,6 +98,29 @@ RSpec.describe ProcessExecuter do
       # :nocov:
     end
 
+    context 'for a command that times out leaving a descendant process', if: !windows? do
+      it 'should kill the descendant process too' do
+        out_reader, out_writer = IO.pipe
+
+        result = ProcessExecuter.spawn_with_timeout(
+          'sh', '-c', 'sleep 3 & echo $!; exec sleep 60',
+          out: out_writer, timeout_after: 0.2
+        )
+
+        out_writer.close
+        # Read only the first line: reading to EOF would block until the
+        # descendant (which inherited the write end of the pipe) exits
+        descendant_pid = out_reader.gets.to_i
+        out_reader.close
+
+        expect(result.timed_out?).to eq(true)
+        expect(descendant_pid).to be > 0
+        failure_message = "expected the descendant process #{descendant_pid} to be killed " \
+                          'when the command timed out, but it was still running'
+        expect(process_dead?(descendant_pid, within: 2)).to eq(true), failure_message
+      end
+    end
+
     context 'for a command that times out' do
       let(:command) { %w[sleep 1] }
       let(:options_hash) { { timeout_after: 0.01 } }
