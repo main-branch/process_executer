@@ -378,6 +378,36 @@ RSpec.describe ProcessExecuter do
       end
     end
 
+    context 'when a pipe destination raises an exception that is not a StandardError' do
+      let(:destination_error) { Exception.new('fatal destination error') }
+
+      let(:stdout_destination) do
+        error = destination_error
+        Class.new do
+          define_method(:write) { |_data| raise error }
+        end.new
+      end
+
+      subject { ProcessExecuter.run('echo Hello', out: stdout_destination) }
+
+      # A regression here leaks the out: pipe (issue #170: #close re-raises the
+      # destination's exception before untracking the pipe). By that point the
+      # pipe's monitoring thread and file descriptors are already shut down, so
+      # untracking the pipe is all that is needed to confine the failure to this
+      # example instead of failing the assert_no_open_instances hook of every
+      # example that follows it.
+      after do
+        leaked_pipes = ProcessExecuter::MonitoredPipe.open_instances.keys
+        leaked_pipes.each { |pipe| ProcessExecuter::MonitoredPipe.remove_open_instance(pipe) }
+      end
+
+      it 'is expected to raise ProcessExecuter::ProcessIOError with the destination error as its cause' do
+        expect { subject }.to raise_error(ProcessExecuter::ProcessIOError) do |error|
+          expect(error.cause).to be(destination_error)
+        end
+      end
+    end
+
     context 'when creating a monitored pipe for a redirection option fails' do
       # Run#wrap_stdout_stderr processes the redirection options in the order
       # they were given (Ruby hashes preserve insertion order). out: is

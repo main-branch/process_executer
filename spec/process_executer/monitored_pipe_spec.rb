@@ -18,6 +18,15 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     described_class.remove_open_instance(pipe)
   end
 
+  # Wait up to `timeout` seconds for the block to return a truthy value.
+  # Returns when it does or when the deadline passes. The caller asserts the
+  # awaited condition afterward, so a timeout produces a diagnostic failure
+  # instead of hanging the suite.
+  def wait_until(timeout: 10)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+    sleep(0.01) until yield || Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
+  end
+
   let(:monitored_pipe) { described_class.new(destination) }
   let(:output_writer) { StringIO.new }
   let(:destination) { output_writer }
@@ -566,6 +575,57 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       monitored_pipe.close
       expect { monitored_pipe.close }.not_to raise_error
     end
+
+    context 'when closing the pipe raises an exception in the monitoring thread' do
+      let(:close_pipe_error) { Exception.new('close_pipe failed') }
+
+      before do
+        allow(monitored_pipe).to receive(:close_pipe).and_raise(close_pipe_error)
+      end
+
+      it 'should still set the state to :closed and save the exception to #exception' do
+        # Call #close from its own thread so that a regression fails via the
+        # timeout below instead of hanging this example (and the whole suite)
+        # forever.
+        closer = Thread.new { monitored_pipe.close }
+        expect(closer.join(10)).not_to be_nil, '#close did not return within 10 seconds'
+
+        expect(monitored_pipe.exception).to be(close_pipe_error)
+        expect(monitored_pipe.state).to eq(:closed)
+      ensure
+        # Leave no open pipe behind no matter which expectation above failed. The
+        # stubbed #close_pipe never closes the pipe's file descriptors, so this
+        # also keeps them from leaking into the examples that follow.
+        force_close(monitored_pipe, closer)
+      end
+    end
+
+    context 'when the monitor loop raises an exception that did not come from the destination' do
+      let(:monitor_error) { Exception.new('monitor loop failed') }
+
+      before do
+        allow(monitored_pipe).to receive(:monitor_pipe).and_raise(monitor_error)
+      end
+
+      it 'should not raise the exception from #close but save it to #exception' do
+        # Wait for the monitoring thread to hit the stubbed error and terminate
+        # before closing. Without this the example races the monitor loop's
+        # state check: if #close set the state to :closing first, the loop
+        # would exit without ever raising and there would be no exception to
+        # record.
+        wait_until { !monitored_pipe.thread.alive? }
+        expect(monitored_pipe.thread.alive?).to eq(false), 'the monitoring thread did not terminate'
+
+        expect { monitored_pipe.close }.not_to raise_error
+        expect(monitored_pipe.exception).to be(monitor_error)
+        expect(monitored_pipe.state).to eq(:closed)
+      ensure
+        # Leave no open pipe behind no matter which expectation above failed. The
+        # suite asserts after every example that no MonitoredPipe is still open, so
+        # a pipe leaked here fails this example and every example that follows it.
+        force_close(monitored_pipe)
+      end
+    end
   end
 
   describe '#to_io' do
@@ -847,6 +907,116 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         # destination raises, but only #close untracks the instance, so a failure
         # before #close would otherwise cascade into every following example.
         force_close(monitored_pipe)
+      end
+    end
+
+    context 'when a writer raises an exception that is not a StandardError' do
+      # Reproduces issue #170: an Exception outside the StandardError hierarchy
+      # must be recorded in #exception and shut the pipe down the same way a
+      # StandardError does, instead of killing the monitoring thread and leaving
+      # #close hung (data still buffered) or re-raising raw from Thread#join
+      # (no data buffered).
+      let(:destination_error) { Exception.new('fatal destination error') }
+
+      # Signals when the destination's #write has been reached so the examples
+      # synchronize on real progress instead of sleeping.
+      let(:write_reached) { Queue.new }
+
+      # Blocks the destination inside #write until the example pushes a token,
+      # so the example controls exactly when the destination raises.
+      let(:write_released) { Queue.new }
+
+      let(:output_writer) do
+        reached = write_reached
+        released = write_released
+        error = destination_error
+        Class.new do
+          define_method(:write) do |_data|
+            reached.push(:write_reached)
+            released.pop
+            raise error
+          end
+        end.new
+      end
+
+      context 'while data is still buffered in the pipe' do
+        # Much larger than the OS pipe buffer (~64KB) so that the write to the
+        # pipe is still blocked (and the pipe buffer is full again) when the
+        # destination raises.
+        let(:data) { 'x' * 10_000_000 }
+
+        it 'should return from #close with the exception saved to #exception' do
+          writer = Thread.new do
+            monitored_pipe.write(data)
+          rescue IOError
+            # The monitoring thread hit the destination error and closed the pipe
+            # while the write was still in progress; a documented #write outcome.
+          end
+
+          # Wait (with a deadline, so a regression that keeps the monitor loop
+          # from draining the pipe fails fast instead of blocking on the queue
+          # forever) until the monitoring thread is blocked inside the
+          # destination's #write
+          wait_until { !write_reached.empty? }
+          expect(write_reached.empty?).to eq(false), "the destination's #write was never reached"
+          write_reached.pop
+
+          # Wait until the writing thread has refilled the pipe buffer and is
+          # blocked mid-write again, so data is guaranteed to still be buffered
+          # in the pipe when the destination raises.
+          wait_until { !writer.alive? || writer.status == 'sleep' }
+          expect(writer.status).to eq('sleep'), 'the writing thread did not block writing to the pipe'
+
+          # Let the destination raise inside the monitoring thread
+          write_released.push(:write_released)
+
+          # Call #close from its own thread so that a regression fails via the
+          # timeout below instead of hanging this example (and the whole suite)
+          # forever.
+          closer = Thread.new { monitored_pipe.close }
+          expect(closer.join(10)).not_to be_nil, '#close did not return within 10 seconds'
+
+          expect(monitored_pipe.exception).to be(destination_error)
+          expect(monitored_pipe.state).to eq(:closed)
+        ensure
+          # Leave no open pipe behind no matter which expectation above failed. The
+          # suite asserts after every example that no MonitoredPipe is still open, so
+          # a pipe leaked here fails this example and every example that follows it.
+          force_close(monitored_pipe, writer, closer)
+        end
+      end
+
+      context 'when no data remains buffered in the pipe' do
+        it 'should not raise the exception from #close but save it to #exception' do
+          monitored_pipe.write('hello')
+
+          # Wait (with a deadline, so a regression that keeps the monitor loop
+          # from draining the pipe fails fast instead of blocking on the queue
+          # forever) until the monitoring thread is blocked inside the
+          # destination's #write; all of the data written to the pipe is
+          # already in the chunk being written
+          wait_until { !write_reached.empty? }
+          expect(write_reached.empty?).to eq(false), "the destination's #write was never reached"
+          write_reached.pop
+
+          # Let the destination raise inside the monitoring thread
+          write_released.push(:write_released)
+
+          # Wait for the monitoring thread to finish on its own so that #close is
+          # exercised after the thread has already terminated with the
+          # destination error.
+          wait_until { !monitored_pipe.thread.alive? }
+          expect(monitored_pipe.thread.alive?).to eq(false), 'the monitoring thread did not terminate'
+
+          expect { monitored_pipe.close }.not_to raise_error
+          expect(monitored_pipe.exception).to be(destination_error)
+          expect(monitored_pipe.state).to eq(:closed)
+        ensure
+          # Leave no open pipe behind no matter which expectation above failed. The
+          # suite asserts after every example that no MonitoredPipe is still open, so
+          # a pipe leaked here fails this example and every example that follows it.
+          force_close(monitored_pipe)
+        end
       end
     end
 
