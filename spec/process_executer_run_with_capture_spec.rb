@@ -181,6 +181,59 @@ RSpec.describe ProcessExecuter do
           )
         end
       end
+
+      context 'when the user gives a combined [:out, :err] redirection' do
+        it 'should capture both streams interleaved into stdout and leave stderr empty' do
+          my_combined_buffer = StringIO.new
+          options = { %i[out err] => my_combined_buffer }
+          expect(described_class.run_with_capture(*command, **options)).to(
+            be_a(ProcessExecuter::ResultWithCapture).and(
+              have_attributes(
+                stdout: include("HELLO#{eol}").and(include("ERROR#{eol}")),
+                stderr: ''
+              )
+            )
+          )
+        end
+
+        it 'should send both streams to the given redirection' do
+          my_combined_buffer = StringIO.new
+          options = { %i[out err] => my_combined_buffer }
+          described_class.run_with_capture(*command, **options)
+          expect(my_combined_buffer.string).to include("HELLO#{eol}").and(include("ERROR#{eol}"))
+        end
+
+        context 'when that combined redirection is a :tee' do
+          it 'should send both streams to each destination in the tee AND capture them into stdout' do
+            my_combined_buffer1 = StringIO.new
+            my_combined_buffer2 = StringIO.new
+            options = { %i[out err] => [:tee, my_combined_buffer1, my_combined_buffer2] }
+            expect(described_class.run_with_capture(*command, **options)).to(
+              be_a(ProcessExecuter::ResultWithCapture).and(
+                have_attributes(
+                  stdout: include("HELLO#{eol}").and(include("ERROR#{eol}")),
+                  stderr: ''
+                )
+              )
+            )
+            expect(my_combined_buffer1.string).to include("HELLO#{eol}").and(include("ERROR#{eol}"))
+            expect(my_combined_buffer2.string).to include("HELLO#{eol}").and(include("ERROR#{eol}"))
+          end
+        end
+
+        context 'when different encodings are given for stdout and stderr' do
+          it 'raises a ProcessExecuter::ArgumentError' do
+            my_combined_buffer = StringIO.new
+            options = {
+              %i[out err] => my_combined_buffer,
+              stdout_encoding: Encoding::UTF_8, stderr_encoding: Encoding::BINARY
+            }
+            expect { described_class.run_with_capture(*command, **options) }.to(
+              raise_error(ProcessExecuter::ArgumentError, /different encodings for stdout and stderr/)
+            )
+          end
+        end
+      end
     end
 
     context 'when the same options object is used for a second run' do
