@@ -143,6 +143,36 @@ RSpec.describe ProcessExecuter do
       end
     end
 
+    context 'with a command that times out leaving a descendant holding stdout open', if: !windows? do
+      # Reproduction for https://github.com/main-branch/process_executer/issues/164:
+      # the descendant inherits the MonitoredPipe write fd, so before the fix
+      # `run` blocked until the descendant exited (3 seconds here) even though
+      # timeout_after was 0.2 seconds -- and the descendant was left running.
+      it 'should return promptly after the timeout and kill the descendant' do
+        stdout_buffer = StringIO.new
+
+        start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        result = ProcessExecuter.run(
+          'sh', '-c', 'sleep 3 & echo $!; exec sleep 60',
+          out: stdout_buffer, timeout_after: 0.2, raise_errors: false
+        )
+        elapsed_time = Process.clock_gettime(Process::CLOCK_MONOTONIC) - start_time
+
+        expect(result.timed_out?).to eq(true)
+        expect(elapsed_time).to(
+          be < 1.5,
+          "expected run to return promptly after the 0.2s timeout but it took #{elapsed_time.round(2)}s " \
+          '(blocked until the descendant exited and released the pipe write fd)'
+        )
+
+        descendant_pid = stdout_buffer.string.to_i
+        expect(descendant_pid).to be > 0
+        failure_message = "expected the descendant process #{descendant_pid} to be killed " \
+                          'when the command timed out, but it was still running'
+        expect(process_dead?(descendant_pid, within: 2)).to eq(true), failure_message
+      end
+    end
+
     context 'with a command that times out' do
       let(:command) { 'sleep 1' }
       let(:options) { { timeout_after: 0.01, out: StringIO.new, err: StringIO.new } }

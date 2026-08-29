@@ -688,6 +688,36 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       end
     end
 
+    context 'when a file descriptor outside this pipe holds the write end open' do
+      # A subprocess descendant that survives its parent inherits the pipe's
+      # write fd. `IO#dup` stands in for that inherited fd: after #close closes
+      # this pipe's own write end, the duplicate keeps the pipe from ever
+      # reaching EOF, exactly like an orphaned grandchild process would.
+      it 'should return within the close timeout and record that output was truncated' do
+        stub_const('ProcessExecuter::MonitoredPipe::DEFAULT_CLOSE_TIMEOUT', 0.25)
+
+        monitored_pipe.write('output before close')
+        inherited_writer = monitored_pipe.to_io.dup
+
+        # Call #close from its own thread so that a regression fails via the
+        # timeout below instead of hanging this example (and the whole suite)
+        # forever.
+        closer = Thread.new { monitored_pipe.close }
+        closed_within_bound = !closer.join(3).nil?
+
+        # Release the write end so the pipe can finish closing and the example
+        # can clean up even when #close blocked past its deadline.
+        inherited_writer.close
+        closer.join
+
+        expect(closed_within_bound).to eq(true), '#close did not return within its close timeout ' \
+                                                 'while another file descriptor held the write end of the pipe open'
+        expect(monitored_pipe.truncated?).to eq(true)
+        expect(monitored_pipe.state).to eq(:closed)
+        expect(output_writer.string).to eq('output before close')
+      end
+    end
+
     context 'when an async exception is delivered while joining the monitoring thread' do
       it 'should re-raise the exception from #close and not save it to #exception' do
         # The monitoring thread records its own exceptions before terminating,
