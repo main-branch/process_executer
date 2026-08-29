@@ -110,6 +110,19 @@ module ProcessExecuter
         (key = stderr_redirection_source) ? options_hash[key] : nil
       end
 
+      # Determine if a single redirection option key covers both stdout and stderr
+      #
+      # This is the case for a combined redirection such as `[:out, :err] =>
+      # destination`, where both {#stdout_redirection_source} and
+      # {#stderr_redirection_source} resolve to the same key.
+      #
+      # @return [Boolean]
+      # @api private
+      def combined_stdout_and_stderr_redirection?
+        key = stdout_redirection_source
+        !key.nil? && key.equal?(stderr_redirection_source)
+      end
+
       private
 
       # Define the allowed options

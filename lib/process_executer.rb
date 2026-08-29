@@ -279,6 +279,12 @@ module ProcessExecuter
   # <destination>` or `err: <destination>`). These redirections will receive the
   # output in addition to the internal capture.
   #
+  # A combined redirection whose key covers both stdout and stderr (e.g. `[:out,
+  # :err] => <destination>`) behaves like `merge_output: true`: both streams are
+  # interleaved into the `#stdout` capture and `#stderr` is empty. As with
+  # `merge_output: true`, a `ProcessExecuter::ArgumentError` is raised if
+  # different encodings are given for stdout and stderr.
+  #
   # Unless told otherwise, the internally captured output is assumed to be in UTF-8
   # encoding. This assumption can be changed with the `encoding`,
   # `stdout_encoding`, or `stderr_encoding` options. These options accept any

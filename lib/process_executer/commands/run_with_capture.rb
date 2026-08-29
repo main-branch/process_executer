@@ -94,9 +94,43 @@ module ProcessExecuter
       # The capture redirections are not written into {options} so the caller's
       # options object is not modified.
       #
+      # When the user gives a combined redirection whose key covers both stdout
+      # and stderr (e.g. `[:out, :err] => destination`), a single capture
+      # redirection is built for that key so both streams are interleaved into
+      # {#stdout_buffer} and {#stderr_buffer} is left empty, mirroring the
+      # `merge_output: true` contract.
+      #
       # @return [Void]
       #
       def add_capture_redirections
+        if options.combined_stdout_and_stderr_redirection?
+          add_combined_capture_redirection
+        else
+          add_stdout_and_stderr_capture_redirections
+        end
+      end
+
+      # Add a single capture redirection for a combined stdout/stderr key
+      #
+      # Both streams are interleaved into {#stdout_buffer}; {#stderr_buffer} is
+      # left empty.
+      #
+      # @return [Void]
+      #
+      def add_combined_capture_redirection
+        redirection_overrides.merge!(
+          capture_option(:out, stdout_redirection_source, stdout_redirection_destination, stdout_buffer)
+        )
+      end
+
+      # Add separate capture redirections for stdout and stderr
+      #
+      # If `merge_output: true` was given, stderr is redirected into stdout so
+      # both streams are interleaved into {#stdout_buffer}.
+      #
+      # @return [Void]
+      #
+      def add_stdout_and_stderr_capture_redirections
         out = stdout_buffer
         err = options.merge_output ? [:child, 1] : stderr_buffer
 
