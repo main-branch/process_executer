@@ -122,24 +122,15 @@ module ProcessExecuter
     #
     def initialize(redirection_destination, chunk_size: 100_000)
       @destination = Destinations.factory(redirection_destination)
-
-      assert_destination_is_compatible_with_monitored_pipe
-
-      @mutex = Mutex.new
-      @condition_variable = ConditionVariable.new
-      @chunk_size = chunk_size
-      @pipe_reader, @pipe_writer = IO.pipe
-
-      # Set the encoding of the pipe reader to ASCII_8BIT. This is not strictly
-      # necessary since read_nonblock always returns a String where encoding is
-      # Encoding::ASCII_8BIT, but it is a good practice to explicitly set the
-      # encoding.
-      pipe_reader.set_encoding(Encoding::ASCII_8BIT)
-
-      @state = :open
-      @thread = start_monitoring_thread
-
-      self.class.add_open_instance(self)
+      complete_initialization(chunk_size)
+    rescue Exception # rubocop:disable Lint/RescueException
+      # The destination may hold resources (e.g. the File opened by
+      # Destinations::FilePath), so a failure partway through construction must
+      # close whatever was created so far -- the destination and, if IO.pipe
+      # succeeded, both pipe IOs -- or they leak. A failed initialize never
+      # returns a MonitoredPipe instance for the caller (or #close) to clean up.
+      [destination, pipe_reader, pipe_writer].each { |resource| resource&.close }
+      raise
     end
 
     # Set the state to `:closing` and wait for the state to be set to `:closed`
@@ -390,6 +381,36 @@ module ProcessExecuter
     # @api private
     #
     attr_reader :condition_variable
+
+    # Complete construction of the monitored pipe
+    #
+    # Performs every step of #initialize that can raise after the destination
+    # has been created: the compatibility check, IO.pipe, and starting the
+    # monitoring thread. #initialize cleans up the destination and pipe IOs if
+    # any of these steps fail.
+    #
+    # @param chunk_size [Integer] the size of the chunks to read from the pipe
+    # @return [void]
+    # @api private
+    def complete_initialization(chunk_size)
+      assert_destination_is_compatible_with_monitored_pipe
+
+      @mutex = Mutex.new
+      @condition_variable = ConditionVariable.new
+      @chunk_size = chunk_size
+      @pipe_reader, @pipe_writer = IO.pipe
+
+      # Set the encoding of the pipe reader to ASCII_8BIT. This is not strictly
+      # necessary since read_nonblock always returns a String where encoding is
+      # Encoding::ASCII_8BIT, but it is a good practice to explicitly set the
+      # encoding.
+      pipe_reader.set_encoding(Encoding::ASCII_8BIT)
+
+      @state = :open
+      @thread = start_monitoring_thread
+
+      self.class.add_open_instance(self)
+    end
 
     # Raise an error if the destination is not compatible with MonitoredPipe
     # @return [void]
