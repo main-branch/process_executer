@@ -548,6 +548,67 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     end
   end
 
+  context 'when #initialize fails after the destination is created' do
+    # Capture the destination created by #initialize so these examples can
+    # assert it was closed even though the failed #initialize never returns a
+    # MonitoredPipe instance to inspect.
+    before do
+      allow(ProcessExecuter::Destinations).to receive(:factory).and_wrap_original do |original, *args|
+        original.call(*args).tap do |destination|
+          @created_destination = destination
+          allow(destination).to receive(:close).and_call_original
+        end
+      end
+    end
+
+    attr_reader :created_destination
+
+    context 'when IO.pipe raises Errno::EMFILE' do
+      before do
+        allow(IO).to receive(:pipe).and_raise(Errno::EMFILE)
+      end
+
+      it 'should close the destination and re-raise the Errno::EMFILE' do
+        Dir.mktmpdir do |dir|
+          filepath = File.join(dir, 'output.txt')
+          expect { described_class.new(filepath) }.to raise_error(Errno::EMFILE)
+          expect(created_destination.file.closed?).to eq(true)
+        end
+      end
+    end
+
+    context 'when the destination is not compatible with MonitoredPipe' do
+      it 'should close the destination and raise a ProcessExecuter::ArgumentError' do
+        expect { described_class.new([:child, 6]) }.to(
+          raise_error(ProcessExecuter::ArgumentError, 'Destination [:child, 6] is not compatible with MonitoredPipe')
+        )
+        expect(created_destination).to have_received(:close)
+      end
+    end
+
+    context 'when starting the monitoring thread raises a ThreadError' do
+      before do
+        allow(IO).to receive(:pipe).and_wrap_original do |original, *args|
+          original.call(*args).tap do |pipe_reader, pipe_writer|
+            @created_pipe_reader = pipe_reader
+            @created_pipe_writer = pipe_writer
+          end
+        end
+        allow(Thread).to receive(:new).and_raise(ThreadError)
+      end
+
+      it 'should close the destination and both pipe ends and re-raise the ThreadError' do
+        Dir.mktmpdir do |dir|
+          filepath = File.join(dir, 'output.txt')
+          expect { described_class.new(filepath) }.to raise_error(ThreadError)
+          expect(created_destination.file.closed?).to eq(true)
+          expect(@created_pipe_reader.closed?).to eq(true)
+          expect(@created_pipe_writer.closed?).to eq(true)
+        end
+      end
+    end
+  end
+
   describe '#close' do
     it 'should eventually kill the thread' do
       monitored_pipe.close
