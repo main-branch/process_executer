@@ -777,32 +777,76 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       let(:destination) { output_writer }
 
       it 'should eventually kill the monitoring thread' do
-        monitored_pipe.write(data)
+        begin
+          monitored_pipe.write(data)
+        rescue IOError
+          # The monitoring thread hit the destination error and closed the pipe
+          # while the write was still in progress; a documented #write outcome.
+        end
         sleep(0.01)
         monitored_pipe.close
         expect(monitored_pipe.thread.alive?).to eq(false)
+      ensure
+        # Leave no open pipe behind no matter which expectation above failed. The
+        # monitoring thread sets the state to :closed on its own when the
+        # destination raises, but only #close untracks the instance, so a failure
+        # before #close would otherwise cascade into every following example.
+        force_close(monitored_pipe)
       end
 
       it 'should eventually set the state to :closed' do
-        monitored_pipe.write(data)
+        begin
+          monitored_pipe.write(data)
+        rescue IOError
+          # The monitoring thread hit the destination error and closed the pipe
+          # while the write was still in progress; a documented #write outcome.
+        end
         sleep(0.01)
         monitored_pipe.close
         expect(monitored_pipe.state).to eq(:closed)
+      ensure
+        # Leave no open pipe behind no matter which expectation above failed. The
+        # monitoring thread sets the state to :closed on its own when the
+        # destination raises, but only #close untracks the instance, so a failure
+        # before #close would otherwise cascade into every following example.
+        force_close(monitored_pipe)
       end
 
       it 'should eventually save the exception raised to #exception' do
-        monitored_pipe.write(data)
+        begin
+          monitored_pipe.write(data)
+        rescue IOError
+          # The monitoring thread hit the destination error and closed the pipe
+          # while the write was still in progress; a documented #write outcome.
+        end
         sleep(0.01)
         monitored_pipe.close
         expect(monitored_pipe.exception).to be_a(Encoding::UndefinedConversionError)
         expect(monitored_pipe.exception.message).to eq('UTF-8 conversion error')
+      ensure
+        # Leave no open pipe behind no matter which expectation above failed. The
+        # monitoring thread sets the state to :closed on its own when the
+        # destination raises, but only #close untracks the instance, so a failure
+        # before #close would otherwise cascade into every following example.
+        force_close(monitored_pipe)
       end
 
       it 'should raise an exception if #write is called after the pipe is closed' do
-        monitored_pipe.write(data)
+        begin
+          monitored_pipe.write(data)
+        rescue IOError
+          # The monitoring thread hit the destination error and closed the pipe
+          # while the write was still in progress; a documented #write outcome.
+        end
         sleep(0.01)
         monitored_pipe.close
         expect { monitored_pipe.write('world') }.to raise_error(IOError, 'closed stream')
+      ensure
+        # Leave no open pipe behind no matter which expectation above failed. The
+        # monitoring thread sets the state to :closed on its own when the
+        # destination raises, but only #close untracks the instance, so a failure
+        # before #close would otherwise cascade into every following example.
+        force_close(monitored_pipe)
       end
     end
 
