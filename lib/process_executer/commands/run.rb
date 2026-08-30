@@ -21,29 +21,16 @@ module ProcessExecuter
     # destination. This means that you can redirect to a StringIO which is not possible
     # with `Process.spawn`.
     #
-    # The wrapper pipes are kept in an internal hash that is combined with the
-    # user's options only when `Process.spawn` is called. The options object the
-    # caller gave is never modified, so it can be reused for another run and
-    # `result.options` returns the destinations as the user configured them.
+    # The wrapper pipes are kept in internal per-call state that is combined
+    # with the user's options only when `Process.spawn` is called. Subclasses
+    # contribute additional redirections by overriding `#internal_redirections`.
+    # The options object the caller gave is never modified, so it can be reused
+    # for another run and `result.options` returns the destinations as the user
+    # configured them.
     #
     # @api private
     #
     class Run < SpawnWithTimeout
-      # Create a new Run instance
-      #
-      # @example
-      #   options = ProcessExecuter::Options::RunOptions.new(raise_errors: true)
-      #   result = ProcessExecuter::Commands::Run.new('echo hello', options).call
-      #   result.success? # => true
-      #
-      # @param command [Array<String>] The command to run in the subprocess
-      # @param options [ProcessExecuter::Options::RunOptions] The options to use when running the command
-      #
-      def initialize(command, options)
-        super
-        @redirection_overrides = {}
-      end
-
       # Run a command and return the result
       #
       # Wrap the stdout and stderr redirection destinations in pipes and then execute
@@ -73,6 +60,7 @@ module ProcessExecuter
       #
       def call
         @opened_pipes = {}
+        @redirection_overrides = internal_redirections
         wrap_stdout_stderr
         super.tap do
           log_result
@@ -86,9 +74,10 @@ module ProcessExecuter
 
       # Redirection options to apply on top of the user's options at spawn time
       #
-      # Holds the {MonitoredPipe} wrappers created by {#wrap_stdout_stderr} (and
-      # the capture redirections added by subclasses) keyed by the redirection
-      # option key. Keeping them here instead of writing them into {#options}
+      # Reset at the start of each {#call}: seeded with
+      # {#internal_redirections} and then updated by {#wrap_stdout_stderr},
+      # which replaces each eligible destination with its {MonitoredPipe}
+      # wrapper. Keeping these here instead of writing them into {#options}
       # leaves the caller's options object unmodified.
       #
       # Unlike {#opened_pipes}, this hash may hold values that are not
@@ -98,6 +87,18 @@ module ProcessExecuter
       # @return [Hash<Object, Object>]
       #
       attr_reader :redirection_overrides
+
+      # Redirections this class adds on top of the user's options
+      #
+      # Called once at the start of each {#call} to seed
+      # {#redirection_overrides}, before {#wrap_stdout_stderr} runs. Returns an
+      # empty hash; subclasses override this method to contribute their own
+      # redirections (such as {RunWithCapture}'s capture redirections) instead
+      # of mutating this object's state.
+      #
+      # @return [Hash<Object, Object>]
+      #
+      def internal_redirections = {}
 
       # The wrapper pipes created by {#wrap_stdout_stderr}
       #
