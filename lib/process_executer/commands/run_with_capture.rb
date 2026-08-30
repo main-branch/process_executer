@@ -50,8 +50,6 @@ module ProcessExecuter
         @stderr_buffer = StringIO.new
         stderr_buffer.set_encoding(options.effective_stderr_encoding)
 
-        add_capture_redirections
-
         begin
           super
         ensure
@@ -89,10 +87,11 @@ module ProcessExecuter
         )
       end
 
-      # Add the stdout and stderr capture redirections to {#redirection_overrides}
+      # The stdout and stderr capture redirections
       #
-      # The capture redirections are not written into {options} so the caller's
-      # options object is not modified.
+      # Called by {Run#call} to seed the redirection overrides, so the capture
+      # redirections are layered on top of the user's options at spawn time
+      # without writing into {#options} or mutating the parent's state.
       #
       # When the user gives a combined redirection whose key covers both stdout
       # and stderr (e.g. `[:out, :err] => destination`), a single capture
@@ -100,42 +99,39 @@ module ProcessExecuter
       # {#stdout_buffer} and {#stderr_buffer} is left empty, mirroring the
       # `merge_output: true` contract.
       #
-      # @return [Void]
+      # @return [Hash<Object, Object>]
       #
-      def add_capture_redirections
+      def internal_redirections
         if options.combined_stdout_and_stderr_redirection?
-          add_combined_capture_redirection
+          combined_capture_redirection
         else
-          add_stdout_and_stderr_capture_redirections
+          stdout_and_stderr_capture_redirections
         end
       end
 
-      # Add a single capture redirection for a combined stdout/stderr key
+      # A single capture redirection for a combined stdout/stderr key
       #
       # Both streams are interleaved into {#stdout_buffer}; {#stderr_buffer} is
       # left empty.
       #
-      # @return [Void]
+      # @return [Hash<Object, Object>]
       #
-      def add_combined_capture_redirection
-        redirection_overrides.merge!(
-          capture_option(:out, stdout_redirection_source, stdout_redirection_destination, stdout_buffer)
-        )
+      def combined_capture_redirection
+        capture_option(:out, stdout_redirection_source, stdout_redirection_destination, stdout_buffer)
       end
 
-      # Add separate capture redirections for stdout and stderr
+      # Separate capture redirections for stdout and stderr
       #
       # If `merge_output: true` was given, stderr is redirected into stdout so
       # both streams are interleaved into {#stdout_buffer}.
       #
-      # @return [Void]
+      # @return [Hash<Object, Object>]
       #
-      def add_stdout_and_stderr_capture_redirections
+      def stdout_and_stderr_capture_redirections
         out = stdout_buffer
         err = options.merge_output ? [:child, 1] : stderr_buffer
 
-        redirection_overrides.merge!(
-          capture_option(:out, stdout_redirection_source, stdout_redirection_destination, out),
+        capture_option(:out, stdout_redirection_source, stdout_redirection_destination, out).merge(
           capture_option(:err, stderr_redirection_source, stderr_redirection_destination, err)
         )
       end
