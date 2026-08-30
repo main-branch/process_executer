@@ -609,6 +609,45 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     end
   end
 
+  describe 'the monitoring thread' do
+    context 'when the pipe is idle' do
+      it 'should block waiting for pipe events instead of polling' do
+        # Each call to #monitor_pipe is one wakeup of the monitoring thread's
+        # loop. A loop that blocks until the pipe has data (or is being closed)
+        # accumulates only a handful of calls over an idle window; a loop that
+        # polls on a short timeout wakes about once per millisecond,
+        # accumulating hundreds.
+        #
+        # A Queue is used as the counter because it is thread safe: the
+        # monitoring thread pushes while this thread reads the size.
+        monitor_pipe_calls = Queue.new
+
+        # Stub the class, not the instance: referencing `monitored_pipe` here
+        # would start its monitoring thread and then modify the instance's
+        # singleton class while that thread is calling #monitor_pipe in a tight
+        # loop. JRuby can raise a transient NoMethodError from a method lookup
+        # that races the singleton class modification.
+        allow_any_instance_of(described_class).to receive(:monitor_pipe).and_wrap_original do |original, *args|
+          monitor_pipe_calls.push(:wakeup)
+          original.call(*args)
+        end
+
+        monitored_pipe
+
+        # The idle window: nothing writes to the pipe
+        sleep(0.2)
+
+        wakeups = monitor_pipe_calls.size
+        monitored_pipe.close
+
+        # A 1ms poll accumulates ~200 wakeups over this window. The generous
+        # single-digit threshold keeps scheduling jitter on slow CI hosts from
+        # flaking the example.
+        expect(wakeups).to be < 10
+      end
+    end
+  end
+
   describe '#close' do
     it 'should eventually kill the thread' do
       monitored_pipe.close
