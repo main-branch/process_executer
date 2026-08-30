@@ -10,6 +10,12 @@ module ProcessExecuter
   # * `elapsed_time`: the seconds the command ran
   # * `timed_out?`: true if the process timed out
   #
+  # In the rare case that the timeout fires after the process was already
+  # reaped, its status is lost: the result delegates to a nil status and
+  # `timed_out?` is true. {#success?} and {#to_s} still work, but methods
+  # forwarded to the status (like `exitstatus` or `signaled?`) will raise
+  # NoMethodError.
+  #
   # @api public
   #
   class Result < SimpleDelegator
@@ -25,7 +31,8 @@ module ProcessExecuter
     #
     #   ProcessExecuter::Result.new(status, command:, options:, timed_out:, elapsed_time:)
     #
-    # @param status [Process::Status] the status to delegate to
+    # @param status [Process::Status, nil] the status to delegate to (nil when the
+    #   timeout raced the wait for the process and the status was lost)
     #
     # @param command [Array] the command that was used to spawn the process
     #
@@ -70,7 +77,11 @@ module ProcessExecuter
     attr_reader :elapsed_time
 
     # @!attribute [r] timed_out?
-    # True if the process timed out and was sent the SIGKILL signal
+    # True if the wait for the process was cut short by `timeout_after` elapsing
+    #
+    # A timed out process is sent the SIGKILL signal, unless it had already
+    # exited in the moment between the timeout firing and the kill (the
+    # raced-timeout corner case described above).
     # @example
     #   result = ProcessExecuter.spawn_with_timeout('sleep 10', timeout_after: 0.01)
     #   result.timed_out? # => true

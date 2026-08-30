@@ -29,7 +29,7 @@ module ProcessExecuter
   # | `CommandError` | A subclass of this error is raised when there is a problem executing a command. |
   # | `FailedError` | Raised when the command exits with a non-zero exit status. |
   # | `SignaledError` | Raised when the command is terminated as a result of receiving a signal. This could happen if the process is forcibly terminated or if there is a serious system error. |
-  # | `TimeoutError` | This is a specific type of `SignaledError` that is raised when the command times out and is killed via the SIGKILL signal. |
+  # | `TimeoutError` | This is a specific type of `SignaledError` that is raised when the wait for the command is cut short by the configured `timeout_after` elapsing. The command is sent the SIGKILL signal, unless it had already exited in the moment between the timeout firing and the kill. |
   # | `ProcessIOError` | Raised when an error was encountered reading or writing to the command's subprocess. |
   # | `SpawnError` | Raised when the process could not execute. Check the `#cause` for the original exception from `Process.spawn`.  |
   #
@@ -139,7 +139,7 @@ module ProcessExecuter
   #
   class SignaledError < ProcessExecuter::CommandError; end
 
-  # Raised when the command takes longer than the configured timeout_after
+  # Raised when the wait for the command is cut short by `timeout_after` elapsing
   #
   # @example
   #   begin

@@ -80,10 +80,14 @@ module ProcessExecuter
 
       # The status returned by Process.wait2
       #
+      # nil when the timeout was delivered after the wait had already reaped
+      # the subprocess: the status was lost to the raise and {#timed_out?} is
+      # true.
+      #
       # @example
       #   spawn.status #=> #<Process::Status: pid 12345 exit 0>
       #
-      # @return [Process::Status]
+      # @return [Process::Status, nil]
       #
       attr_reader :status
 
@@ -188,8 +192,9 @@ module ProcessExecuter
       # cleans up a subprocess this class isolated into its own process group
       # before the exception propagates.
       #
-      # @return [Array<Process::Status, Boolean>] an array containing the process status and a boolean
-      #   indicating whether the process timed out
+      # @return [Array(Process::Status, Boolean), Array(nil, Boolean)] an array containing
+      #   the process status (nil when the timeout raced the wait and the status was lost,
+      #   see {#wait_with_timeout}) and a boolean indicating whether the process timed out
       def wait_for_process_raw
         wait_with_timeout
       rescue Exception # rubocop:disable Lint/RescueException
@@ -199,14 +204,26 @@ module ProcessExecuter
 
       # Wait for the process, killing it when `timeout_after` expires first
       #
-      # @return [Array<Process::Status, Boolean>] an array containing the process status and a boolean
-      #   indicating whether the process timed out
+      # The timeout can be delivered after the timed wait has already reaped
+      # the subprocess but before it returns. In that race the subprocess's
+      # status was lost to the raise, so the status is nil and the timed out
+      # flag is still set.
+      #
+      # @return [Array(Process::Status, Boolean), Array(nil, Boolean)] an array containing
+      #   the process status (nil when the timeout raced the wait and the status was lost)
+      #   and a boolean indicating whether the process timed out
       def wait_with_timeout
         process_status = Timeout.timeout(options.timeout_after) { Process.wait2(pid).last }
         [process_status, false]
       rescue Timeout::Error
         kill_subprocess
-        [Process.wait2(pid).last, true]
+        begin
+          [Process.wait2(pid).last, true]
+        rescue Errno::ECHILD
+          # the interrupted wait already reaped the subprocess; its status was
+          # lost to the raise
+          [nil, true]
+        end
       end
 
       # Kill and reap the subprocess when its wait was abandoned by an exception
@@ -255,12 +272,23 @@ module ProcessExecuter
       # {MonitoredPipe#close} keeps such descendants from blocking
       # {ProcessExecuter.run} indefinitely.
       #
+      # A subprocess that already exited and was reaped before the signal is
+      # sent (the timeout racing the wait) leaves nothing to kill; that is not
+      # an error. In that same microsecond window the freed pid could in
+      # principle be recycled to an unrelated process, a hazard inherent to
+      # signaling by pid: Ruby exposes no race-free process handle (such as
+      # Linux's pidfd) that would eliminate it, and reuse would require the OS
+      # to cycle through its entire pid space within the window.
+      #
       # @return [void]
       #
       def kill_subprocess
         return if process_group_leader? && kill_process_group
 
         Process.kill('KILL', pid)
+      rescue Errno::ESRCH
+        # the subprocess already exited and was reaped between the interrupted
+        # wait and the kill; there is nothing left to kill
       end
 
       # Whether the spawn options made the subprocess a new process group leader
