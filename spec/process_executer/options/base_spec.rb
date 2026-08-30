@@ -151,6 +151,68 @@ RSpec.describe ProcessExecuter::Options::Base do
       options.merge!({ option1: 'new_value1' }, { option2: 'new_value2' })
       expect(options).to have_attributes(option1: 'new_value1', option2: 'new_value2')
     end
+
+    it 'should return self' do
+      expect(options.merge!(option1: 'new_value1')).to be(options)
+    end
+
+    context 'when the same option is given in multiple hashes' do
+      it 'should keep the value from the last hash given' do
+        options.merge!({ option1: 'first_value' }, { option1: 'last_value' })
+        expect(options.option1).to eq('last_value')
+      end
+    end
+
+    context 'when an unknown option is given' do
+      it 'should raise a ProcessExecuter::ArgumentError' do
+        expect { options.merge!(unknown: true) }.to(
+          raise_error(ProcessExecuter::ArgumentError, 'Unknown option: unknown')
+        )
+      end
+
+      it 'should leave the options unchanged' do
+        begin
+          options.merge!(option1: 'new_value1', unknown: true)
+        rescue ProcessExecuter::ArgumentError
+          # expected
+        end
+        expect(options).to have_attributes(option1: 'value1', option2: 'value2')
+        expect(options.to_h).to eq(option1: 'value1', option2: 'value2')
+        expect(options.instance_variable_get(:@errors)).to be_empty
+      end
+    end
+
+    context 'when an invalid value is given for a validated option' do
+      let(:options) { ProcessExecuter::Options::RunOptions.new(timeout_after: 10) }
+
+      it 'should raise a ProcessExecuter::ArgumentError' do
+        expect { options.merge!(timeout_after: 'ten') }.to(
+          raise_error(
+            ProcessExecuter::ArgumentError,
+            'timeout_after must be nil or a non-negative real number but was "ten"'
+          )
+        )
+      end
+
+      it 'should leave the options unchanged' do
+        begin
+          options.merge!(timeout_after: 'ten')
+        rescue ProcessExecuter::ArgumentError
+          # expected
+        end
+        expect(options.timeout_after).to eq(10)
+        expect(options.instance_variable_get(:@errors)).to be_empty
+      end
+    end
+
+    context 'when a valid value is given for a validated option' do
+      let(:options) { ProcessExecuter::Options::RunOptions.new }
+
+      it 'should update the option and its accessor' do
+        options.merge!(timeout_after: 5)
+        expect(options.timeout_after).to eq(5)
+      end
+    end
   end
 
   describe '#each_with_object' do
