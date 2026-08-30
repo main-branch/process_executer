@@ -13,8 +13,9 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
   def force_close(pipe, *threads)
     threads.compact.each(&:kill)
     pipe.thread.kill
-    pipe.pipe_writer.close unless pipe.pipe_writer.closed?
-    pipe.pipe_reader.close unless pipe.pipe_reader.closed?
+    [pipe.pipe_writer, pipe.pipe_reader, pipe.wake_writer, pipe.wake_reader].each do |io|
+      io.close unless io.closed?
+    end
     described_class.remove_open_instance(pipe)
   end
 
@@ -535,6 +536,8 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         destination: ProcessExecuter::Destinations::DestinationBase,
         pipe_reader: IO,
         pipe_writer: IO,
+        wake_reader: IO,
+        wake_writer: IO,
         chunk_size: Integer
       )
     end
@@ -586,24 +589,53 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       end
     end
 
-    context 'when starting the monitoring thread raises a ThreadError' do
+    context 'when creating the wake pipe raises Errno::EMFILE' do
       before do
+        # The first IO.pipe call creates the data pipe; the second creates the
+        # wake pipe. Let the first succeed (capturing its IOs) and fail the
+        # second so the example can assert the data pipe was cleaned up.
+        io_pipe_calls = 0
         allow(IO).to receive(:pipe).and_wrap_original do |original, *args|
+          io_pipe_calls += 1
+          raise Errno::EMFILE if io_pipe_calls == 2
+
           original.call(*args).tap do |pipe_reader, pipe_writer|
             @created_pipe_reader = pipe_reader
             @created_pipe_writer = pipe_writer
           end
         end
+      end
+
+      it 'should close the destination and both data pipe ends and re-raise the Errno::EMFILE' do
+        Dir.mktmpdir do |dir|
+          filepath = File.join(dir, 'output.txt')
+          expect { described_class.new(filepath) }.to raise_error(Errno::EMFILE)
+          expect(created_destination.file.closed?).to eq(true)
+          expect(@created_pipe_reader.closed?).to eq(true)
+          expect(@created_pipe_writer.closed?).to eq(true)
+        end
+      end
+    end
+
+    context 'when starting the monitoring thread raises a ThreadError' do
+      before do
+        # The first IO.pipe call creates the data pipe; the second creates the
+        # wake pipe. Capture the IOs from both so the example can assert all
+        # four were closed.
+        @created_pipes = []
+        allow(IO).to receive(:pipe).and_wrap_original do |original, *args|
+          original.call(*args).tap { |pipe_ios| @created_pipes << pipe_ios }
+        end
         allow(Thread).to receive(:new).and_raise(ThreadError)
       end
 
-      it 'should close the destination and both pipe ends and re-raise the ThreadError' do
+      it 'should close the destination and all four pipe ends and re-raise the ThreadError' do
         Dir.mktmpdir do |dir|
           filepath = File.join(dir, 'output.txt')
           expect { described_class.new(filepath) }.to raise_error(ThreadError)
           expect(created_destination.file.closed?).to eq(true)
-          expect(@created_pipe_reader.closed?).to eq(true)
-          expect(@created_pipe_writer.closed?).to eq(true)
+          expect(@created_pipes.size).to eq(2)
+          expect(@created_pipes.flatten).to all(satisfy(&:closed?))
         end
       end
     end
@@ -669,6 +701,14 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     it 'should set the state to closed' do
       monitored_pipe.close
       expect(monitored_pipe.state).to eq(:closed)
+    end
+
+    it 'should close both ends of the internal wake pipe' do
+      # The monitoring thread closes the wake fds in its teardown and #close
+      # joins that thread, so by the time #close returns no wake fd may leak.
+      monitored_pipe.close
+      expect(monitored_pipe.wake_reader.closed?).to eq(true)
+      expect(monitored_pipe.wake_writer.closed?).to eq(true)
     end
 
     it 'should be ok to call two or more times' do
@@ -1087,6 +1127,28 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
         monitored_pipe.close
         expect(monitored_pipe.exception).to be_a(Encoding::UndefinedConversionError)
         expect(monitored_pipe.exception.message).to eq('UTF-8 conversion error')
+      ensure
+        # Leave no open pipe behind no matter which expectation above failed. The
+        # monitoring thread sets the state to :closed on its own when the
+        # destination raises, but only #close untracks the instance, so a failure
+        # before #close would otherwise cascade into every following example.
+        force_close(monitored_pipe)
+      end
+
+      it 'should close both ends of the internal wake pipe' do
+        # The monitoring thread shuts down on its own when the destination
+        # raises -- without #close ever writing a wake byte -- and its teardown
+        # must still close the wake fds.
+        begin
+          monitored_pipe.write(data)
+        rescue IOError
+          # The monitoring thread hit the destination error and closed the pipe
+          # while the write was still in progress; a documented #write outcome.
+        end
+        sleep(0.01)
+        monitored_pipe.close
+        expect(monitored_pipe.wake_reader.closed?).to eq(true)
+        expect(monitored_pipe.wake_writer.closed?).to eq(true)
       ensure
         # Leave no open pipe behind no matter which expectation above failed. The
         # monitoring thread sets the state to :closed on its own when the
