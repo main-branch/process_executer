@@ -54,6 +54,21 @@ module ProcessExecuter
   #   read from the pipe and written to the destination, and (3) the monitoring thread is
   #   killed.
   #
+  # ## File descriptor usage
+  #
+  # Each MonitoredPipe holds four file descriptors: two for the data pipe the
+  # subprocess writes to and two for an internal wake pipe that interrupts the
+  # monitoring thread when the pipe is closed. All four are held concurrently
+  # from construction until the pipe is closed, so a `ProcessExecuter.run` that
+  # captures stdout and stderr holds 8 pipe file descriptors for the duration
+  # of the subprocess.
+  #
+  # File descriptor limits are per-process. An application spawning many
+  # commands concurrently can hit the soft `RLIMIT_NOFILE` limit -- macOS
+  # defaults to 256 and Linux commonly to 1024. The workaround is to raise the
+  # limit in the spawning process, for example with
+  # `Process.setrlimit(:NOFILE, 10_240)` or `ulimit -n`.
+  #
   # @example Collect pipe data into a StringIO object
   #   pipe_data = StringIO.new
   #   begin
@@ -138,16 +153,19 @@ module ProcessExecuter
     rescue Exception # rubocop:disable Lint/RescueException
       # The destination may hold resources (e.g. the File opened by
       # Destinations::FilePath), so a failure partway through construction must
-      # close whatever was created so far -- the destination and, if IO.pipe
-      # succeeded, both pipe IOs -- or they leak. A failed initialize never
-      # returns a MonitoredPipe instance for the caller (or #close) to clean up.
-      [destination, pipe_reader, pipe_writer].each { |resource| resource&.close }
+      # close whatever was created so far -- the destination and, for each
+      # IO.pipe that succeeded, both pipe IOs -- or they leak. A failed
+      # initialize never returns a MonitoredPipe instance for the caller (or
+      # #close) to clean up.
+      [destination, pipe_reader, pipe_writer, wake_reader, wake_writer].each { |resource| resource&.close }
       raise
     end
 
     # Set the state to `:closing` and wait for the state to be set to `:closed`
     #
-    # The monitoring thread will see that the state has changed and will close the pipe.
+    # A byte written to the internal wake pipe interrupts the monitoring
+    # thread's wait for pipe data; the thread then sees that the state has
+    # changed and closes the pipe.
     #
     # Remaining pipe data is drained to the destination for at most `timeout`
     # seconds. The pipe only reaches EOF once every copy of its write fd is
@@ -186,13 +204,7 @@ module ProcessExecuter
     # @return [void]
     #
     def close(timeout: DEFAULT_CLOSE_TIMEOUT)
-      mutex.synchronize do
-        if state == :open
-          @close_deadline = timeout ? Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout : nil
-          @state = :closing
-          condition_variable.wait(mutex) while @state != :closed
-        end
-      end
+      initiate_close_and_wait_until_closed(timeout)
 
       thread.join
       destination.close
@@ -409,6 +421,32 @@ module ProcessExecuter
     #
     attr_reader :pipe_writer
 
+    # @!attribute [r]
+    #
+    # The read end of the internal wake pipe
+    #
+    # The monitoring thread waits on this IO (along with {#pipe_reader}) so
+    # that {#close} can interrupt its wait for pipe data.
+    #
+    # @return [IO]
+    #
+    # @api private
+    #
+    attr_reader :wake_reader
+
+    # @!attribute [r]
+    #
+    # The write end of the internal wake pipe
+    #
+    # {#close} writes a single byte to this IO -- at most once in the pipe's
+    # life -- to interrupt the monitoring thread's wait for pipe data.
+    #
+    # @return [IO]
+    #
+    # @api private
+    #
+    attr_reader :wake_writer
+
     private
 
     # @!attribute [r]
@@ -436,9 +474,10 @@ module ProcessExecuter
     # Complete construction of the monitored pipe
     #
     # Performs every step of #initialize that can raise after the destination
-    # has been created: the compatibility check, IO.pipe, and starting the
-    # monitoring thread. #initialize cleans up the destination and pipe IOs if
-    # any of these steps fail.
+    # has been created: the compatibility check, creating the data and wake
+    # pipes, and starting the monitoring thread. #initialize cleans up the
+    # destination and any pipe IOs that were created if any of these steps
+    # fail.
     #
     # @param chunk_size [Integer] the size of the chunks to read from the pipe
     # @return [void]
@@ -449,6 +488,21 @@ module ProcessExecuter
       @mutex = Mutex.new
       @condition_variable = ConditionVariable.new
       @chunk_size = chunk_size
+
+      create_pipes
+
+      @state = :open
+      @truncated = false
+      @thread = start_monitoring_thread
+
+      self.class.add_open_instance(self)
+    end
+
+    # Create the data pipe and the internal wake pipe
+    #
+    # @return [void]
+    # @api private
+    def create_pipes
       @pipe_reader, @pipe_writer = IO.pipe
 
       # Set the encoding of the pipe reader to ASCII_8BIT. This is not strictly
@@ -457,11 +511,40 @@ module ProcessExecuter
       # encoding.
       pipe_reader.set_encoding(Encoding::ASCII_8BIT)
 
-      @state = :open
-      @truncated = false
-      @thread = start_monitoring_thread
+      # The wake pipe lets #close interrupt the monitoring thread, which
+      # otherwise blocks in IO.select waiting for pipe data (see #monitor_pipe)
+      @wake_reader, @wake_writer = IO.pipe
+    end
 
-      self.class.add_open_instance(self)
+    # Transition the state from `:open` to `:closing` and wait for `:closed`
+    #
+    # Implements the state-changing half of {#close}: under the mutex, record
+    # the close deadline, set the state to `:closing`, wake the monitoring
+    # thread, and wait for it to signal that the state reached `:closed`. A
+    # pipe that is not `:open` (already closing or closed) is left alone.
+    #
+    # @param timeout [Numeric, nil] seconds to spend draining remaining pipe
+    #   data (see {#close}), or `nil` for no time limit
+    # @return [void]
+    # @api private
+    def initiate_close_and_wait_until_closed(timeout)
+      mutex.synchronize do
+        break unless state == :open
+
+        @close_deadline = timeout ? Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout : nil
+        @state = :closing
+
+        # The wake pipe is written at most once in its life: here, on the
+        # :open -> :closing transition. It is a one-shot signal, not a reusable
+        # channel, so the monitoring thread never needs to drain it (its loop
+        # never continues past this wakeup). The write needs no rescue: the
+        # monitoring thread closes the wake fds only after it publishes
+        # `@state = :closed` under this same mutex, so while this thread holds
+        # the mutex having observed :open, the wake fds are still open.
+        wake_writer.write('.')
+
+        condition_variable.wait(mutex) while @state != :closed
+      end
     end
 
     # Raise an error if the destination is not compatible with MonitoredPipe
@@ -511,23 +594,35 @@ module ProcessExecuter
 
     # Read data from the pipe until `#state` is changed to `:closing`
     #
-    # The state is changed to `:closed` by calling `#close`.
+    # The state is changed to `:closing` by calling `#close` (or by
+    # {#write_data} when the destination raises). The loop reads the state
+    # under the mutex: the writers of `@state` hold the mutex, and on engines
+    # with real parallelism (JRuby, TruffleRuby) an unsynchronized read has no
+    # memory barrier and thus no guarantee of seeing the transition.
     #
     # Before this method returns, state is set to `:closed`. This transition
     # must happen even if closing the pipe raises, or a thread waiting in
     # {#close} would block forever, so any exception raised by `#close_pipe` is
     # saved to {#exception} instead of escaping the `ensure` block.
     #
+    # The wake pipe is closed last, after `@state = :closed` is published
+    # under the mutex. The loop can also end without ever observing :closing
+    # (an exception raised by `#monitor_pipe` while the state is still :open),
+    # and in that case a concurrently arriving {#close} may still write the
+    # wake byte; this ordering guarantees the wake fds are open whenever
+    # {#close} observes :open under the mutex.
+    #
     # @return [void]
     # @api private
     def monitor
-      monitor_pipe until state == :closing
+      monitor_pipe until mutex.synchronize { @state } == :closing
     ensure
       close_pipe_and_record_exception
       mutex.synchronize do
         @state = :closed
         condition_variable.signal
       end
+      close_wake_pipe
     end
 
     # Call `#close_pipe`, saving any exception it raises to {#exception}
@@ -548,9 +643,16 @@ module ProcessExecuter
       mutex.synchronize { @exception ||= e }
     end
 
-    # Read data from the pipe until `#state` is changed to `:closing`
+    # Read a chunk of data from the pipe or block until there is one to read
     #
     # Data read from the pipe is written to the destination.
+    #
+    # When the pipe has no data, block in IO.select (with no timeout, so an
+    # idle pipe costs no CPU) until either the pipe has data or {#close}
+    # writes its wake byte to the wake pipe. Either way this method returns
+    # and {#monitor} re-checks the state before calling it again, so the wake
+    # byte is never read: once it is written the state is already :closing and
+    # the loop exits.
     #
     # @return [void]
     # @api private
@@ -559,7 +661,7 @@ module ProcessExecuter
       new_data = pipe_reader.read_nonblock(chunk_size)
       write_data(new_data)
     rescue IO::WaitReadable
-      pipe_reader.wait_readable(0.001)
+      IO.select([pipe_reader, wake_reader])
     end
 
     # Write the data read from the pipe to the destination
@@ -570,6 +672,10 @@ module ProcessExecuter
     # Rescues `Exception` (not just `StandardError`) so that a destination
     # raising, for instance, a `NoMemoryError` or a `SignalException` cannot
     # kill the monitoring thread and leave {#close} blocked forever.
+    #
+    # Unlike {#close}, this error path needs no wake byte: it runs on the
+    # monitoring thread itself, and {#monitor}'s loop re-checks the state as
+    # soon as this method returns.
     #
     # @param data [String] the data read from the pipe
     # @return [void]
@@ -642,6 +748,21 @@ module ProcessExecuter
 
         data == :wait_readable ? pipe_reader.wait_readable(remaining_time) : write_data(data)
       end
+    end
+
+    # Close both ends of the internal wake pipe
+    #
+    # Called from {#monitor}'s `ensure` block after `@state = :closed` is
+    # published, on every teardown path (a normal {#close}, a destination
+    # error, or an exception that ends the monitor loop). The `closed?` guards
+    # make it safe when a test helper has already closed the fds after killing
+    # the monitoring thread.
+    #
+    # @return [void]
+    # @api private
+    def close_wake_pipe
+      wake_writer.close unless wake_writer.closed?
+      wake_reader.close unless wake_reader.closed?
     end
 
     # The seconds left before the deadline set by {#close}
