@@ -151,20 +151,46 @@ module ProcessExecuter
       #
       # Subsequent hashes' values overwrite earlier ones for the same key.
       #
+      # The merged options are checked the same way the constructor checks its
+      # options: unknown options and invalid option values raise a
+      # `ProcessExecuter::ArgumentError`. In that case, the current options
+      # object is left unchanged.
+      #
       # @example
       #   options = MyOptions.new(option1: 'value1', option2: 'value2')
       #   h1 = { option2: 'new_value2' }
       #   h2 = { option3: 'value3' }
-      #   options.merge!(h1, h2) => {option1: "value1", option2: "new_value2", option3: "value3"}
+      #   options.merge!(h1, h2) # => options with {option1: "value1", option2: "new_value2", option3: "value3"}
       #
-      # @param other_options_hashes [Array<Hash>] zero of more hashes to merge into the current options
+      # @example with an invalid option value
+      #   options = MyOptions.new(option1: 'value1')
+      #   begin
+      #     options.merge!(option1: 1)
+      #   rescue ProcessExecuter::ArgumentError => e
+      #     e.message #=> "option1 must be a String but was 1"
+      #     options.option1 #=> 'value1'
+      #   end
+      #
+      # @param other_options_hashes [Array<Hash>] zero or more hashes to merge into the current options
       #
       # @return [self] the current options object with the merged options
+      #
+      # @raise [ProcessExecuter::ArgumentError] if the merged options contain an
+      #   unknown option or an invalid option value
       #
       # @api public
       #
       def merge!(*other_options_hashes)
-        options_hash.merge!(*other_options_hashes)
+        original_options_hash = @options_hash
+        @options_hash = original_options_hash.dup.merge!(*other_options_hashes)
+        @errors = []
+        assert_no_unknown_options
+        validate_options
+        self
+      rescue ProcessExecuter::ArgumentError
+        @options_hash = original_options_hash
+        @errors = []
+        raise
       end
 
       # Returns a new options object formed by merging self with each of other_hashes
@@ -180,6 +206,9 @@ module ProcessExecuter
       # @param other_options_hashes [Array<Hash>] the options to merge into the current options
       #
       # @return [self.class]
+      #
+      # @raise [ProcessExecuter::ArgumentError] if the merged options contain an
+      #   unknown option or an invalid option value
       #
       def merge(*other_options_hashes)
         merged_options = other_options_hashes.reduce(options_hash, :merge)
