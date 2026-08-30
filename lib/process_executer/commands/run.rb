@@ -72,14 +72,14 @@ module ProcessExecuter
       # @return [ProcessExecuter::Result] The result of the completed subprocess
       #
       def call
-        opened_pipes = {}
-        wrap_stdout_stderr(opened_pipes)
+        @opened_pipes = {}
+        wrap_stdout_stderr
         super.tap do
           log_result
           raise_errors if options.raise_errors
         end
       ensure
-        close_pipes_and_check_errors(opened_pipes, $ERROR_INFO)
+        close_pipes_and_check_errors($ERROR_INFO)
       end
 
       private
@@ -91,9 +91,26 @@ module ProcessExecuter
       # option key. Keeping them here instead of writing them into {#options}
       # leaves the caller's options object unmodified.
       #
+      # Unlike {#opened_pipes}, this hash may hold values that are not
+      # {MonitoredPipe}s (for example, the `[:child, 1]` redirection a subclass
+      # adds for merged output).
+      #
       # @return [Hash<Object, Object>]
       #
       attr_reader :redirection_overrides
+
+      # The wrapper pipes created by {#wrap_stdout_stderr}
+      #
+      # Keyed by the redirection option key. Reset at the start of each {#call}. By construction this hash contains
+      # exactly the pipes this object created during the current call -- never
+      # a destination supplied by the caller -- so `#call`'s ensure block can
+      # close everything in it without ever closing a caller-owned pipe (a
+      # caller's own {MonitoredPipe} destination is wrapped like any other
+      # destination, and only the wrapper is recorded here).
+      #
+      # @return [Hash<Object, ProcessExecuter::MonitoredPipe>]
+      #
+      attr_reader :opened_pipes
 
       # The options to pass to Process.spawn
       #
@@ -106,20 +123,19 @@ module ProcessExecuter
 
       # Wrap the stdout and stderr redirection options with a MonitoredPipe
       #
-      # The wrapper pipes are recorded in {#redirection_overrides} instead of
-      # being written into {#options} so the caller's options object is not
-      # modified.
+      # Each wrapper pipe is recorded in two collections with different roles:
+      # {#opened_pipes}, the pipes this object owns and must close, and
+      # {#redirection_overrides}, the destinations to hand `Process.spawn`.
+      # Neither is written into {#options}, so the caller's options object is
+      # not modified.
       #
-      # Each pipe is added to `opened_pipes` as soon as it is created so that,
-      # if creating a later pipe raises, the caller's ensure block can close the
-      # pipes created so far.
+      # Each pipe is recorded as soon as it is created so that, if creating a
+      # later pipe raises, `#call`'s ensure block can close the pipes created
+      # so far.
       #
-      # @param opened_pipes [Hash<Object, ProcessExecuter::MonitoredPipe>] an
-      #   accumulator for the opened pipes (the Object is the option key)
+      # @return [void]
       #
-      # @return [Hash<Object, ProcessExecuter::MonitoredPipe>] the given `opened_pipes`
-      #
-      def wrap_stdout_stderr(opened_pipes)
+      def wrap_stdout_stderr
         effective_redirections.each do |key, value|
           next unless should_wrap?(key, value)
 
@@ -127,7 +143,6 @@ module ProcessExecuter
           opened_pipes[key] = wrapped_destination
           redirection_overrides[key] = wrapped_destination
         end
-        opened_pipes
       end
 
       # The options as given by the user with {#redirection_overrides} applied
@@ -136,13 +151,11 @@ module ProcessExecuter
       #
       def effective_redirections = options.to_h.merge(redirection_overrides)
 
-      # Close the given pipes and raise any pipe error unless already unwinding
+      # Close the opened pipes and raise any pipe error unless already unwinding
       #
       # When `in_flight_error` is set, `#call` is unwinding from an exception
       # and that exception (not a pipe destination error or a pipe cleanup
       # error) must be the one the caller sees, so nothing is raised here.
-      #
-      # @param opened_pipes [Hash<Object, ProcessExecuter::MonitoredPipe>] the pipes to close
       #
       # @param in_flight_error [Exception, nil] the exception `#call` is unwinding from, if any
       #
@@ -153,8 +166,8 @@ module ProcessExecuter
       #
       # @return [void]
       #
-      def close_pipes_and_check_errors(opened_pipes, in_flight_error)
-        close_error = close_pipes(opened_pipes)
+      def close_pipes_and_check_errors(in_flight_error)
+        close_error = close_pipes
         return if in_flight_error
 
         opened_pipes.each do |option_key, pipe|
@@ -164,7 +177,7 @@ module ProcessExecuter
         raise close_error if close_error
       end
 
-      # Close the given pipes, continuing if closing one of them raises
+      # Close the opened pipes, continuing if closing one of them raises
       #
       # Closing continues past a failure so that one pipe's error does not leak
       # the monitoring threads and file descriptors of the pipes after it.
@@ -176,11 +189,9 @@ module ProcessExecuter
       # whose drain is cut short by the deadline records it via
       # {MonitoredPipe#truncated?}.
       #
-      # @param opened_pipes [Hash<Object, ProcessExecuter::MonitoredPipe>] the pipes to close
-      #
       # @return [StandardError, nil] the first error raised while closing, or nil if none was raised
       #
-      def close_pipes(opened_pipes)
+      def close_pipes
         first_close_error = nil
         deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + MonitoredPipe::DEFAULT_CLOSE_TIMEOUT
         opened_pipes.each_value do |pipe|
