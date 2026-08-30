@@ -166,6 +166,62 @@ RSpec.describe ProcessExecuter do
       end
     end
 
+    context 'when the timeout fires after the subprocess was already reaped' do
+      # Simulates the race where Timeout::Error is delivered after Process.wait2
+      # has reaped the subprocess but before the timed block returns. The window
+      # is microseconds wide, so the race is simulated by stubbing the timed
+      # wait to raise Timeout::Error and making the kill and/or the follow-up
+      # wait fail the way an already-reaped pid makes them fail.
+      def spawn_command
+        options = ProcessExecuter::Options::SpawnWithTimeoutOptions.new(timeout_after: 1)
+        ProcessExecuter::Commands::SpawnWithTimeout.new(ruby_command('exit 0'), options)
+      end
+
+      before do
+        # Stand in for the timeout firing while waiting for the subprocess
+        allow(Timeout).to receive(:timeout).and_raise(Timeout::Error)
+      end
+
+      it 'should not raise Errno::ESRCH when the kill finds the pid already gone' do
+        # An already-reaped pid makes every kill raise Errno::ESRCH
+        allow(Process).to receive(:kill).and_raise(Errno::ESRCH)
+
+        command = spawn_command
+        result = command.call
+        expect(result.timed_out?).to eq(true)
+      ensure
+        # Reap the real subprocess if the wait never got to it
+        begin
+          Process.wait2(command.pid) if command&.pid
+        rescue Errno::ECHILD
+          nil
+        end
+      end
+
+      it 'should return a timed out result with a nil status when the follow-up wait finds no child' do
+        allow(Process).to receive(:kill)
+        # The interrupted wait2 already reaped the subprocess, so the
+        # follow-up wait2 finds no child and the status is lost
+        allow(Process).to receive(:wait2).and_raise(Errno::ECHILD)
+
+        command = spawn_command
+        result = command.call
+        expect(command.status).to be_nil
+        expect(result.timed_out?).to eq(true)
+        expect(result.success?).to be_nil
+        expect(result.to_s).to include('timed out after 1s')
+      ensure
+        # Reap the real subprocess the stubbed wait2 left behind
+        begin
+          Process.waitpid(command.pid) if command&.pid
+        rescue Errno::ECHILD
+          # :nocov: only reached if the subprocess was reaped some other way
+          nil
+          # :nocov:
+        end
+      end
+    end
+
     context 'when the wait for the subprocess is abandoned by an exception', if: !windows? do
       before do
         # Stand in for an async exception (such as Ctrl-C) arriving while
@@ -215,9 +271,11 @@ RSpec.describe ProcessExecuter do
         command = spawn_command
 
         # Fail every KILL so the cleanup raises internally; the ensure below
-        # still needs a real TERM to pass through
+        # still needs a real TERM to pass through. Errno::EPERM is used because
+        # Errno::ESRCH (an already-reaped pid) is handled and is no longer a
+        # cleanup failure
         allow(Process).to receive(:kill).and_call_original
-        allow(Process).to receive(:kill).with('KILL', anything).and_raise(Errno::ESRCH)
+        allow(Process).to receive(:kill).with('KILL', anything).and_raise(Errno::EPERM)
 
         expect { command.call }.to raise_error(Interrupt)
       ensure

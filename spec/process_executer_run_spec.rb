@@ -267,6 +267,37 @@ RSpec.describe ProcessExecuter do
       end
     end
 
+    context 'with a command that times out after its subprocess was already reaped' do
+      # Simulates the race where Timeout::Error is delivered after Process.wait2
+      # has reaped the subprocess: the follow-up wait2 finds no child, the
+      # status is lost, and the timed out result carries a nil status
+      it 'is expected to raise ProcessExecuter::TimeoutError with a timed out result' do
+        allow(Timeout).to receive(:timeout).and_raise(Timeout::Error)
+        allow(Process).to receive(:kill)
+        allow(Process).to receive(:wait2).and_raise(Errno::ECHILD)
+
+        spawned_pid = nil
+        allow(Process).to receive(:spawn).and_wrap_original do |original, *args, **kwargs|
+          spawned_pid = original.call(*args, **kwargs)
+        end
+
+        expect { ProcessExecuter.run(*ruby_command('exit 0'), timeout_after: 1) }.to(
+          raise_error(ProcessExecuter::TimeoutError) do |e|
+            expect(e.result).to have_attributes(timed_out?: true, success?: nil)
+          end
+        )
+      ensure
+        # Reap the real subprocess the stubbed wait2 left behind
+        begin
+          Process.waitpid(spawned_pid) if spawned_pid
+        rescue Errno::ECHILD
+          # :nocov: only reached if the subprocess was reaped some other way
+          nil
+          # :nocov:
+        end
+      end
+    end
+
     context 'with a command that exits due to an unhandled signal', if: !windows? do
       let(:command) { ruby_command <<~COMMAND }
         puts 'Hello world'
