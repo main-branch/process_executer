@@ -5,6 +5,48 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0](https://github.com/main-branch/process_executer/compare/v4.0.4...v4.1.0) (2026-08-30)
+
+
+### Bug Fixes
+
+* Make timeout_after bound execution even when descendants hold stdout/stderr open ([a1298d3](https://github.com/main-branch/process_executer/commit/a1298d3f98fd8e57f58f50a0566dd3be78079189))
+* **monitored_pipe:** Close acquired resources when #initialize fails partway ([8f10a86](https://github.com/main-branch/process_executer/commit/8f10a86b42c4d72f0f34004071cfeb91116d6bd4)), closes [#178](https://github.com/main-branch/process_executer/issues/178)
+* **monitored_pipe:** Do not hold the mutex while writing to the pipe ([91d7fe8](https://github.com/main-branch/process_executer/commit/91d7fe88b9950d24f8c28ccbea400be0063ec99a)), closes [#165](https://github.com/main-branch/process_executer/issues/165)
+* **monitored_pipe:** Handle a destination raising a non-StandardError ([a7de23b](https://github.com/main-branch/process_executer/commit/a7de23b5699ef4d32518e988ac76dd6a957277e3)), closes [#170](https://github.com/main-branch/process_executer/issues/170)
+* Replace the monitor thread's 1ms poll with an event-driven wakeup pipe ([44068a3](https://github.com/main-branch/process_executer/commit/44068a35f4f87de9b7b46ce1deffda636f7c1138))
+* Return a timed out result when the timeout races Process.wait2 reaping the child ([84a6a11](https://github.com/main-branch/process_executer/commit/84a6a11df7d736f26d98700e90a76f5d65e2d35c)), closes [#171](https://github.com/main-branch/process_executer/issues/171)
+* **run_with_capture:** Capture combined [:out, :err] redirection into stdout ([17199b8](https://github.com/main-branch/process_executer/commit/17199b8ea332278680c46accce072763f0d67a4a)), closes [#167](https://github.com/main-branch/process_executer/issues/167)
+* **run:** Close created pipes and keep the original error when pipe creation fails ([909eaa1](https://github.com/main-branch/process_executer/commit/909eaa177fa53ee4cd4e773595a8658ea94ca6a4)), closes [#166](https://github.com/main-branch/process_executer/issues/166)
+* **run:** Stop mutating caller options and closing caller-owned pipes ([96d922b](https://github.com/main-branch/process_executer/commit/96d922b4bff5586189b30d9a1f83b0d47159710f)), closes [#169](https://github.com/main-branch/process_executer/issues/169)
+* Validate options merged via Options::Base#merge! ([#173](https://github.com/main-branch/process_executer/issues/173)) ([da0a956](https://github.com/main-branch/process_executer/commit/da0a956bcb085378b1315dafb87351174500c966))
+
+
+### Other Changes
+
+* Add failing tests for merge! bypassing option validation ([#173](https://github.com/main-branch/process_executer/issues/173)) ([325f16e](https://github.com/main-branch/process_executer/commit/325f16e589821571f3250e86a82f51f0e6b70f9a))
+* Add failing tests for the monitor thread 1ms polling loop ([#172](https://github.com/main-branch/process_executer/issues/172)) ([e202909](https://github.com/main-branch/process_executer/commit/e202909f99074a8ceb331f13290c224c35904e7a))
+* Add failing tests for the timeout vs Process.wait2 reap race ([#171](https://github.com/main-branch/process_executer/issues/171)) ([647739a](https://github.com/main-branch/process_executer/commit/647739ad7233059aafb54dad70eef14998892c5d))
+* Add failing tests for timeout_after not bounding execution ([#164](https://github.com/main-branch/process_executer/issues/164)) ([8e5115c](https://github.com/main-branch/process_executer/commit/8e5115c9236347e77ba6e6d0631f5f1bfe826b26))
+* **coverage:** Only enforce code coverage on MRI builds not on Windows ([160815e](https://github.com/main-branch/process_executer/commit/160815ecb091d1f155406f9a1b37f73e13690627))
+* Enforce LF line endings on all platforms ([e94bfea](https://github.com/main-branch/process_executer/commit/e94bfeaf4bd93506090277b4020859cd23dfc625))
+* Explain stdin redirection via the in: option ([f7bded7](https://github.com/main-branch/process_executer/commit/f7bded743a204a99c7f6e272b0330d4ba1e4a037)), closes [#159](https://github.com/main-branch/process_executer/issues/159)
+* **monitored_pipe:** Accept the documented IOError and confine failures ([002274d](https://github.com/main-branch/process_executer/commit/002274d421afc84c7c441c6f56dbbc32506e1de2)), closes [#182](https://github.com/main-branch/process_executer/issues/182)
+* **monitored_pipe:** Add a failing test for the #write deadlock ([9826558](https://github.com/main-branch/process_executer/commit/9826558035b03fe7becdc729053519141ba8d00d))
+* **monitored_pipe:** Add failing tests for a destination raising a non-StandardError ([0177329](https://github.com/main-branch/process_executer/commit/0177329fb47f3c185d9ea768f9f80028c54fb7ab))
+* **monitored_pipe:** Add failing tests for resource leaks when #initialize fails ([b2e3151](https://github.com/main-branch/process_executer/commit/b2e31519ea7a38f774b90f6e9e1f17fa0b31baa3)), closes [#178](https://github.com/main-branch/process_executer/issues/178)
+* **monitored_pipe:** Make the writer-exception race deterministic ([c72f1e4](https://github.com/main-branch/process_executer/commit/c72f1e400ef3d78e4b092ecde0d0704cf79ebc36)), closes [#182](https://github.com/main-branch/process_executer/issues/182)
+* **monitored_pipe:** Stub the monitor loop on the class, not the live instance ([799177f](https://github.com/main-branch/process_executer/commit/799177f6046d661013ce6b68b19c6b220294d00f))
+* **process-spawn:** Check exit status and blocking, and add a subspawn backend ([99021d2](https://github.com/main-branch/process_executer/commit/99021d2144a21210f793b7ae94d36875eef504e6))
+* **process-spawn:** Run the spawn tests against the subspawn backend ([573086f](https://github.com/main-branch/process_executer/commit/573086f194e790f25d916de32bb5e94437a5ae86))
+* **rake:** Skip RuboCop in the default task on TruffleRuby ([3d2a118](https://github.com/main-branch/process_executer/commit/3d2a1186d65e76f170f5428d611822d95d8fdc2d))
+* Release the hardening changes as v4.1.0 instead of v4.0.5 ([70b6327](https://github.com/main-branch/process_executer/commit/70b63278f334bd8b714c2fc28ded1520921add09))
+* **run_with_capture:** Add failing tests for combined [:out, :err] redirection ([61e97cb](https://github.com/main-branch/process_executer/commit/61e97cb09c816cbe30d81dc33f268accf76ab396))
+* **run:** Add failing tests for options mutation and caller-owned pipe closing ([cf32615](https://github.com/main-branch/process_executer/commit/cf326156381fe81562597906d43134a08ebbef17))
+* **run:** Add failing tests for pipe creation failure in Run#call ([21521d9](https://github.com/main-branch/process_executer/commit/21521d9a9b5141d9bb6d22fb5fd3e7de0e497ca2))
+* **run:** Update the JRuby expectation for an invalid chdir path ([2712f0b](https://github.com/main-branch/process_executer/commit/2712f0bdf060fa1831edb428183283dec5f2727a))
+* Use RbConfig.ruby to locate the Ruby interpreter ([82e65e2](https://github.com/main-branch/process_executer/commit/82e65e202a4f884a3283b4af00fcd2b5eda3a394))
+
 ## [4.0.4](https://github.com/main-branch/process_executer/compare/v4.0.3...v4.0.4) (2026-04-24)
 
 
