@@ -31,9 +31,7 @@ module ProcessExecuter
       #
       # @api private
       #
-      def effective_stdout_encoding
-        canonical_encoding(stdout_encoding || encoding || DEFAULT_ENCODING)
-      end
+      def effective_stdout_encoding = effective_encoding(stdout_encoding)
 
       # Determines the character encoding to use for stderr
       #
@@ -49,11 +47,26 @@ module ProcessExecuter
       #
       # @api private
       #
-      def effective_stderr_encoding
-        canonical_encoding(stderr_encoding || encoding || DEFAULT_ENCODING)
-      end
+      def effective_stderr_encoding = effective_encoding(stderr_encoding)
 
       private
+
+      # The encoding to use for a stream given its stream-specific option value
+      #
+      # Prioritizes the stream-specific value if set, otherwise falls back to
+      # `encoding`, and finally defaults to `DEFAULT_ENCODING`. The result is
+      # canonicalized with {#canonical_encoding}.
+      #
+      # @param stream_encoding [Encoding, String, Symbol, nil] the value of
+      #   `stdout_encoding` or `stderr_encoding`
+      #
+      # @return [Encoding, nil] nil if the value names an unknown encoding
+      #
+      # @api private
+      #
+      def effective_encoding(stream_encoding)
+        canonical_encoding(stream_encoding || encoding || DEFAULT_ENCODING)
+      end
 
       # The options allowed for objects of this class
       # @return [Array<OptionDefinition>]
@@ -148,70 +161,26 @@ module ProcessExecuter
       end
 
       # Note an error if the encoding option is not valid
+      #
+      # `nil`, an Encoding object, `:binary`, and `:default_external` are
+      # valid as given. A String is valid if {#canonical_encoding} recognizes
+      # it as an encoding name. Any other value is invalid.
+      #
       # @param key [Symbol] the option key
       # @param value [Object] the option value
       # @return [Void]
       # @api private
       def validate_encoding_option(key, value)
-        return unless valid_encoding_type?(key, value)
-
-        return if value.nil? || value.is_a?(Encoding)
-
-        validate_encoding_symbol(key, value) if value.is_a?(Symbol)
-
-        validate_encoding_string(key, value) if value.is_a?(String)
-      end
-
-      # False if the value is not a valid encoding type, true otherwise
-      #
-      # @param key [Symbol] the option key
-      #
-      # @param value [Object] the option value
-      #
-      # @return [Boolean]
-      #
-      # @api private
-      #
-      def valid_encoding_type?(key, value)
-        return true if value.nil? || value.is_a?(Encoding) || value.is_a?(Symbol) || value.is_a?(String)
-
-        errors << "#{key} must be an Encoding object, String, Symbol (:binary, :default_external), " \
-                  "or nil, but was #{value.inspect}"
-
-        false
-      end
-
-      # Note an error if the encoding symbol is not valid
-      #
-      # @param key [Symbol] the option key
-      #
-      # @param value [Symbol] the option value
-      #
-      # @return [Void]
-      #
-      # @api private
-      #
-      def validate_encoding_symbol(key, value)
-        return if %i[binary default_external].include?(value)
-
-        errors << "#{key} when given as a symbol must be :binary or :default_external, " \
-                  "but was #{value.inspect}"
-      end
-
-      # Note an error if the encoding string is not valid
-      #
-      # @param key [Symbol] the option key
-      #
-      # @param value [String] the option value
-      #
-      # @return [void]
-      #
-      # @api private
-      #
-      def validate_encoding_string(key, value)
-        Encoding.find(value)
-      rescue ::ArgumentError
-        errors << "#{key} specifies an unknown encoding name: #{value.inspect}"
+        case value
+        when nil, Encoding, :binary, :default_external then nil
+        when Symbol
+          errors << "#{key} when given as a symbol must be :binary or :default_external, but was #{value.inspect}"
+        when String
+          errors << "#{key} specifies an unknown encoding name: #{value.inspect}" if canonical_encoding(value).nil?
+        else
+          errors << "#{key} must be an Encoding object, String, Symbol (:binary, :default_external), " \
+                    "or nil, but was #{value.inspect}"
+        end
       end
     end
   end

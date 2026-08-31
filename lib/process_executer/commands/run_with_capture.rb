@@ -117,7 +117,9 @@ module ProcessExecuter
       # @return [Hash<Object, Object>]
       #
       def combined_capture_redirection
-        capture_option(:out, stdout_redirection_source, stdout_redirection_destination, stdout_buffer)
+        tee_capture_redirection(
+          options.stdout_redirection_source, options.stdout_redirection_destination, stdout_buffer
+        )
       end
 
       # Separate capture redirections for stdout and stderr
@@ -128,46 +130,65 @@ module ProcessExecuter
       # @return [Hash<Object, Object>]
       #
       def stdout_and_stderr_capture_redirections
-        out = stdout_buffer
-        err = options.merge_output ? [:child, 1] : stderr_buffer
-
-        capture_option(:out, stdout_redirection_source, stdout_redirection_destination, out).merge(
-          capture_option(:err, stderr_redirection_source, stderr_redirection_destination, err)
-        )
+        stdout_capture_redirection.merge(stderr_capture_redirection)
       end
 
-      # The source for stdout redirection
-      # @return [Object]
-      def stdout_redirection_source = options.stdout_redirection_source
+      # The redirection that captures stdout into {#stdout_buffer}
+      #
+      # Tees the buffer onto the user's stdout redirection if one was given;
+      # otherwise installs the plain default capture redirection.
+      #
+      # @return [Hash<Object, Object>]
+      #
+      def stdout_capture_redirection
+        source = options.stdout_redirection_source
+        return default_capture_redirection(:out, stdout_buffer) unless source
 
-      # The source for stderr redirection
-      # @return [Object]
-      def stderr_redirection_source = options.stderr_redirection_source
+        tee_capture_redirection(source, options.stdout_redirection_destination, stdout_buffer)
+      end
 
-      # The destination for stdout redirection
-      # @return [Object]
-      def stdout_redirection_destination = options.stdout_redirection_destination
+      # The redirection that captures stderr
+      #
+      # Stderr is captured into {#stderr_buffer}, or into stdout (and thereby
+      # {#stdout_buffer}) if `merge_output: true` was given. Tees the capture
+      # destination onto the user's stderr redirection if one was given;
+      # otherwise installs the plain default capture redirection.
+      #
+      # @return [Hash<Object, Object>]
+      #
+      def stderr_capture_redirection
+        capture_destination = options.merge_output ? [:child, 1] : stderr_buffer
+        source = options.stderr_redirection_source
+        return default_capture_redirection(:err, capture_destination) unless source
 
-      # The destination for stderr redirection
-      # @return [Object]
-      def stderr_redirection_destination = options.stderr_redirection_destination
+        tee_capture_redirection(source, options.stderr_redirection_destination, capture_destination)
+      end
 
-      # Add the capture redirection to existing options (if any)
-      # @param redirection_source [Symbol, Integer] The source of the redirection (e.g., :out, :err)
-      # @param given_source [Symbol, Integer, nil] The source provided by the user (if any)
-      # @param given_destination [Object, nil] The destination provided by the user (if any)
+      # Tee the capture destination onto the redirection the user gave
+      #
+      # If the user's destination is already a tee, the capture destination is
+      # added to it; otherwise the user's destination and the capture
+      # destination are wrapped in a new tee.
+      #
+      # @param source [Symbol, Integer, Array] The redirection source the user gave
+      # @param destination [Object] The redirection destination the user gave
       # @param capture_destination [Object] The additional destination to capture output to
-      # @return [Hash] The option (including the capture_destination) to merge into options
-      def capture_option(redirection_source, given_source, given_destination, capture_destination)
-        if given_source
-          if Destinations::Tee.handles?(given_destination)
-            { given_source => given_destination + [capture_destination] }
-          else
-            { given_source => [:tee, given_destination, capture_destination] }
-          end
+      # @return [Hash] The redirection to merge into options
+      def tee_capture_redirection(source, destination, capture_destination)
+        if Destinations::Tee.handles?(destination)
+          { source => destination + [capture_destination] }
         else
-          { redirection_source => capture_destination }
+          { source => [:tee, destination, capture_destination] }
         end
+      end
+
+      # The plain capture redirection used when the user gave no redirection
+      #
+      # @param source [Symbol] The redirection source (:out or :err)
+      # @param capture_destination [Object] The destination to capture output to
+      # @return [Hash] The redirection to merge into options
+      def default_capture_redirection(source, capture_destination)
+        { source => capture_destination }
       end
 
       # Log the captured command output to the given logger at debug level
