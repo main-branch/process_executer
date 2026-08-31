@@ -5,6 +5,19 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0](https://github.com/main-branch/process_executer/compare/v4.1.0...v4.1.0) (2026-08-31)
+
+
+### Other Changes
+
+* Characterize validation ordering when unknown and invalid options are given together ([#192](https://github.com/main-branch/process_executer/issues/192)) ([15d6e06](https://github.com/main-branch/process_executer/commit/15d6e063170484f309efd30867238b867484288b))
+* Collapse encoding validators and clarify capture-redirection assembly ([#194](https://github.com/main-branch/process_executer/issues/194)) ([bab8610](https://github.com/main-branch/process_executer/commit/bab86101ac4cdbd3747e72d0d7f841623a6e9b20))
+* Contribute subclass redirections via an internal_redirections hook ([#190](https://github.com/main-branch/process_executer/issues/190)) ([8ecbda5](https://github.com/main-branch/process_executer/commit/8ecbda54874de933ab07a64d91e0a07e17f7ece0))
+* Derive the process-group isolation decision from a single source ([#191](https://github.com/main-branch/process_executer/issues/191)) ([5d8ac7d](https://github.com/main-branch/process_executer/commit/5d8ac7dc38a369a7fe6d6cf3d05bd1eec799f3dc))
+* Describe every source of MonitoredPipe#exception ([#193](https://github.com/main-branch/process_executer/issues/193)) ([333b7bd](https://github.com/main-branch/process_executer/commit/333b7bd4c552c246d7d7505b5aa3e1a123ac5f9b))
+* Extract shared validate! from Options::Base#initialize and #merge! ([#192](https://github.com/main-branch/process_executer/issues/192)) ([422956a](https://github.com/main-branch/process_executer/commit/422956acaab46e29ecc1373d017d719ea6eb497f))
+* Track opened pipes as per-call instance state instead of an out-parameter ([#190](https://github.com/main-branch/process_executer/issues/190)) ([f279f1e](https://github.com/main-branch/process_executer/commit/f279f1e0672b91b966ee73cbadf00749522e488d))
+
 ## [4.1.0](https://github.com/main-branch/process_executer/compare/v4.0.4...v4.1.0) (2026-08-30)
 
 
