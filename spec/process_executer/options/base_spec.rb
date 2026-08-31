@@ -213,6 +213,26 @@ RSpec.describe ProcessExecuter::Options::Base do
         expect(options.timeout_after).to eq(5)
       end
     end
+
+    context 'when an unknown option is given along with an invalid value' do
+      let(:options) { ProcessExecuter::Options::RunOptions.new(timeout_after: 10) }
+
+      it 'should raise the unknown option error' do
+        expect { options.merge!(timeout_after: 'ten', unknown: true) }.to(
+          raise_error(ProcessExecuter::ArgumentError, 'Unknown option: unknown')
+        )
+      end
+
+      it 'should leave the options unchanged' do
+        begin
+          options.merge!(timeout_after: 'ten', unknown: true)
+        rescue ProcessExecuter::ArgumentError
+          # expected
+        end
+        expect(options.timeout_after).to eq(10)
+        expect(options.instance_variable_get(:@errors)).to be_empty
+      end
+    end
   end
 
   describe '#each_with_object' do
@@ -357,6 +377,16 @@ RSpec.describe ProcessExecuter::Options::Base do
           it 'should raise an ProcessExecuter::ArgumentError' do
             expect { subject }.to(
               raise_error(ProcessExecuter::ArgumentError, 'an_option must be a string but was 123')
+            )
+          end
+        end
+
+        context 'when an unknown option is given along with an invalid value' do
+          let(:options_hash) { { an_option: 123, unknown: true } }
+
+          it 'should raise the unknown option error' do
+            expect { subject }.to(
+              raise_error(ProcessExecuter::ArgumentError, 'Unknown option: unknown')
             )
           end
         end
