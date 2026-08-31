@@ -48,7 +48,8 @@ module ProcessExecuter
       #
       def call
         begin
-          @pid = Process.spawn(*command, **spawn_options)
+          @effective_spawn_options = spawn_options
+          @pid = Process.spawn(*command, **effective_spawn_options)
         rescue StandardError => e
           raise ProcessExecuter::SpawnError, "Failed to spawn process: #{e.message}"
         end
@@ -132,6 +133,17 @@ module ProcessExecuter
       #
       def spawn_options = options.spawn_options.merge(process_group_options)
 
+      # The spawn options that were passed to Process.spawn
+      #
+      # Captured once by {#call} -- after any {#spawn_options} additions a
+      # subclass contributed -- so the kill path inspects the options actually
+      # used instead of recomputing the merge. nil until {#call} spawns the
+      # subprocess; the kill path only runs after that.
+      #
+      # @return [Hash, nil]
+      #
+      attr_reader :effective_spawn_options
+
       # Spawn options that place the subprocess into its own process group
       #
       # When `timeout_after` is set to a value that can fire (`nil` and `0`
@@ -141,12 +153,24 @@ module ProcessExecuter
       # direct child. Empty when no timeout can fire or when the caller gave a
       # `pgroup`/`new_pgroup` option themselves (their setting is honored).
       #
+      # This method never reflects a subclass's {#spawn_options} override, so
+      # {#isolated_in_new_process_group?} never counts an option a subclass
+      # contributes as isolation by this class -- though such an option can
+      # still make the subprocess a process group leader (see
+      # {#process_group_leader?}) -- and a subclass that removes the option
+      # added here prevents the isolation (and its cleanup) altogether.
+      #
       # A new process group is a background group for any terminal the
       # subprocess inherits, so an interactive subprocess that reads the
       # terminal is stopped by `SIGTTIN` and then killed when the timeout
       # fires -- which is the bound `timeout_after` promises. A caller who
       # needs an interactive subprocess to stay in the foreground process
       # group can pass their own `pgroup` option.
+      #
+      # Deterministic: the result depends only on {#options} -- not mutated
+      # during {#call} -- and the platform, so the kill path's
+      # {#isolated_in_new_process_group?} re-read agrees with the value that
+      # was merged into the spawn options.
       #
       # @return [Hash]
       #
@@ -302,19 +326,25 @@ module ProcessExecuter
       # @return [Boolean]
       #
       def process_group_leader?
-        [true, 0].include?(spawn_options[:pgroup]) || spawn_options[:new_pgroup] == true
+        [true, 0].include?(effective_spawn_options[:pgroup]) || effective_spawn_options[:new_pgroup] == true
       end
 
       # Whether this class isolated the subprocess into its own process group
       #
-      # True when the subprocess is a new process group leader and that came
-      # from {#process_group_options} rather than from a `pgroup`/`new_pgroup`
-      # option the caller supplied.
+      # True when {#process_group_options} -- the single source of truth for
+      # the isolation decision -- added a process group option and the
+      # subprocess actually became a new process group leader
+      # ({#process_group_leader?} over the captured options). The leader
+      # check matters only when a subclass's {#spawn_options} override
+      # removed or overrode the added option: then no isolation happened and
+      # the abandoned-wait cleanup must leave the subprocess alone. False
+      # when the subprocess's process group (if any) came from a
+      # `pgroup`/`new_pgroup` option the caller supplied.
       #
       # @return [Boolean]
       #
       def isolated_in_new_process_group?
-        process_group_leader? && options.pgroup == :not_set && options.new_pgroup == :not_set
+        !process_group_options.empty? && process_group_leader?
       end
 
       # Send SIGKILL to the subprocess's process group
