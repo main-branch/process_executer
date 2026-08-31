@@ -44,9 +44,10 @@ module ProcessExecuter
   # a thread is created to read data written to the pipe. As data is read from the pipe,
   # it is written to the destination provided in the MonitoredPipe initializer.
   #
-  # If the destination raises an exception (of any class, not just
-  # `StandardError`), the monitoring thread will exit, the pipe will be closed,
-  # and the exception will be saved in `#exception`.
+  # If an exception (of any class, not just `StandardError`) is raised while
+  # collecting output -- by the destination's `#write`, by the monitor loop,
+  # or by pipe cleanup -- the monitoring thread exits, the pipe is closed, and
+  # the exception is saved in {#exception}.
   #
   # > **⚠️ WARNING**
   # >
@@ -347,14 +348,22 @@ module ProcessExecuter
 
     # @!attribute [r]
     #
-    # The exception raised by a destination
+    # The first exception recorded while collecting output
     #
-    # If an exception is raised by a destination, it is stored here. Otherwise, it is `nil`.
+    # Any failure while collecting output is recorded here, not only a
+    # destination error: the destination's `#write` raising, the monitor loop
+    # raising, or pipe cleanup raising. `nil` if no exception was raised.
+    #
+    # When more than one exception is raised, the first one *recorded* wins
+    # and the rest are discarded. Recording order has one corner: when the
+    # monitor loop raises and pipe cleanup then also raises, the cleanup
+    # error is the one recorded, because the monitor-loop exception is still
+    # in flight while cleanup runs and reaches its recording site last.
     #
     # @example
     #   pipe.exception #=> nil
     #
-    # @return [Exception, nil] the exception raised by a destination or `nil` if no exception was raised
+    # @return [Exception, nil] the first recorded exception or `nil` if no exception was raised
     #
     attr_reader :exception
 
