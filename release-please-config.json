@@ -4,7 +4,6 @@
     ".": {
       "release-type": "ruby",
       "package-name": "process_executer",
-      "release-as": "4.1.0",
       "changelog-path": "CHANGELOG.md",
       "version-file": "lib/process_executer/version.rb",
       "bump-minor-pre-major": true,
