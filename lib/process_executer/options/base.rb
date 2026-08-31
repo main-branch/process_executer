@@ -62,10 +62,8 @@ module ProcessExecuter
       #
       def initialize(**options_hash)
         @options_hash = allowed_options.transform_values(&:default).merge(options_hash)
-        @errors = []
-        assert_no_unknown_options
         define_accessor_methods
-        validate_options
+        validate!
       end
 
       # All the allowed options as a hash whose keys are the option names
@@ -183,13 +181,10 @@ module ProcessExecuter
       def merge!(*other_options_hashes)
         original_options_hash = @options_hash
         @options_hash = original_options_hash.dup.merge!(*other_options_hashes)
-        @errors = []
-        assert_no_unknown_options
-        validate_options
+        validate!
         self
       rescue ProcessExecuter::ArgumentError
         @options_hash = original_options_hash
-        @errors = []
         raise
       end
 
@@ -262,6 +257,23 @@ module ProcessExecuter
       #
       attr_reader :options_hash
 
+      # Run the full validation sequence over the current options hash
+      #
+      # Checks for unknown options and then validates option values, leaving
+      # `errors` empty on exit whether validation passes or raises.
+      #
+      # @return [void]
+      # @raise [ProcessExecuter::ArgumentError] if an unknown option or an
+      #   invalid option value is found
+      # @api private
+      def validate!
+        @errors = []
+        assert_no_unknown_options
+        validate_options
+      ensure
+        @errors = []
+      end
+
       # Raise an argument error for invalid option values
       # @return [void]
       # @raise [ProcessExecuter::ArgumentError] if any invalid option values are found
@@ -296,7 +308,7 @@ module ProcessExecuter
         return if unknown_options.empty?
 
         raise(
-          ArgumentError,
+          ProcessExecuter::ArgumentError,
           "Unknown option#{'s' if unknown_options.count > 1}: #{unknown_options.join(', ')}"
         )
       end
