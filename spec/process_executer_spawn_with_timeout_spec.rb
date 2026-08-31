@@ -129,16 +129,39 @@ RSpec.describe ProcessExecuter do
         expect(spawn_options_for(timeout_after: 1, new_pgroup: false)[:new_pgroup]).to eq(false)
         expect(spawn_options_for(timeout_after: 1, new_pgroup: false)).not_to have_key(:pgroup)
       end
+
+      it 'should not add its own option when the caller supplied pgroup: true' do
+        expect(spawn_options_for(timeout_after: 1, pgroup: true)[:pgroup]).to eq(true)
+        expect(spawn_options_for(timeout_after: 1, pgroup: true)).not_to have_key(:new_pgroup)
+      end
+
+      it 'should not add its own option when the caller supplied pgroup: 0' do
+        expect(spawn_options_for(timeout_after: 1, pgroup: 0)[:pgroup]).to eq(0)
+        expect(spawn_options_for(timeout_after: 1, pgroup: 0)).not_to have_key(:new_pgroup)
+      end
+
+      it 'should not add its own option when the caller supplied new_pgroup: true' do
+        expect(spawn_options_for(timeout_after: 1, new_pgroup: true)[:new_pgroup]).to eq(true)
+        expect(spawn_options_for(timeout_after: 1, new_pgroup: true)).not_to have_key(:pgroup)
+      end
     end
 
     context 'killing a timed out subprocess' do
-      # A command object with a fake pid whose Process.kill calls are stubbed,
-      # so the group kill and fallback paths can be tested deterministically
-      # on every platform
-      def command_with_stubbed_kill(**options_hash)
+      # A command object that has spawned and reaped a fake pid (Process.spawn
+      # and Process.wait2 are stubbed), so the kill path can be driven against
+      # the spawn state a real call captures
+      def command_with_stubbed_spawn(**options_hash)
         options = ProcessExecuter::Options::SpawnWithTimeoutOptions.new(**options_hash)
         command = ProcessExecuter::Commands::SpawnWithTimeout.new(['exit 0'], options)
-        allow(command).to receive(:pid).and_return(12_345)
+        allow(Process).to receive(:spawn).and_return(12_345)
+        allow(Process).to receive(:wait2).with(12_345).and_return([12_345, instance_double(Process::Status)])
+        command.tap(&:call)
+      end
+
+      # The same, with Process.kill stubbed so the group kill and fallback
+      # paths can be tested deterministically on every platform
+      def command_with_stubbed_kill(**options_hash)
+        command = command_with_stubbed_spawn(**options_hash)
         allow(Process).to receive(:kill).with('KILL', -12_345)
         allow(Process).to receive(:kill).with('KILL', 12_345)
         command
@@ -163,6 +186,112 @@ RSpec.describe ProcessExecuter do
         command.send(:kill_subprocess)
         expect(Process).to have_received(:kill).with('KILL', 12_345)
         expect(Process).not_to have_received(:kill).with('KILL', -12_345)
+      end
+
+      it 'should kill the process group when the caller supplied pgroup: true' do
+        command = command_with_stubbed_kill(timeout_after: 1, pgroup: true)
+        command.send(:kill_subprocess)
+        expect(Process).to have_received(:kill).with('KILL', -12_345)
+        expect(Process).not_to have_received(:kill).with('KILL', 12_345)
+      end
+
+      it 'should kill the process group when the caller supplied pgroup: 0' do
+        command = command_with_stubbed_kill(timeout_after: 1, pgroup: 0)
+        command.send(:kill_subprocess)
+        expect(Process).to have_received(:kill).with('KILL', -12_345)
+        expect(Process).not_to have_received(:kill).with('KILL', 12_345)
+      end
+
+      it 'should kill the process group when the caller supplied new_pgroup: true' do
+        command = command_with_stubbed_kill(timeout_after: 1, new_pgroup: true)
+        command.send(:kill_subprocess)
+        expect(Process).to have_received(:kill).with('KILL', -12_345)
+        expect(Process).not_to have_received(:kill).with('KILL', 12_345)
+      end
+    end
+
+    context 'capturing the effective spawn options at spawn time' do
+      # spawn_options is stubbed to return a different hash on each call --
+      # standing in for a subclass override whose per-call state changes --
+      # so a kill path that recomputed the merge instead of reusing the
+      # captured hash would see a later hash and make the wrong decision
+      it 'should make the group-kill decision from the options captured at spawn time' do
+        options = ProcessExecuter::Options::SpawnWithTimeoutOptions.new
+        command = ProcessExecuter::Commands::SpawnWithTimeout.new(['exit 0'], options)
+        allow(command).to receive(:spawn_options).and_return({ pgroup: true }, {})
+        allow(Process).to receive(:spawn).and_return(12_345)
+        allow(Process).to receive(:wait2).with(12_345).and_return([12_345, instance_double(Process::Status)])
+
+        command.call
+
+        expect(Process).to have_received(:spawn).with('exit 0', pgroup: true)
+        expect(command.send(:process_group_leader?)).to eq(true)
+      end
+    end
+
+    context 'cleaning up an abandoned wait when the caller supplied new_pgroup: true' do
+      # A real spawn with new_pgroup is only possible on Windows, so the
+      # cleanup decision is tested with a stubbed pid on every platform
+      it 'should leave the subprocess alone' do
+        options = ProcessExecuter::Options::SpawnWithTimeoutOptions.new(timeout_after: 10, new_pgroup: true)
+        command = ProcessExecuter::Commands::SpawnWithTimeout.new(['exit 0'], options)
+        allow(command).to receive(:pid).and_return(12_345)
+        allow(Process).to receive(:kill)
+        allow(Process).to receive(:wait2)
+
+        command.send(:kill_and_reap_abandoned_subprocess)
+
+        expect(Process).not_to have_received(:kill)
+        expect(Process).not_to have_received(:wait2)
+      end
+    end
+
+    context 'cleaning up an abandoned wait when a subclass added its own process group option' do
+      # A subclass #spawn_options override that contributes pgroup: true when
+      # this class adds nothing (no timeout) makes the subprocess a group
+      # leader, but not one isolated by this class, so the cleanup must leave
+      # it alone
+      it 'should leave the subprocess alone' do
+        subclass = Class.new(ProcessExecuter::Commands::SpawnWithTimeout) do
+          private
+
+          def spawn_options = super.merge(pgroup: true)
+        end
+        options = ProcessExecuter::Options::SpawnWithTimeoutOptions.new
+        command = subclass.new(['exit 0'], options)
+        allow(Process).to receive(:spawn).and_return(12_345)
+        allow(Process).to receive(:wait2).with(12_345).and_return([12_345, instance_double(Process::Status)])
+        command.call
+        allow(Process).to receive(:kill)
+
+        command.send(:kill_and_reap_abandoned_subprocess)
+
+        expect(Process).not_to have_received(:kill)
+      end
+    end
+
+    context 'cleaning up an abandoned wait when a subclass removed the added process group option' do
+      # A subclass #spawn_options override that overrides the process group
+      # option this class added (both platform keys, so whichever one was
+      # added is removed) leaves the subprocess with its ordinary signal
+      # semantics, so the cleanup must not kill a subprocess that was never
+      # actually isolated
+      it 'should leave the subprocess alone' do
+        subclass = Class.new(ProcessExecuter::Commands::SpawnWithTimeout) do
+          private
+
+          def spawn_options = super.merge(pgroup: false, new_pgroup: false)
+        end
+        options = ProcessExecuter::Options::SpawnWithTimeoutOptions.new(timeout_after: 10)
+        command = subclass.new(['exit 0'], options)
+        allow(Process).to receive(:spawn).and_return(12_345)
+        allow(Process).to receive(:wait2).with(12_345).and_return([12_345, instance_double(Process::Status)])
+        command.call
+        allow(Process).to receive(:kill)
+
+        command.send(:kill_and_reap_abandoned_subprocess)
+
+        expect(Process).not_to have_received(:kill)
       end
     end
 
@@ -234,6 +363,18 @@ RSpec.describe ProcessExecuter do
         ProcessExecuter::Commands::SpawnWithTimeout.new(['sleep 60'], options)
       end
 
+      # Stop and reap the given subprocess so it does not outlive its example
+      def stop_and_reap(pid, signal: 'KILL')
+        return unless pid
+
+        Process.kill(signal, pid)
+        Process.wait2(pid)
+      rescue Errno::ESRCH, Errno::ECHILD
+        # :nocov: only reached if the subprocess exited on its own
+        nil
+        # :nocov:
+      end
+
       it 'should kill and reap a subprocess that was isolated into its own process group' do
         command = spawn_command
 
@@ -255,16 +396,33 @@ RSpec.describe ProcessExecuter do
         expect(process_dead?(command.pid, within: 0.25)).to eq(false), failure_message
       ensure
         # Do not leave the subprocess running past this example
-        begin
-          if command&.pid
-            Process.kill('KILL', command.pid)
-            Process.wait2(command.pid)
-          end
-        rescue Errno::ESRCH, Errno::ECHILD
-          # :nocov: only reached if the subprocess exited on its own
-          nil
-          # :nocov:
-        end
+        stop_and_reap(command&.pid)
+      end
+
+      it 'should leave the subprocess alone when the caller made it a group leader with pgroup: true' do
+        command = spawn_command(pgroup: true)
+
+        expect { command.call }.to raise_error(Interrupt)
+
+        failure_message = 'expected the subprocess to be left running because its process group ' \
+                          'came from the caller\'s own pgroup: true, not from this class'
+        expect(process_dead?(command.pid, within: 0.25)).to eq(false), failure_message
+      ensure
+        # Do not leave the subprocess running past this example
+        stop_and_reap(command&.pid)
+      end
+
+      it 'should leave the subprocess alone when the caller made it a group leader with pgroup: 0' do
+        command = spawn_command(pgroup: 0)
+
+        expect { command.call }.to raise_error(Interrupt)
+
+        failure_message = 'expected the subprocess to be left running because its process group ' \
+                          'came from the caller\'s own pgroup: 0, not from this class'
+        expect(process_dead?(command.pid, within: 0.25)).to eq(false), failure_message
+      ensure
+        # Do not leave the subprocess running past this example
+        stop_and_reap(command&.pid)
       end
 
       it 'should let the original exception propagate when the cleanup itself fails' do
@@ -279,17 +437,8 @@ RSpec.describe ProcessExecuter do
 
         expect { command.call }.to raise_error(Interrupt)
       ensure
-        # The stubbed KILLs left the subprocess running; stop and reap it
-        begin
-          if command&.pid
-            Process.kill('TERM', command.pid)
-            Process.wait2(command.pid)
-          end
-        rescue Errno::ESRCH, Errno::ECHILD
-          # :nocov: only reached if the subprocess exited on its own
-          nil
-          # :nocov:
-        end
+        # The stubbed KILLs left the subprocess running; TERM passes through
+        stop_and_reap(command&.pid, signal: 'TERM')
       end
     end
 
