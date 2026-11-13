@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'English'
+require 'json'
 require 'logger'
 require 'tmpdir'
 
@@ -571,6 +572,104 @@ RSpec.describe ProcessExecuter do
           )
         end
       end
+    end
+
+    # On Windows, MRI applies a spawn's redirections to the calling process and
+    # doesn't undo them when a later option fails. That is Ruby Bug #22540, see
+    # https://bugs.ruby-lang.org/issues/22540. When the redirections are this
+    # gem's own pipes, the caller's stdout and stderr are left broken.
+    #
+    # Each example makes its calls in a child Ruby process that writes what it
+    # found to a file. A leak inside the rspec process would redirect rspec's
+    # own output, so a regression would show as an empty log instead of a
+    # failure message.
+    #
+    context 'when the spawn fails on Windows MRI', if: mri? && windows? do
+      # :nocov: runs only on Windows MRI
+      subject(:findings) do
+        described_class.spawn_with_timeout(
+          RbConfig.ruby, '-I', File.expand_path('../lib', __dir__), script_path, scenario, tmpdir,
+          out: stdout_path, err: stderr_path, timeout_after: 120
+        )
+        JSON.parse(File.read(File.join(tmpdir, 'findings.json'))).merge(
+          'stdout' => File.read(stdout_path), 'stderr' => File.read(stderr_path)
+        )
+      end
+
+      let(:tmpdir) { File.realpath(Dir.mktmpdir) }
+      let(:stdout_path) { File.join(tmpdir, 'stdout.txt') }
+      let(:stderr_path) { File.join(tmpdir, 'stderr.txt') }
+      let(:script_path) { File.join(tmpdir, 'failed_spawn.rb').tap { |path| File.write(path, script) } }
+
+      # What the child reports when the failed call left its process as it found
+      # it: the call raised well inside the 10 second MonitoredPipe#close
+      # deadline, and a write to fd 1 and to fd 2 afterward reached the file the
+      # child was started with.
+      let(:caller_left_intact) do
+        {
+          'error' => 'ProcessExecuter::SpawnError',
+          'message' => start_with('Failed to spawn process: '),
+          'elapsed' => be < 5,
+          'stdout' => include('MARK-OUT'),
+          'stderr' => include('MARK-ERR')
+        }
+      end
+
+      let(:script) { <<~'SCRIPT' }
+        require 'json'
+        require 'process_executer'
+
+        scenario, dir = ARGV
+        missing_dir = File.join(dir, 'no-such-dir')
+        findings = {}
+
+        failed_capture = lambda do |*command, **options|
+          ProcessExecuter.run_with_capture(*command, **options)
+          nil
+        rescue ProcessExecuter::SpawnError => e
+          e
+        end
+
+        started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        error =
+          case scenario
+          when 'missing_chdir'
+            failed_capture.call('cmd /c echo hi', chdir: missing_dir)
+          when 'file_chdir'
+            failed_capture.call('cmd /c echo hi', chdir: __FILE__)
+          end
+        findings['elapsed'] = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
+        findings['error'] = error.class.name
+        findings['message'] = error&.message
+        findings['cause'] = error&.cause.class.name
+
+        { STDOUT => "MARK-OUT\n", STDERR => "MARK-ERR\n" }.each do |io, marker|
+          io.syswrite(marker)
+        rescue SystemCallError, IOError
+          nil # the parent sees that the marker is missing from the file
+        end
+
+        File.write(File.join(dir, 'findings.json'), JSON.generate(findings))
+      SCRIPT
+
+      after { FileUtils.remove_entry(tmpdir) }
+
+      context 'when chdir: is a missing directory' do
+        let(:scenario) { 'missing_chdir' }
+
+        it 'raises the SpawnError it raises today and leaves stdout and stderr working' do
+          expect(findings).to include(caller_left_intact.merge('cause' => 'Errno::ENOENT'))
+        end
+      end
+
+      context 'when chdir: is a file' do
+        let(:scenario) { 'file_chdir' }
+
+        it 'raises the SpawnError it raises today and leaves stdout and stderr working' do
+          expect(findings).to include(caller_left_intact.merge('cause' => 'Errno::EINVAL'))
+        end
+      end
+      # :nocov:
     end
   end
 end
