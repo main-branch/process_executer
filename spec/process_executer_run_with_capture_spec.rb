@@ -637,6 +637,55 @@ RSpec.describe ProcessExecuter do
             failed_capture.call('cmd /c echo hi', chdir: missing_dir)
           when 'file_chdir'
             failed_capture.call('cmd /c echo hi', chdir: __FILE__)
+          when 'missing_chdir_unseen_by_check'
+            # While another thread is inside a Dir.chdir block, Ruby refuses the
+            # trial chdir the check makes, so the bad directory reaches the spawn
+            entered = Queue.new
+            release = Queue.new
+            blocker = Thread.new { Dir.chdir(dir) { entered << true and release.pop } }
+            entered.pop
+            failed_capture.call('cmd /c echo hi', chdir: missing_dir).tap { release << true and blocker.join }
+          when 'missing_program_beside_writer'
+            writer_errors = Hash.new(0)
+            stop = false
+            writer = Thread.new do
+              until stop
+                begin
+                  STDERR.syswrite('.')
+                rescue StandardError => e
+                  writer_errors[e.class.name] += 1
+                end
+              end
+            end
+            failures = Array.new(200) { failed_capture.call('process-executer-no-such-program') }
+            stop = true
+            writer.join
+            findings['writer_errors'] = writer_errors
+            failures.last
+          when 'interrupted_while_spawning'
+            # Process.spawn calls #to_str on the env value while it builds the
+            # subprocess's environment. Raising into the caller from there puts
+            # the exception inside any deferral that surrounds the spawn.
+            interruption = Class.new(StandardError)
+            marker = File.join(dir, 'command-ran.txt')
+            value = Object.new
+            value.define_singleton_method(:to_str) do
+              caller_thread = Thread.current
+              Thread.new { caller_thread.raise(interruption, 'interrupted') }.join
+              'value'
+            end
+            begin
+              ProcessExecuter.run_with_capture({ 'VAR' => value }, "cmd /c echo ran> \"#{marker.tr('/', '\\')}\"")
+              nil
+            rescue ProcessExecuter::SpawnError => e
+              # Nothing ran unless the marker appears; give the command time to write it
+              deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 3
+              sleep 0.05 until File.exist?(marker) || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+              findings['spawn_error_for_a_command_that_ran'] = File.exist?(marker)
+              e
+            rescue interruption => e
+              e
+            end
           end
         findings['elapsed'] = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at
         findings['error'] = error.class.name
@@ -667,6 +716,30 @@ RSpec.describe ProcessExecuter do
 
         it 'raises the SpawnError it raises today and leaves stdout and stderr working' do
           expect(findings).to include(caller_left_intact.merge('cause' => 'Errno::EINVAL'))
+        end
+      end
+
+      context 'when a missing chdir: reaches Process.spawn and leaks stdout and stderr' do
+        let(:scenario) { 'missing_chdir_unseen_by_check' }
+
+        it 'raises the SpawnError it raises today and points stdout and stderr back' do
+          expect(findings).to include(caller_left_intact.merge('cause' => 'Errno::ENOENT'))
+        end
+      end
+
+      context 'when the program is missing and another thread is writing to stderr' do
+        let(:scenario) { 'missing_program_beside_writer' }
+
+        it 'raises no error in the writing thread' do
+          expect(findings).to include('error' => 'ProcessExecuter::SpawnError', 'writer_errors' => {})
+        end
+      end
+
+      context 'when another thread raises into the caller while the command is being spawned' do
+        let(:scenario) { 'interrupted_while_spawning' }
+
+        it 'does not raise SpawnError for a command that ran' do
+          expect(findings).not_to include('spawn_error_for_a_command_that_ran' => true)
         end
       end
       # :nocov:
