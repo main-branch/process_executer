@@ -49,6 +49,7 @@ module ProcessExecuter
       def call
         begin
           @effective_spawn_options = spawn_options
+          check_chdir if windows_mri?
           @pid = Process.spawn(*command, **effective_spawn_options)
         rescue StandardError => e
           raise ProcessExecuter::SpawnError, "Failed to spawn process: #{e.message}"
@@ -180,6 +181,71 @@ module ProcessExecuter
 
         windows? ? { new_pgroup: true } : { pgroup: true }
       end
+
+      # Whether this is MRI on Windows
+      #
+      # @return [Boolean]
+      #
+      def windows_mri? = windows? && RUBY_ENGINE == 'ruby'
+
+      # :nocov: runs only on Windows MRI
+
+      # Raise the error Process.spawn would raise for a chdir: it can't enter
+      #
+      # A workaround for [Ruby Bug
+      # #22540](https://bugs.ruby-lang.org/issues/22540). On Windows, MRI
+      # applies env, umask, and redirections to this process before it changes
+      # directory and doesn't undo them when the change fails, so a bad
+      # directory must not reach `Process.spawn`. {Run} redirects stdout and
+      # stderr to its own pipes, so there such a failure leaves the caller
+      # writing into pipes nobody reads.
+      #
+      # `File.directory?` answers for an ordinary directory with no side
+      # effects. It can't be the whole check: it says no to paths `Process.spawn`
+      # accepts (`...`, `//./NUL`), and the error class for a bad path can't be
+      # worked out from file tests. So for a path it rejects, a block-form
+      # `Dir.chdir` asks Windows the question `Process.spawn` would ask, which
+      # changes the working directory for a moment, as every spawn with
+      # `chdir:` does.
+      #
+      # What the check does not catch, each of which fails at `Process.spawn`
+      # as it would without the check, and still leaks (tracked in [issue
+      # 211](https://github.com/main-branch/process_executer/issues/211)):
+      #
+      # * a directory the process can't enter, which passes `File.directory?`
+      # * a directory removed between the check and the spawn
+      # * any bad directory while another thread is inside a `Dir.chdir`
+      #   block, because Ruby refuses the trial `Dir.chdir`
+      #
+      # A bad `chdir:` is reported ahead of a `TypeError` or `ArgumentError`
+      # that `Process.spawn` would have raised first for another option.
+      #
+      # Remove this method when the gem's minimum supported Ruby is a release
+      # line in which every patch version has the fix for Ruby Bug #22540.
+      # Until then, once the fixed versions are known, gate the call on
+      # `RUBY_VERSION`.
+      #
+      # @return [void]
+      #
+      # @raise [SystemCallError] the error `Process.spawn` would raise for the
+      #   directory, with the path as its message
+      #
+      def check_chdir
+        return unless effective_spawn_options.key?(:chdir)
+
+        dir = effective_spawn_options[:chdir]
+        return if File.directory?(dir)
+
+        Dir.chdir(dir) { nil }
+      rescue SystemCallError => e
+        raise e.class, (dir.respond_to?(:to_path) ? dir.to_path : dir)
+      rescue StandardError
+        # Not a path, or another thread is inside a Dir.chdir block: let
+        # Process.spawn report it
+        nil
+      end
+
+      # :nocov:
 
       # Whether the current platform is Windows
       #
