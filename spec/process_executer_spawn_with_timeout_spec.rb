@@ -295,6 +295,85 @@ RSpec.describe ProcessExecuter do
       end
     end
 
+    context 'when an exception is raised into the caller once the subprocess is spawned' do
+      # A subclass that defers Thread#raise for the length of the spawn (as
+      # Commands::Run does on Windows MRI) has the deferred exception
+      # delivered after Process.spawn has returned a pid. The subclass here
+      # raises at that point. The subprocess is running, so the exception is
+      # not a spawn failure.
+      let(:interrupting_subclass) do
+        interruption = self.interruption
+        Class.new(ProcessExecuter::Commands::SpawnWithTimeout) do
+          define_method(:spawn_subprocess) do
+            super()
+            raise interruption
+          end
+          private :spawn_subprocess
+        end
+      end
+
+      let(:command) do
+        options = ProcessExecuter::Options::SpawnWithTimeoutOptions.new(timeout_after: timeout_after)
+        interrupting_subclass.new(['exit 0'], options)
+      end
+      let(:timeout_after) { nil }
+      let(:interruption) { Class.new(StandardError).new('interrupted') }
+
+      before do
+        allow(Process).to receive(:spawn).and_return(12_345)
+        allow(Process).to receive(:kill)
+        allow(Process).to receive(:wait2)
+      end
+
+      it 'should raise the exception as it is, not a SpawnError' do
+        expect { command.call }.to raise_error(interruption)
+      end
+
+      it 'should leave a subprocess it did not isolate alone' do
+        expect { command.call }.to raise_error(interruption)
+        expect(Process).not_to have_received(:kill)
+      end
+
+      context 'when the subprocess was isolated into its own process group' do
+        let(:timeout_after) { 10 }
+
+        it 'should kill and reap the subprocess' do
+          expect { command.call }.to raise_error(interruption)
+          expect(Process).to have_received(:kill).with('KILL', -12_345)
+          expect(Process).to have_received(:wait2).with(12_345)
+        end
+      end
+
+      context 'when the caller is unwound by a throw, as Timeout.timeout does on Ruby 3.1 and 3.2' do
+        let(:timeout_after) { 10 }
+        let(:interrupting_subclass) do
+          Class.new(ProcessExecuter::Commands::SpawnWithTimeout) do
+            define_method(:spawn_subprocess) do
+              super()
+              throw :outer_timeout
+            end
+            private :spawn_subprocess
+          end
+        end
+
+        it 'should kill and reap the subprocess' do
+          catch(:outer_timeout) { command.call }
+          expect(Process).to have_received(:kill).with('KILL', -12_345)
+          expect(Process).to have_received(:wait2).with(12_345)
+        end
+      end
+
+      context 'when the exception is not a StandardError' do
+        let(:timeout_after) { 10 }
+        let(:interruption) { Interrupt.new('interrupted') }
+
+        it 'should kill and reap the subprocess and raise the exception' do
+          expect { command.call }.to raise_error(interruption)
+          expect(Process).to have_received(:wait2).with(12_345)
+        end
+      end
+    end
+
     context 'when the timeout fires after the subprocess was already reaped' do
       # Simulates the race where Timeout::Error is delivered after Process.wait2
       # has reaped the subprocess but before the timed block returns. The window

@@ -872,6 +872,50 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
     end
   end
 
+  describe '#destination_failed?' do
+    subject { monitored_pipe.destination_failed? }
+
+    after { monitored_pipe.close }
+
+    context 'when the destination has taken every write' do
+      before do
+        monitored_pipe.write('Hello World')
+        wait_until { output_writer.string == 'Hello World' }
+      end
+
+      it { is_expected.to eq(false) }
+    end
+
+    context 'when the destination raised on a write' do
+      let(:destination) do
+        Object.new.tap { |unwritable| def unwritable.write(_data) = raise(EOFError, 'write failed') }
+      end
+
+      before do
+        monitored_pipe.write('Hello World')
+        wait_until { monitored_pipe.exception }
+      end
+
+      it { is_expected.to eq(true) }
+    end
+
+    context 'when the monitoring thread reads end-of-file because the write end went away' do
+      let(:null_device) { File.open(File::NULL, 'wb') }
+
+      before do
+        monitored_pipe.pipe_writer.reopen(null_device)
+        wait_until { monitored_pipe.exception }
+      end
+
+      after { null_device.close }
+
+      it 'is expected to record the EOFError without counting it against the destination' do
+        expect(monitored_pipe.exception).to be_a(EOFError)
+        expect(monitored_pipe.destination_failed?).to eq(false)
+      end
+    end
+  end
+
   describe '#to_io' do
     subject { monitored_pipe.to_io }
     after { monitored_pipe.close }

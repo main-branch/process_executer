@@ -662,6 +662,31 @@ RSpec.describe ProcessExecuter do
             writer.join
             findings['writer_errors'] = writer_errors
             failures.last
+          when 'killed_while_a_leaking_spawn_fails'
+            # The kill is asked for while Process.spawn builds the environment
+            # and is deferred until the leak from the failed spawn is undone
+            entered = Queue.new
+            release = Queue.new
+            blocker = Thread.new { Dir.chdir(dir) { entered << true and release.pop } }
+            entered.pop
+            value = Object.new
+            value.define_singleton_method(:to_str) do
+              caller_thread = Thread.current
+              Thread.new { caller_thread.kill }.join
+              'value'
+            end
+            runner = Thread.new do
+              ProcessExecuter.run_with_capture({ 'VAR' => value }, 'cmd /c echo hi', chdir: missing_dir)
+            end
+            runner.report_on_exception = false
+            begin
+              runner.join
+              nil
+            rescue StandardError => e
+              e
+            ensure
+              release << true and blocker.join
+            end
           when 'interrupted_while_spawning'
             # Process.spawn calls #to_str on the env value while it builds the
             # subprocess's environment. Raising into the caller from there puts
@@ -732,6 +757,16 @@ RSpec.describe ProcessExecuter do
 
         it 'raises no error in the writing thread' do
           expect(findings).to include('error' => 'ProcessExecuter::SpawnError', 'writer_errors' => {})
+        end
+      end
+
+      context 'when the calling thread is killed while a spawn that leaks stdout and stderr fails' do
+        let(:scenario) { 'killed_while_a_leaking_spawn_fails' }
+
+        it 'ends the thread without an error and points stdout and stderr back' do
+          expect(findings).to include(
+            'error' => 'NilClass', 'stdout' => include('MARK-OUT'), 'stderr' => include('MARK-ERR')
+          )
         end
       end
 
