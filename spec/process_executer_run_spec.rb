@@ -973,13 +973,14 @@ RSpec.describe ProcessExecuter do
         end
 
         context 'when run with MRI on Windows', if: mri? && windows? do
-          # For Windoes MRI, when ProcessExecuter.run is given bad path for the
-          # `chdir:` option, the test hangs when Process.spawn is called.
+          # This example was skipped as a hang. Before MonitoredPipe#close was
+          # bounded it did hang; afterward it passed in 10 seconds and silenced
+          # the rest of the run. The failed spawn left fd 1 and fd 2 of this
+          # process pointed at the write ends of the MonitoredPipes (Ruby Bug
+          # #22540, https://bugs.ruby-lang.org/issues/22540), so the pipes never
+          # reached end-of-file and everything rspec printed went into them.
 
-          # This only happens when out or err is redirected and wrapped in a
-          # MonitoredPipe.
-
-          it 'is expected to raise an error', skip: 'this test hangs, see comment' do
+          it 'is expected to raise an error' do
             # :nocov: execution of this code is platform dependent
             expect { subject }.to raise_error(ProcessExecuter::SpawnError)
             # :nocov:
