@@ -5,6 +5,18 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.2](https://github.com/main-branch/process_executer/compare/v4.1.1...v4.1.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* Stop a missing chdir: from breaking the caller's stdout and stderr on Windows MRI ([eed3773](https://github.com/main-branch/process_executer/commit/eed377302ee68cb6706012cb1530ac2d56dc588a)), closes [#204](https://github.com/main-branch/process_executer/issues/204)
+
+
+### Other Changes
+
+* Show that a bad chdir: on Windows MRI breaks the caller's stdout and stderr ([932e31b](https://github.com/main-branch/process_executer/commit/932e31bf98a23fe937c59dc0357f1260693765b7)), closes [#204](https://github.com/main-branch/process_executer/issues/204)
+
 ## [4.1.1](https://github.com/main-branch/process_executer/compare/v4.1.0...v4.1.1) (2026-08-31)
 
 
