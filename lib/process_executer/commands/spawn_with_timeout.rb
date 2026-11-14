@@ -47,14 +47,7 @@ module ProcessExecuter
       # @return [ProcessExecuter::Result] The result of the completed subprocess
       #
       def call
-        begin
-          @effective_spawn_options = spawn_options
-          check_chdir if windows_mri?
-          @pid = Process.spawn(*command, **effective_spawn_options)
-        rescue StandardError => e
-          raise ProcessExecuter::SpawnError, "Failed to spawn process: #{e.message}"
-        end
-
+        spawn_and_handle_errors
         wait_for_process
       end
 
@@ -182,6 +175,54 @@ module ProcessExecuter
         windows? ? { new_pgroup: true } : { pgroup: true }
       end
 
+      # Spawn the subprocess, sorting a spawn failure from a later interruption
+      #
+      # An error raised before the subprocess exists is a spawn failure and is
+      # reported as a {ProcessExecuter::SpawnError}.
+      #
+      # An exception that arrives once {#pid} is set was not raised by the
+      # spawn: the subprocess is running and another thread raised into this
+      # one (`Thread#raise`, which `Timeout.timeout` also uses). It is treated
+      # as an abandoned wait -- {#kill_and_reap_abandoned_subprocess}, then the
+      # exception propagates as it is -- so the caller is never told that
+      # nothing ran when something did. {Run} makes this case likely on
+      # Windows MRI, where it defers such exceptions for the length of the
+      # spawn (see {StandardStreamGuard}).
+      #
+      # The cleanup is in an `ensure`, not a `rescue`, because the caller can
+      # also be unwound by a `throw`, which no `rescue` sees: `Timeout.timeout`
+      # with no exception class unwinds that way on Ruby 3.1 and 3.2.
+      #
+      # @return [void]
+      #
+      # @raise [ProcessExecuter::SpawnError] `Process.spawn` raised an error
+      #   before the command was run
+      #
+      def spawn_and_handle_errors
+        @pid = nil
+        @effective_spawn_options = spawn_options
+        spawn_subprocess
+        spawn_completed = true
+      rescue StandardError => e
+        raise(pid ? e : ProcessExecuter::SpawnError.new("Failed to spawn process: #{e.message}"))
+      ensure
+        kill_and_reap_abandoned_subprocess if pid && !spawn_completed
+      end
+
+      # Spawn the subprocess and record its pid
+      #
+      # The pid is recorded here, in the same step as the spawn, so that a
+      # subclass that wraps this method in `Thread.handle_interrupt` has the
+      # pid on record before a deferred exception is delivered. Subclasses may
+      # override this method to wrap the spawn.
+      #
+      # @return [Integer] the pid of the subprocess
+      #
+      def spawn_subprocess
+        check_chdir if windows_mri?
+        @pid = Process.spawn(*command, **effective_spawn_options)
+      end
+
       # Whether this is MRI on Windows
       #
       # @return [Boolean]
@@ -196,9 +237,7 @@ module ProcessExecuter
       # #22540](https://bugs.ruby-lang.org/issues/22540). On Windows, MRI
       # applies env, umask, and redirections to this process before it changes
       # directory and doesn't undo them when the change fails, so a bad
-      # directory must not reach `Process.spawn`. {Run} redirects stdout and
-      # stderr to its own pipes, so there such a failure leaves the caller
-      # writing into pipes nobody reads.
+      # directory must not reach `Process.spawn`.
       #
       # `File.directory?` answers for an ordinary directory with no side
       # effects. It can't be the whole check: it says no to paths `Process.spawn`
@@ -209,8 +248,8 @@ module ProcessExecuter
       # `chdir:` does.
       #
       # What the check does not catch, each of which fails at `Process.spawn`
-      # as it would without the check, and still leaks (tracked in [issue
-      # 211](https://github.com/main-branch/process_executer/issues/211)):
+      # as it would without the check ({Run} then repairs stdout and stderr,
+      # see {StandardStreamGuard}):
       #
       # * a directory the process can't enter, which passes `File.directory?`
       # * a directory removed between the check and the spawn
