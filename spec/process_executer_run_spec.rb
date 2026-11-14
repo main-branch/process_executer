@@ -942,8 +942,11 @@ RSpec.describe ProcessExecuter do
 
       context 'when something is output to stdout', if: !windows? do
         # On Windows, closing stdout and then writing to it does not raise an error
+        # The shell's builtin echo, not the echo program: a program need not
+        # fail on a write to a closed stdout, and the echo in Ubuntu 26.04
+        # exits 0
         it 'should raise a ProcessExecuter::FailedError' do
-          command = %w[echo hello]
+          command = ['sh', '-c', 'echo hello']
           options = { out: :close, err: :close }
           expect { ProcessExecuter.run(*command, **options) }.to raise_error(ProcessExecuter::FailedError)
         end
