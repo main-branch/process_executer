@@ -12,7 +12,8 @@ env:
   JRUBY_OPTS: --debug
 
 # Tested platforms / Ruby versions:
-#  - Ubuntu: MRI (3.1, 3.4, 4.0), TruffleRuby (24), JRuby (9.4), JRuby (10.0)
+#  - Ubuntu: MRI (3.1, 3.4, 4.0), JRuby (9.4), JRuby (10.0)
+#  - Ubuntu 24.04: TruffleRuby (24)
 #  - Windows: MRI (3.1)
 
 jobs:
@@ -39,8 +40,11 @@ jobs:
           - ruby: "jruby-10.0"
             operating-system: ubuntu-latest
             java_version: "21"
+          # TruffleRuby 24 has no build for ubuntu-26.04, which ubuntu-latest now
+          # selects. Go back to ubuntu-latest when this moves to a TruffleRuby
+          # that has one (33.0.1 or later).
           - ruby: "truffleruby-24"
-            operating-system: ubuntu-latest
+            operating-system: ubuntu-24.04
 
     steps:
       - name: Checkout
