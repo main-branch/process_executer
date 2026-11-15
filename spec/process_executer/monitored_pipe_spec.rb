@@ -892,7 +892,12 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
       end
 
       before do
-        monitored_pipe.write('Hello World')
+        begin
+          monitored_pipe.write('Hello World')
+        rescue IOError
+          # The monitoring thread hit the destination error and closed the pipe
+          # while the write was still in progress; a documented #write outcome.
+        end
         wait_until { monitored_pipe.exception }
       end
 
