@@ -4,6 +4,7 @@ require 'English'
 
 require_relative '../errors'
 require_relative 'spawn_with_timeout'
+require_relative 'standard_stream_guard'
 
 module ProcessExecuter
   module Commands
@@ -60,6 +61,7 @@ module ProcessExecuter
       #
       def call
         @opened_pipes = {}
+        @standard_stream_guard = nil
         @redirection_overrides = internal_redirections
         wrap_stdout_stderr
         super.tap do
@@ -122,6 +124,32 @@ module ProcessExecuter
       #
       def spawn_options = super.merge(redirection_overrides)
 
+      # Spawn the subprocess, undoing a stdout or stderr leak this class caused
+      #
+      # On Windows, MRI points this process's stdout and stderr at the
+      # redirection targets before it spawns and doesn't point them back when
+      # a later option fails, which is [Ruby Bug
+      # #22540](https://bugs.ruby-lang.org/issues/22540). When the targets are
+      # this class's pipes, the caller would be left writing into pipes nobody
+      # reads, so the spawn runs inside a {StandardStreamGuard}. A call that
+      # attached no pipe -- no `out:` or `err:`, or only `[:child, fd]` and
+      # `:close` destinations -- spawns unguarded and fails as `Process.spawn`
+      # fails.
+      #
+      # Remove this override with {StandardStreamGuard}; the condition is in
+      # that class's comment.
+      #
+      # @return [Integer] the pid of the subprocess
+      #
+      def spawn_subprocess
+        return super unless windows_mri? && !opened_pipes.empty?
+
+        # :nocov: runs only on Windows MRI
+        @standard_stream_guard = StandardStreamGuard.new(opened_pipes)
+        @standard_stream_guard.call { super }
+        # :nocov:
+      end
+
       # Wrap the stdout and stderr redirection options with a MonitoredPipe
       #
       # Each wrapper pipe is recorded in two collections with different roles:
@@ -158,6 +186,11 @@ module ProcessExecuter
       # and that exception (not a pipe destination error or a pipe cleanup
       # error) must be the one the caller sees, so nothing is raised here.
       #
+      # Nothing is raised either when the standard stream guard closed the
+      # pipes: the spawn did not return, so `#call` is being unwound even when
+      # no exception is in flight (a `throw` or `Thread#kill`), and what the
+      # pipes hold is what the guard's leak check left in them.
+      #
       # @param in_flight_error [Exception, nil] the exception `#call` is unwinding from, if any
       #
       # @raise [ProcessExecuter::ProcessIOError] if a pipe recorded a destination
@@ -169,7 +202,7 @@ module ProcessExecuter
       #
       def close_pipes_and_check_errors(in_flight_error)
         close_error = close_pipes
-        return if in_flight_error
+        return if in_flight_error || @standard_stream_guard&.pipes_closed?
 
         opened_pipes.each do |option_key, pipe|
           raise_pipe_error(option_key, pipe)
@@ -190,9 +223,14 @@ module ProcessExecuter
       # whose drain is cut short by the deadline records it via
       # {MonitoredPipe#truncated?}.
       #
+      # Does nothing when a {StandardStreamGuard} already closed every pipe
+      # while checking a failed spawn for a leak.
+      #
       # @return [StandardError, nil] the first error raised while closing, or nil if none was raised
       #
       def close_pipes
+        return nil if @standard_stream_guard&.pipes_closed?
+
         first_close_error = nil
         deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + MonitoredPipe::DEFAULT_CLOSE_TIMEOUT
         opened_pipes.each_value do |pipe|

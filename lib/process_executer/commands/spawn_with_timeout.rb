@@ -185,7 +185,9 @@ module ProcessExecuter
       # one (`Thread#raise`, which `Timeout.timeout` also uses). It is treated
       # as an abandoned wait -- {#kill_and_reap_abandoned_subprocess}, then the
       # exception propagates as it is -- so the caller is never told that
-      # nothing ran when something did.
+      # nothing ran when something did. {Run} makes this case likely on
+      # Windows MRI, where it defers such exceptions for the length of the
+      # spawn (see {StandardStreamGuard}).
       #
       # The cleanup is in an `ensure`, not a `rescue`, because the caller can
       # also be unwound by a `throw`, which no `rescue` sees: `Timeout.timeout`
@@ -235,9 +237,7 @@ module ProcessExecuter
       # #22540](https://bugs.ruby-lang.org/issues/22540). On Windows, MRI
       # applies env, umask, and redirections to this process before it changes
       # directory and doesn't undo them when the change fails, so a bad
-      # directory must not reach `Process.spawn`. {Run} redirects stdout and
-      # stderr to its own pipes, so there such a failure leaves the caller
-      # writing into pipes nobody reads.
+      # directory must not reach `Process.spawn`.
       #
       # `File.directory?` answers for an ordinary directory with no side
       # effects. It can't be the whole check: it says no to paths `Process.spawn`
@@ -248,8 +248,8 @@ module ProcessExecuter
       # `chdir:` does.
       #
       # What the check does not catch, each of which fails at `Process.spawn`
-      # as it would without the check, and still leaks (tracked in [issue
-      # 211](https://github.com/main-branch/process_executer/issues/211)):
+      # as it would without the check ({Run} then repairs stdout and stderr,
+      # see {StandardStreamGuard}):
       #
       # * a directory the process can't enter, which passes `File.directory?`
       # * a directory removed between the check and the spawn

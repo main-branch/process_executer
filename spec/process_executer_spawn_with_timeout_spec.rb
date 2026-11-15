@@ -296,10 +296,11 @@ RSpec.describe ProcessExecuter do
     end
 
     context 'when an exception is raised into the caller once the subprocess is spawned' do
-      # Another thread can raise into the caller (Thread#raise, which
-      # Timeout.timeout also uses) just after Process.spawn has returned a
-      # pid. The subclass here raises at that point. The subprocess is
-      # running, so the exception is not a spawn failure.
+      # A subclass that defers Thread#raise for the length of the spawn (as
+      # Commands::Run does on Windows MRI) has the deferred exception
+      # delivered after Process.spawn has returned a pid. The subclass here
+      # raises at that point. The subprocess is running, so the exception is
+      # not a spawn failure.
       let(:interrupting_subclass) do
         interruption = self.interruption
         Class.new(ProcessExecuter::Commands::SpawnWithTimeout) do
