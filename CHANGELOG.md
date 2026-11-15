@@ -5,6 +5,24 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.2](https://github.com/main-branch/process_executer/compare/v4.1.1...v4.1.2) (2026-11-15)
+
+
+### Bug Fixes
+
+* Don't report SpawnError or leave the subprocess running when interrupted just after the spawn ([0941723](https://github.com/main-branch/process_executer/commit/09417234a869f4027b6904df863c380500daae44))
+* Point the caller's stdout and stderr back when a failed spawn on Windows MRI redirects them ([590014f](https://github.com/main-branch/process_executer/commit/590014f6140108b3b51d2e05f0f49e1767605e28)), closes [#211](https://github.com/main-branch/process_executer/issues/211)
+* Stop a missing chdir: from breaking the caller's stdout and stderr on Windows MRI ([eed3773](https://github.com/main-branch/process_executer/commit/eed377302ee68cb6706012cb1530ac2d56dc588a)), closes [#204](https://github.com/main-branch/process_executer/issues/204)
+
+
+### Other Changes
+
+* Run the TruffleRuby 24 job on ubuntu-24.04, the newest image it has a build for ([83e3576](https://github.com/main-branch/process_executer/commit/83e357602ed6d54fa679b532b266e515be23fc94))
+* Show that a bad chdir: on Windows MRI breaks the caller's stdout and stderr ([932e31b](https://github.com/main-branch/process_executer/commit/932e31bf98a23fe937c59dc0357f1260693765b7)), closes [#204](https://github.com/main-branch/process_executer/issues/204)
+* Show that a chdir: failure the check can't see still breaks stdout and stderr on Windows MRI ([7e4e2a9](https://github.com/main-branch/process_executer/commit/7e4e2a94c2055930000e9278ad64380fb5a623bf)), closes [#211](https://github.com/main-branch/process_executer/issues/211)
+* Show that an exception raised into the caller just after the spawn is reported as SpawnError ([5bb4799](https://github.com/main-branch/process_executer/commit/5bb4799f61a8a30f5c88fd84b22ae455b3eb55bd))
+* Write to a closed stdout with the shell's echo so the example passes on Ubuntu 26.04 ([1bb0f77](https://github.com/main-branch/process_executer/commit/1bb0f77a655618df319d8866972bda0182ac3641))
+
 ## [4.1.1](https://github.com/main-branch/process_executer/compare/v4.1.0...v4.1.1) (2026-08-31)
 
 
