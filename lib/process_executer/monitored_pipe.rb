@@ -386,6 +386,25 @@ module ProcessExecuter
     #
     def truncated? = @truncated
 
+    # Whether the destination's `#write` raised
+    #
+    # {#exception} can't answer this: it also holds errors from the monitor
+    # loop and from pipe cleanup, and the loop records an `EOFError` of its
+    # own when the pipe's write end is closed or reopened from outside, the
+    # same class a destination may raise.
+    #
+    # @example
+    #   data_collector = StringIO.new
+    #   pipe = ProcessExecuter::MonitoredPipe.new(data_collector)
+    #   pipe.close
+    #   pipe.destination_failed? #=> false
+    #
+    # @return [Boolean]
+    #
+    # @api private
+    #
+    def destination_failed? = @destination_failed
+
     # @!attribute [r]
     #
     # The thread that monitors the pipe
@@ -502,6 +521,7 @@ module ProcessExecuter
 
       @state = :open
       @truncated = false
+      @destination_failed = false
       @thread = start_monitoring_thread
 
       self.class.add_open_instance(self)
@@ -694,6 +714,7 @@ module ProcessExecuter
     rescue Exception => e # rubocop:disable Lint/RescueException
       mutex.synchronize do
         @exception = e
+        @destination_failed = true
         @state = :closing
       end
     end
