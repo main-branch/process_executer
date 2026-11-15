@@ -681,6 +681,43 @@ RSpec.describe ProcessExecuter::MonitoredPipe do
   end
 
   describe '#close' do
+    context 'when a close was unwound after it set the state and before it woke the monitoring thread' do
+      # What a signal handler that raises does when it lands between those two
+      # steps. A copy of the write end is held open, as a leaked descriptor or
+      # a descendant process would hold it, so the pipe can't reach end-of-file
+      # and only the wake byte can end the monitoring thread's wait.
+      let(:interruption) { Class.new(StandardError).new('interrupted') }
+      let(:held_write_end) { monitored_pipe.pipe_writer.dup }
+
+      before do
+        held_write_end
+        # The monitoring thread must already be waiting for pipe data: one that
+        # has not got that far sees the new state without being woken
+        wait_until { monitored_pipe.thread.status == 'sleep' }
+        interruption = self.interruption
+        unwound = false
+        allow(monitored_pipe.wake_writer).to receive(:write).and_wrap_original do |original, *args|
+          next original.call(*args) if unwound
+
+          unwound = true
+          raise interruption
+        end
+        expect { monitored_pipe.close(timeout: 0) }.to raise_error(interruption)
+      end
+
+      after do
+        held_write_end.close
+        force_close(monitored_pipe, *closer)
+      end
+
+      let(:closer) { [Thread.new { monitored_pipe.close(timeout: 0) }] }
+
+      it 'should close the pipe when close is called again' do
+        expect(closer.first.join(5)).to eq(closer.first)
+        expect(monitored_pipe).to have_attributes(state: :closed, truncated?: true)
+      end
+    end
+
     it 'should eventually kill the thread' do
       monitored_pipe.close
 
