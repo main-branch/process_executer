@@ -543,6 +543,7 @@ module ProcessExecuter
       # The wake pipe lets #close interrupt the monitoring thread, which
       # otherwise blocks in IO.select waiting for pipe data (see #monitor_pipe)
       @wake_reader, @wake_writer = IO.pipe
+      @woken = false
     end
 
     # Transition the state from `:open` to `:closing` and wait for `:closed`
@@ -550,7 +551,15 @@ module ProcessExecuter
     # Implements the state-changing half of {#close}: under the mutex, record
     # the close deadline, set the state to `:closing`, wake the monitoring
     # thread, and wait for it to signal that the state reached `:closed`. A
-    # pipe that is not `:open` (already closing or closed) is left alone.
+    # pipe that is already `:closed` is left alone.
+    #
+    # A pipe found `:closing` was left that way by a close that has not
+    # finished: one still in progress on another thread, or one unwound by an
+    # exception raised into its caller, as a signal handler that raises can
+    # do. The second kind may have been unwound before it woke the monitoring
+    # thread, which would then sleep until the pipe reached end-of-file. So
+    # the wake is sent if it has not been, and {#close} goes on to join the
+    # thread. The deadline the first close set still applies.
     #
     # @param timeout [Numeric, nil] seconds to spend draining remaining pipe
     #   data (see {#close}), or `nil` for no time limit
@@ -558,22 +567,36 @@ module ProcessExecuter
     # @api private
     def initiate_close_and_wait_until_closed(timeout)
       mutex.synchronize do
+        wake_monitoring_thread if state == :closing
         break unless state == :open
 
         @close_deadline = timeout ? Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout : nil
         @state = :closing
-
-        # The wake pipe is written at most once in its life: here, on the
-        # :open -> :closing transition. It is a one-shot signal, not a reusable
-        # channel, so the monitoring thread never needs to drain it (its loop
-        # never continues past this wakeup). The write needs no rescue: the
-        # monitoring thread closes the wake fds only after it publishes
-        # `@state = :closed` under this same mutex, so while this thread holds
-        # the mutex having observed :open, the wake fds are still open.
-        wake_writer.write('.')
+        wake_monitoring_thread
 
         condition_variable.wait(mutex) while @state != :closed
       end
+    end
+
+    # Wake the monitoring thread from its wait for pipe data, once
+    #
+    # The wake pipe is a one-shot signal, not a reusable channel, so the
+    # monitoring thread never needs to drain it (its loop never continues past
+    # this wakeup). The flag is set after the write: a caller unwound between
+    # the two writes a second byte the next time, which nothing reads.
+    #
+    # Call with the mutex held and the state `:closing`. The write then needs
+    # no rescue: the monitoring thread closes the wake fds only after it
+    # publishes `@state = :closed` under the same mutex, so they are still
+    # open.
+    #
+    # @return [void]
+    # @api private
+    def wake_monitoring_thread
+      return if @woken
+
+      wake_writer.write('.')
+      @woken = true
     end
 
     # Raise an error if the destination is not compatible with MonitoredPipe
