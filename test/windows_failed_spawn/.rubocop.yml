@@ -1,0 +1,16 @@
+inherit_from: ../../.rubocop.yml
+
+# These are hand-run scripts, each one top-level procedure that prints a line of results. The
+# cops below fit library code and would have them restructured for no gain.
+Layout/LineLength:
+  Max: 180
+Lint/RescueException:
+  Enabled: false
+Metrics:
+  Enabled: false
+Style/GlobalStdStream:
+  Enabled: false
+Style/GlobalVars:
+  Enabled: false
+Style/FormatStringToken:
+  Enabled: false
