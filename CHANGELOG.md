@@ -5,6 +5,20 @@ All notable changes to the process_executer gem will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.3](https://github.com/main-branch/process_executer/compare/v4.1.2...v4.1.3) (2026-11-16)
+
+
+### Bug Fixes
+
+* Finish a MonitoredPipe close that was unwound before it woke the monitoring thread ([53f853e](https://github.com/main-branch/process_executer/commit/53f853ead4f31c3eaecfba08052ae9765cfe859c)), closes [#218](https://github.com/main-branch/process_executer/issues/218)
+
+
+### Other Changes
+
+* Add the Windows hand-run scripts for the failed-spawn workarounds ([e5303d0](https://github.com/main-branch/process_executer/commit/e5303d0035e66aa05c68d35e643c89aed70ce203))
+* Show that a close unwound before it wakes the monitoring thread can't be finished ([b957978](https://github.com/main-branch/process_executer/commit/b95797826cc5ef2f080c122cb307f5bde9fccec4))
+* Stop the destination_failed? example failing when the pipe closes during its write ([d8a55bb](https://github.com/main-branch/process_executer/commit/d8a55bbb0f2d4e27267fc88bab0c01e265af1c43))
+
 ## [4.1.2](https://github.com/main-branch/process_executer/compare/v4.1.1...v4.1.2) (2026-11-15)
 
 

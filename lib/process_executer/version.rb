@@ -3,5 +3,5 @@
 module ProcessExecuter
   # The current Gem version
   # @return [String]
-  VERSION = '4.1.2'
+  VERSION = '4.1.3'
 end
